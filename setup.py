@@ -23,7 +23,6 @@ kw = {'version':'0.9',
       
       'install_requires':required,
       'packages':['ade', 'ade.test'],
-      },
       
       'zip_safe':False,
 }

@@ -37,11 +37,11 @@ import numpy as np
 
 from twisted.internet import defer, reactor
 
-from pingspice.ade.util import *
-from pingspice.ade.population import Population
-from pingspice.ade import de
+from ade.util import *
+from ade.population import Population
+from ade import de
 
-from pingspice.test import testbase as tb
+from ade.test import testbase as tb
 
 
 # If verbose
@@ -177,7 +177,7 @@ class TestDifferentialEvolution(tb.TestCase):
     def test_challenge(self):
         Np = 100; Nd = 5
         yield self.makeDE(Np, Nd)
-        from pingspice.ade import individual
+        from ade import individual
         for k in (10,11):
             i = individual.Individual(self.p, np.zeros(Nd))
             i.SSE = 0.00001*k

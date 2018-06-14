@@ -37,10 +37,10 @@ import numpy as np
 
 from twisted.internet import defer, reactor
 
-from pingspice.ade.util import *
-from pingspice.ade import individual
+from ade.util import *
+from ade import individual
 
-from pingspice.test import testbase as tb
+from ade.test import testbase as tb
 
 
 # If verbose

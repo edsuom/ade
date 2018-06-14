@@ -39,11 +39,11 @@ from matplotlib import pyplot as plt
 
 from twisted.internet import defer, reactor
 
-from pingspice.ade.util import *
-from pingspice.ade import population
-from pingspice.ade.individual import Individual
+from ade.util import *
+from ade import population
+from ade.individual import Individual
 
-from pingspice.test import testbase as tb
+from ade.test import testbase as tb
 
 
 class TestConstraintChecking(tb.TestCase):
