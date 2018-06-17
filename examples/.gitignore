@@ -1,0 +1,4 @@
+# Stuff to have git ignore in ade examples directory
+
+# Compiled executables
+goldstein-price

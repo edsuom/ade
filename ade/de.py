@@ -191,7 +191,7 @@ class FManager(object):
 class DifferentialEvolution(object):
     """
     I perform asynchronous differential evolution, employing your
-    multiple CPU cores and a very cool efficient way that does not
+    multiple CPU cores in a very cool efficient way that does not
     change anything about the actual operations done in the DE
     algorithm. The very same target selection, mutation, scaling, and
     recombination (crossover) will be done for a sequence of each
@@ -203,11 +203,13 @@ class DifferentialEvolution(object):
     time the asynchronous processing will find a target it can work on
     without disturbing the operation sequence.
 
-    Construct me with a sequence of I{bounds} that each define the
-    lower and upper limits of my parameters, a callable I{func} that
-    accepts a 1-D Numpy array of values within those limits and of the
-    same length as the sequence of bounds and returns a fitness metric
-    where lower values indicate better fitness.
+    Construct me with a L{population.Population} instance and any
+    keywords that set my runtime configuration different than my
+    default I{attributes}. The Population object will need to be
+    initialized with a population of L{individual.Individual} objects
+    that can be evaluated according to the population object's
+    evaluation function, which must return a fitness metric where
+    lower values indicate better fitness.
     """
     attributes = {
         'CR':           0.8,
