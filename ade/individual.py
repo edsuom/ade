@@ -1,12 +1,11 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 #
-# pingspice:
-# Object-oriented circuit construction and efficient asynchronous
-# simulation with Ngspice and twisted.
+# ade:
+# Asynchronous Differential Evolution.
 #
-# Copyright (C) 2017 by Edwin A. Suominen,
-# http://edsuom.com/pingspice
+# Copyright (C) 2018 by Edwin A. Suominen,
+# http://edsuom.com/ade
 #
 # See edsuom.com for API documentation as well as information about
 # Ed's background and other projects, software and otherwise.
@@ -25,11 +24,8 @@
 
 
 """
-Part of the B{pingspice} (easier to type out than "PyNgspice")
-package by Edwin A. Suominen.
-
-References with "§" are to subsections of the Ngspice manual, Version
-26, by Paolo Nenzi and Holger Vogt.
+An Individual class for parameter combinations that occupy a
+Population and get evaluated.
 """
 
 import random
