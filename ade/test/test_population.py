@@ -75,7 +75,7 @@ class TestConstraintChecking(tb.TestCase):
 class TestParameterManager(tb.TestCase):
     N_trials = 100000
 
-    verbose = True
+    verbose = False
 
     def setUp(self):
         self.pm = population.ParameterManager([], [])
@@ -100,8 +100,15 @@ class TestParameterManager(tb.TestCase):
         #plt.xticks(range(0, 3, 12), fontsize=14)
         plt.grid()
         for k, count in enumerate(counts):
-            print sub(
-                "{:3d}  {:4.2f}-{:4.2f}  {:f}", k, bins[k], bins[k+1], count)
+            if self.verbose:
+                print sub(
+                    "{:3d}  {:4.2f}-{:4.2f}  {:f}",
+                    k, bins[k], bins[k+1], count)
+                if bins[k+1] < 1 or bins[k] > 2:
+                    self.assertEqual(count, 0)
+                else:
+                    self.assertGreater(count, 2900)
+                    self.assertLess(count, 3100)
         if self.verbose:
             plt.show()
 
@@ -179,9 +186,10 @@ class TestReporter(tb.TestCase):
     def test_msgRatio(self):
         fh = StringIO()
         msg(fh)
-        iPrev = yield self.p.spawn(np.array([1.005E-3, 1.005E-3])).evaluate()
+        iPrev = yield self.p.spawn(np.array([1.001E-3, 1.001E-3])).evaluate()
         expectedRatios = [0, 2, 17, 3]
         for k, x in enumerate((1E-3, 5E-4, 3E-5, 1E-5)):
+            # Closer to (0,0), thus lower SSE
             i = yield self.p.spawn(np.array([x, x])).evaluate()
             ratio = self.r.msgRatio(iPrev, i)
             self.assertAlmostEqual(ratio, expectedRatios[k])
@@ -218,9 +226,10 @@ class TestReporter(tb.TestCase):
         
 class TestPopulation(tb.TestCase):
     Np = 20
+
+    verbose = False
     
     def setUp(self):
-        self.Np = 20
         self.p = population.Population(
             tb.ackley, ["x", "y"], [(-5, 5), (-5, 5)], popsize=self.Np)
 
@@ -229,48 +238,56 @@ class TestPopulation(tb.TestCase):
 
     def test_setup(self):
         def done(null):
-            self.assertEqual(len(self.p), self.Np)
-            self.plot(self)
+            self.assertEqual(len(self.p), 2*self.Np)
+            if self.verbose:
+                self.plot(self)
+            for k in (0, 1):
+                values = [i.values[k] for i in self.p]
+                self.assertGreater(min(values), -5)
+                self.assertLess(max(values), 5)
         return self.p.setup().addCallback(done)
         
     def test_setup_constrained(self):
         def done(null):
-            self.assertEqual(len(self.p), self.Np)
+            self.assertEqual(len(self.p), 2*self.Np)
             for i in self.p:
                 self.assertTrue(np.all(i.values > 0))
-            self.plot(self)
+            if self.verbose:
+                self.plot(self)
         self.p = population.Population(
             tb.ackley, ["x", "y"], [(-5, 5), (-5, 5)],
-            constraints=self.positiveOnly, popsize=10)
+            constraints=self.positiveOnly, popsize=self.Np)
         return self.p.setup().addCallback(done)
 
     def test_setup_constrained_uniform(self):
         def done(null):
-            self.assertEqual(len(self.p), self.Np)
+            self.assertEqual(len(self.p), 2*self.Np)
             for i in self.p:
                 self.assertTrue(np.all(i.values > 0))
-            self.plot(self)
+            if self.verbose:
+                self.plot(self)
         self.p = population.Population(
             tb.ackley, ["x", "y"], [(-5, 5), (-5, 5)],
-            constraints=self.positiveOnly, popsize=10)
+            constraints=self.positiveOnly, popsize=self.Np)
         return self.p.setup(uniform=True).addCallback(done)
 
     def test_replacement(self):
         self.assertTrue(self.p.replacement())
         self.assertEqual(self.p.replacementScore, 0)
         self.assertFalse(self.p.replacement())
-        self.assertAlmostEqual(self.p.statusQuoScore, 2*self.Np*4.0/100)
+        self.assertAlmostEqual(self.p.statusQuoScore, self.p.Np*5.0/100)
         self.p.replacement(0)
         self.assertEqual(self.p.replacementScore, 0)
         self.assertFalse(self.p.replacement())
         self.p.replacement(1)
-        self.assertEqual(self.p.replacementScore, 1)
+        self.assertEqual(self.p.replacementScore, 0.25)
         self.assertFalse(self.p.replacement())
         self.p.replacement(2)
-        self.assertEqual(self.p.replacementScore, 2)
-        self.assertTrue(self.p.replacement())
-        self.p.replacement(1)
-        self.p.replacement(1)
+        self.assertEqual(self.p.replacementScore, 1.25)
+        self.assertFalse(self.p.replacement())
+        self.p.replacement(2)
+        self.p.replacement(2)
+        self.assertEqual(self.p.replacementScore, 2.5)
         self.assertTrue(self.p.replacement())
         
     @defer.inlineCallbacks
@@ -286,6 +303,7 @@ class TestPopulation(tb.TestCase):
 
     @defer.inlineCallbacks
     def test_push_and_best(self):
+        SSE_prev = np.inf
         yield self.p.setup()
         for i in self.p:
             i.SSE = np.inf
@@ -295,8 +313,11 @@ class TestPopulation(tb.TestCase):
             iBest = self.p.best()
             if i < iBest:
                 self.p.push(i)
-                print k, i.SSE
+                if self.verbose:
+                    print k, i.SSE
             self.assertTrue(i.SSE <= self.p.iSorted[-1].SSE)
+            self.assertTrue(iBest.SSE <= SSE_prev)
+            SSE_prev = i.SSE
     
     @defer.inlineCallbacks
     def test_lock(self):

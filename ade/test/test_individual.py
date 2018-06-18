@@ -54,9 +54,12 @@ class TestIndividual(tb.TestCase):
         bounds = [(-5, 5), (-5, 5)]
         self.p = tb.MockPopulation(tb.ackley, bounds, ["x", "y"])
 
+    def spawn(self, values=None):
+        return individual.Individual(self.p, values)
+        
     def test_init_with_values(self):
         values = np.array([0.5, 0.5])
-        i = individual.Individual(self.p, values)
+        i = self.spawn(values)
         i.SSE = 123.456
         self.assertItemsAlmostEqual(list(i), [0.5, 0.5])
         text = repr(i)
@@ -65,13 +68,13 @@ class TestIndividual(tb.TestCase):
             print text
         
     def test_getAndSet(self):
-        i = individual.Individual(self.p)
+        i = self.spawn()
         i[1] = 3.14
         self.assertEqual(i[1], 3.14)
 
     def test_iterate(self):
         values = [10, 20]
-        i = individual.Individual(self.p)
+        i = self.spawn()
         for k, x in enumerate(values):
             i[k] = x
         count = 0
@@ -81,36 +84,28 @@ class TestIndividual(tb.TestCase):
         self.assertEqual(count, 2)
         
     def test_subtract(self):
-        i = individual.Individual(self.p, 0.5*np.ones(2))
+        i = self.spawn(0.5*np.ones(2))
         iDiff = i - i
-        self.assertEqual(iDiff, np.zeros(2))
+        self.assertEqual(iDiff, self.spawn(np.zeros(2)))
         iDiff = i - iDiff
         self.assertEqual(iDiff, i)
         
     def test_add(self):
-        i = individual.Individual(self.p, 0.5*np.ones(2))
+        i = self.spawn(0.5*np.ones(2))
         iSum = i + i
-        self.assertEqual(iSum, np.ones(2))
+        self.assertEqual(iSum, self.spawn(np.ones(2)))
         
     def test_multiply(self):
-        i = individual.Individual(self.p, 0.5*np.ones(2))
-        self.assertEqual(i * 0, [0, 0])
-        i = individual.Individual(self.p, 0.5*np.ones(2))
-        self.assertEqual(i * 1, [0.5, 0.5])
-        i = individual.Individual(self.p, 0.5*np.ones(2))
-        self.assertEqual(i * 20, [10, 10])
+        i = self.spawn(0.5*np.ones(2))
+        self.assertEqual(i * 0, self.spawn([0, 0]))
+        i = self.spawn(0.5*np.ones(2))
+        self.assertEqual(i * 1, self.spawn([0.5, 0.5]))
+        i = self.spawn(0.5*np.ones(2))
+        self.assertEqual(i * 20, self.spawn([10, 10]))
 
-    def test_pv(self):
-        i = individual.Individual(self.p, np.zeros(2))
-        for k in range(100):
-            self.assertTrue(i.parameterLottery())
-        i = individual.Individual(self.p, 10*np.ones(2))
-        for k in range(100):
-            self.assertFalse(i.parameterLottery())
-        
     @defer.inlineCallbacks
     def test_evaluate(self):
-        i = individual.Individual(self.p, np.zeros(2))
+        i = self.spawn(np.zeros(2))
         iSame = yield i.evaluate()
         self.assertEqual(i.SSE, 0)
         self.assertTrue(iSame is i)

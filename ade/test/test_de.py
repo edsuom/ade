@@ -94,13 +94,15 @@ class TestFManager(tb.TestCase):
     def test_downUp_single(self):
         self.fm = de.FManager(0.6, 0.5, 100, True)
         count, F = self.adjust('down')
-        self.assertAlmostEqual(F, np.sqrt(0.75/100), 2)
-        self.assertGreater(count, 30)
-        self.assertLess(count, 35)
+        F_critical = np.sqrt(0.75/100)
+        self.assertGreater(F, F_critical)
+        self.assertLess(F, 1.5*F_critical)
+        self.assertGreater(count, 15)
+        self.assertLess(count, 20)
         count, F = self.adjust('up')
         self.assertEqual(F, 0.6)
-        self.assertGreater(count, 50)
-        self.assertLess(count, 60)
+        self.assertGreater(count, 15)
+        self.assertLess(count, 25)
 
     def test_F_reduced_if_adaptive(self):
         F_orig = [0.5, 1.0]

@@ -276,6 +276,14 @@ class Reporter(object):
         self.lock.release()
         
     def msgRatio(self, iNumerator, iDenominator, sym_lt="X"):
+        """
+        Returns 0 if numerator or denominator is C{None}, if numerator SSE
+        is less than denominator SSE, if denominator SSE is C{None},
+        or if numerator and denominator SSE are equivalent.
+
+        Otherwise returns the rounded integer ratio of numerator SSE
+        divided by denominator SSE.
+        """
         if not iNumerator or not iDenominator:
             return 0
         if iNumerator < iDenominator:
