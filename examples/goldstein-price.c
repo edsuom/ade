@@ -15,7 +15,7 @@
    with a newline.
 
    Enter "99999 99999" as X and Y and the overflowing result will
-   terminate the program.
+   terminate the program. Or just send Ctrl+C.
 
 */
 #include <stdio.h>

@@ -187,3 +187,87 @@ class _Debug(object):
         if cls.debugMode:
             msg(*args)
 MSG = _Debug()._msg
+
+
+class Args(object):
+    """
+    Convenience class by Edwin A. Suominen for compact and sensible
+    commandline argument parsing. The code of this class, separate
+    from the rest of this module and package, is dedicated to the
+    public domain.
+
+    Usage: Construct an instance with a text description of your
+    application. Then call the instance for each option you want to
+    add, with a short letter (just a single letter) preceded by a
+    single hyphen ("-"), a long option preceded by a pair of hyphens
+    ("--"), a default value if the option isn't just C{store_true},
+    and a text description of the option. There will be a total of 3-4
+    arguments.
+
+    You will access the option value using the short letter value,
+    which gives you 26 possibilities for options (52 if you use both
+    upper and lowercase). If you need more than that, you may be
+    overcomplicating your command line.
+
+    Call the instance with just one argument, a text description, to
+    allow for positional arguments. The arguments will be accessed
+    from the instance as sequence items.
+
+    The instance will look exactly like an L{argparse.ArgumentParser}
+    object, all set up and ready to have its attributes accessed.
+    """
+    def __init__(self, text):
+        self.args = None
+        import argparse
+        lines = text.strip().split('\n')
+        kw = {'description': lines[0]}
+        if len(lines) > 1:
+            kw['epilog'] = " ".join(lines[1:])
+        self.parser = argparse.ArgumentParser(**kw)
+
+    def __nonzero__(self):
+        return any([
+            bool(getattr(self.args, x))
+            for x in dir(self.args) if not x.startswith('_')])
+
+    def addDefault(self, text, default, dest=None):
+        if dest and '{}' in text: text = text.format(dest)
+        if "default" not in text.lower():
+            text += " [{}]".format(default)
+        return text
+    
+    def __call__(self, *args):
+        if len(args) == 4:
+            shortArg, longArg, default, helpText = args
+            dest = shortArg[1:]
+            helpText = self.addDefault(helpText, default, dest)
+            self.parser.add_argument(
+                shortArg, longArg, dest=dest, default=default,
+                action='store', type=type(default), help=helpText)
+            return
+        if len(args) == 3:
+            shortArg, longArg, helpText = args
+            self.parser.add_argument(
+                shortArg, longArg, dest=shortArg[1:],
+                action='store_true', help=helpText)
+            return
+        if len(args) == 1:
+            helpText = args[0]
+            self.parser.add_argument(
+                '_args_', default=None, nargs='*', help=helpText)
+            return
+
+    def __iter__(self):
+        for x in getattr(self, '_args_', []):
+            yield x
+
+    def __len__(self):
+        return len(getattr(self, '_args_', []))
+
+    def __getitem__(self, k):
+        return getattr(self, '_args_', [])[k]
+    
+    def __getattr__(self, name):
+        if self.args is None:
+            self.args = self.parser.parse_args()
+        return getattr(self.args, name, None)
