@@ -65,12 +65,18 @@ class ParameterManager(object):
         self.fill = TextWrapper(
             width=self.maxLineLength, break_on_hyphens=False).fill
 
-    def prettyValues(self, values, prelude):
+    def prettyValues(self, values, *args):
         """
         Returns an easily readable string representation of the supplied
         I{values} with their parameter names, sorted.
+
+        You can provide as an additional argument a prelude string, or
+        a string proto with additional args, and the string will
+        precede the values.
         """
-        lineParts = [prelude]
+        lineParts = []
+        if args:
+            lineParts.append(args[0].format(*args[1:]))
         for k, name, value in self.sortedNamerator(values):
             lineParts.append("{}={:g}".format(name, value))
         text = " ".join(lineParts)
@@ -395,21 +401,21 @@ class Population(object):
     
     def __repr__(self):
         def field(x):
-            return "{:>10.5g}".format(x)
+            return "{:>11.5g}".format(x)
 
         def addRow():
-            lineParts = ["{:>10s}".format(columns[0]), '|']
+            lineParts = ["{:>11s}".format(columns[0]), '|']
             for x in columns[1:]:
                 lineParts.append(x)
             lines.append(" ".join(lineParts))
         
-        N_top = (self.pm.maxLineLength-3) / 11
+        N_top = (self.pm.maxLineLength-3) / 13
         iTops = self.iSorted[:N_top]
         if len(iTops) < N_top: N_top = len(iTops)
         lines = [
             sub("Population: Top {:d} of {:d} individuals", N_top, self.Np)]
         lines.append("")
-        columns = ["SSE"] + [sub("{:>10.2f}", i.SSE) for i in iTops]
+        columns = ["SSE"] + [sub("{:>11.5f}", i.SSE) for i in iTops]
         addRow()
         lines.append(self.pm.dashes)
         X = np.empty([self.Nd, N_top])
@@ -500,6 +506,9 @@ class Population(object):
         msg(0, repr(self))
         self._sortNeeded = True
         self.kBest = self.iList.index(self.iSorted[0])
+
+    def addCallback(self, func, *args, **kw):
+        self.reporter.addCallback(func, *args, **kw)
 
     def replacement(self, improvementRatio=None, sqs=None):
         """

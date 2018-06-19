@@ -60,7 +60,7 @@ class Individual(object):
         self.partial_SSE = False
 
     def __repr__(self):
-        prelude = "" if self.SSE is None else sub("SSE={:.2f}", self.SSE)
+        prelude = "" if self.SSE is None else sub("SSE={:.4f}", self.SSE)
         return sub("<{}>", self.p.pm.prettyValues(self.values, prelude))
 
     def spawn(self, values):
