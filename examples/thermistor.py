@@ -13,14 +13,28 @@ from copy import copy
 
 import numpy as np
 from scipy import signal, interpolate, stats
+from twisted.internet import reactor, defer
 from twisted.web import client
 
+from asynqueue import ThreadQueue
 from asynqueue.process import ProcessQueue
+from yampex.plot import Plotter
 
-from ade.util import sub, Args
+from ade.util import *
+from ade.population import Population
+from ade.de import DifferentialEvolution
+
+# For providing some limited info about unhandled Deferred failures
+from twisted.logger import globalLogPublisher
+from twisted.logger._levels import LogLevel
+def analyze(event):
+    if event.get("log_level") == LogLevel.critical:
+        print sub("\nERROR: {}\n", event)
+        #reactor.stop()
+globalLogPublisher.addObserver(analyze)
 
 
-class IIR(object):
+class IIR(Picklable):
     """
     First-order IIR LPF section to filter a [V1, V2] sample and make
     each tiny little thermistor's small amount of thermal capacitance
@@ -48,7 +62,7 @@ class IIR(object):
         return (1.0-self.a) * self.y
 
 
-class Data(object):
+class Data(Picklable):
     """
     Run L{setup} on my instance once to load (possibly downloading and
     decompressing first) the CSV file. Then call the instance as many
@@ -61,12 +75,16 @@ class Data(object):
     @defer.inlineCallbacks
     def setup(self):
         if not os.path.exists(self.csvPath):
+            print "Downloading tempdump.log.bz2 data file from edsuom.com...",
             yield client.downloadPage(self.csvURL, self.csvPath)
+            print "Done"
         txy = []
+        print "Decompressing and parsing tempdump.log.bz2...",
         with bz2.BZ2File(self.csvPath, 'r') as bh:
             while True:
                 line = bh.readline().strip()
-                if not line: break
+                if txy and not line:
+                    break
                 parts = line.split(',')[-3:]
                 try:
                     this_txy = [float(x.strip()) for x in parts]
@@ -75,6 +93,7 @@ class Data(object):
                 txy.append(this_txy)
         self.txy = np.array(txy)
         self.N = len(self.txy)
+        print "Done"
             
     def __call__(self, tcs):
         """
@@ -82,15 +101,13 @@ class Data(object):
         samples through them using the time constants supplied in the
         single sequence-like argument.
         """
-        if not tcs:
-            return self.txy
         cascade = []
         for tc in tcs:
-            section = IIR(tc)
-            section.setup(self.txy[0,1:3])
+            section = IIR()
+            section.setup(tc, self.txy[0,1:3])
             cascade.append(section)
         txy = np.copy(self.txy)
-        for section in enumerate(cascade):
+        for section in cascade:
             for k in range(self.N):
                 # Very slow to have this looping per sample in Python,
                 # but at least V1 and V2 are done efficiently at the
@@ -99,7 +116,7 @@ class Data(object):
         return txy
 
 
-class Evaluator(object):
+class Evaluator(Picklable):
     """
     """
     curveParam_names = [
@@ -122,6 +139,9 @@ class Evaluator(object):
         Returns two equal-length sequences, the names and bounds of all
         parameters to be determined.
         """
+        def done(*null):
+            return names, bounds
+        
         # The parameters
         names, bounds = [], []
         for prefix in ("v1_", "v2_"):
@@ -136,9 +156,9 @@ class Evaluator(object):
             bounds.append(bound)
         # The data
         self.data = Data()
-        return self.data.setup().addCallback(lambda _: names, bounds)
+        return self.data.setup().addCallbacks(done, oops)
 
-    def curve(self, v, a0, a1, ae, vc, v0):
+    def curve(self, v, a0, a1, a2):
         """
         Given a 1-D vector of actual voltages followed by arguments
         defining curve parameters, returns a 1-D vector of
@@ -146,118 +166,128 @@ class Evaluator(object):
         """
         return a0 + a1*v + a2*np.log(v)
     
-    def __call__(self, *values):
+    def __call__(self, values):
         SSE = 0
-        txy = self.data(values[self.kTC:])
+        self.txy = self.data(values[self.kTC:])
         for k in (0, 1):
             kCP = k * self.N_CP
             curveParams = values[kCP:kCP+self.N_CP]
-            t = self.curve(txy[:,k+1], *curveParams)
-            squaredResiduals = np.square(t - txy[:,0])
+            t = self.curve(self.txy[:,k+1], *curveParams)
+            squaredResiduals = np.square(t - self.txy[:,0])
             # TODO: Remove outliers
             SSE += np.sum(squaredResiduals)
         return SSE
         
         
 class Runner(object):
-    p = None
-    X = None
-    smoothingScale = 1E-5
-    csvFile = "tempdump.log"
-
-    class FakePlotter(object):
-        def __enter__(self):
-            return None
-        def __exit__(self, exc_type, exc_val, exc_tb):
-            pass
-        def show(self, null):
-            pass
+    """
+    """
+    plotFilePath = "thermistor.png"
     
     def __init__(self, args):
-        indices = self.str2list(args.k) if args.k else [0]
-        if len(indices) == 1:
-            kI = [int(indices[0]), None]
-        else: kI = [int(x) for x in indices]
-        indices = self.str2list(args.K) if args.K else None
-        kE = [] if indices is None else [int(x) for x in indices]
-        self.r = Reader(kI, kE, args.M, args.f)
-        with open(self.csvFile) as fh:
-            self.r.load(fh)
-        self.r.makeVectors()
-        if args.p:
-            self.lines = args.l
-            self.plotSetup(args.t)
-        else:
-            self.p = self.FakePlotter()
+        self.args = args
+        self.ev = Evaluator()
+        N = args.N if args.N else ProcessQueue.cores()-1
+        self.q = ProcessQueue(N, spew=True, returnFailure=True)
+        self.qLocal = ThreadQueue(raw=True)
+        self.pt = Plotter(2, 1, filePath=self.plotFilePath)
+        self.pt.set_grid(); self.pt.add_marker('.')
+        self.triggerID = reactor.addSystemEventTrigger(
+            'before', 'shutdown', self.shutdown)
 
-    def str2list(self, text, what=str, sep=','):
-        result = []
-        parts = text.strip().split(sep)
-        if len(parts) > 1 and parts[0] == '':
-            result.append(what("0"))
-        for part in parts:
-            part = part.strip()
-            if part:
-                result.append(what(part))
-        return result
-        
-    def plotSetup(self, timeSeries=False):
-        # Define subplot structure
-        self.p = Plotter(1, 1) if timeSeries else Plotter(2, 1)
-        self.p.set_grid()
-        if not timeSeries and not self.lines:
-            self.p.add_marker('.')
+    @defer.inlineCallbacks
+    def shutdown(self):
+        if hasattr(self, 'triggerID'):
+            reactor.removeSystemEventTrigger(self.triggerID)
+            del self.triggerID
+        if self.q is not None:
+            yield self.q.shutdown()
+            msg("ProcessQueue is shut down")
+            self.q = None
+        if self.qLocal is not None:
+            yield self.qLocal.shutdown()
+            msg("Local ThreadQueue is shut down")
+            self.qLocal = None
     
-    def plot(self, X, Y, p, r, xName, yName):
-        if not p: return
+    def plot(self, X, Y, p, xName):
         p.clear_annotations()
         for k in (np.argmin(X), np.argmax(X)):
             p.add_annotation(
                 k, sub("({:.3g}, {:.3g})", X[k], Y[k]))
         p.set_xlabel(xName)
-        p.set_ylabel(yName)
+        p.set_ylabel("Deg C")
         return p(X, Y)
 
     def titlePart(self, proto, *args):
         if not hasattr(self, 'titleParts'):
             self.titleParts = []
         self.titleParts.append(sub(proto, *args))
+
+    def report(self, values, counter):
+        def gotSSE(SSE):
+            msg(0, self.p.pm.prettyValues(values, "SSE={:.5f} with", SSE), 0)
+            T = self.ev.txy[:,0]
+            self.titlePart("Temp vs Voltage")
+            with self.pt as p:
+                for k in (1, 2):
+                    V = self.ev.txy[:,k]
+                xName = sub("V{:d}", k)
+                ax = self.plot(V, T, p, xName)
+            self.pt.figTitle(", ".join(self.titleParts))
+            self.pt.show()
+        return self.qLocal.call(self.ev, values).addCallbacks(gotSSE, oops)
+
+    def evaluate(self, values, xSSE):
+        #print values
+        #return self.q.call(self.ev, values).addErrback(oops)
+        #return self.qLocal.call(self.ev, values).addCallbacks(done, oops)
+        return defer.maybeDeferred(self.ev, values).addErrback(oops)
     
+    @defer.inlineCallbacks
     def __call__(self):
-        cf = CurveFitter()
-        r = self.r
-        if not self.lines:
-            I = np.argsort(r.T)
-            T = r.T[I];
-        else: T = r.T;
-        self.titlePart("Voltage vs Temp")
-        self.titlePart(
-            "{:d} decimated samples from {:d} total", len(T), len(r))
-        self.titlePart("M={:d}", r.M)
-        self.titlePart("Tc={:.1f} sec", r.Tc)
-        with self.p as p:
-            for k in (0, 1):
-                V = getattr(r, 'X' if k == 0 else 'Y')
-                if not self.lines:
-                    V = V[I]
-                yName = sub("V{:d}", k+1)
-                ax = self.plot(
-                    T, V, p, r, "Temp (Deg C)", yName)
-                if not self.lines:
-                    cf(T, V, ax)
-        self.p.figTitle(", ".join(self.titleParts))
-        self.p.show()
-        np.save("tempdump.npy", np.column_stack((r.T, r.X, r.Y)))
+        msg(True)
+        args = self.args
+        names_bounds = yield self.ev.setup().addErrback(oops)
+        self.p = Population(
+            self.evaluate, names_bounds[0], names_bounds[1], popsize=args.p)
+        yield self.p.setup().addErrback(oops)
+        self.p.addCallback(self.report)
+        F = [float(x) for x in args.F.split(',')]
+        de = DifferentialEvolution(
+            self.p,
+            CR=args.C, F=F, maxiter=args.m,
+            randomBase=args.r, uniform=args.u, adaptive=not args.n,
+            bitterEnd=args.b
+        )
+        yield de()
+        yield self.shutdown()
+        msg(0, "Final population:\n{}", self.p)
+        reactor.stop()
 
 
-args = Args("Temp Dump File Reader")
-args('-k', '--indices', "", "Index of first[,last] sample(s) to acquire")
-args('-K', '--omit-indices', "", "Index of first[,last] sample(s) to omit")
-args('-M', '--M', 4, "Decimation rate, CSV entries to filtered data points")
-args('-p', '--plot', "Plot the vectors")
-args('-l', '--lines', "Connect unsorted datapoints with lines (implies -p)")
-args('-t', '--time', "Time series plot instead of XY")
-args('-f', '--filter', 180.0, "Time constant for 1st-order IIR LPF on V1, V2")
+args = Args(
+    """
+    Thermistor Temp vs Voltage curve parameter finder using
+    Differential Evolution.
+
+    Downloads a compressed CSV file of real thermistor data points
+    from edsuom.com to the current directory (if it's not already
+    present). The data points and the current best-fit curves are
+    plotted in the PNG file (also in the current directory)
+    pfinder.png. You can see the plots, automatically updated, with
+    the Linux command "qiv -Te thermistor.png". (Possibly that other
+    OS may have something that works, too.)
+    """
+)
+args('-m', '--maxiter', 100, "Maximum number of DE generations to run")
+args('-p', '--popsize', 4, "Population: # individuals per unknown parameter")
+args('-C', '--CR', 0.6, "DE Crossover rate CR")
+args('-F', '--F', "0.5,1.0", "DE mutation scaling F: two values for range")
+args('-b', '--bitter-end', "Keep working to the end even with little progress")
+args('-r', '--random-base', "Use DE/rand/1 instead of DE/best/1")
+args('-n', '--not-adaptive', "Don't use automatic F adaptation")
+args('-u', '--uniform', "Initialize population uniformly instead of with LHS")
+args('-N', '--N-cores', 0, "Limit the number of CPU cores")
 
 
 def main():

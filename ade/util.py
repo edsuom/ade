@@ -58,6 +58,21 @@ def oops(failureObj, log=None, keepGoing=False):
         reactor.stop()
 
 
+class Picklable(object):
+    def __getstate__(self):
+        state = {}
+        dirClass = dir(self.__class__)
+        for name in dir(self):
+            if name.startswith('_') or name in dirClass:
+                continue
+            state[name] = getattr(self, name)
+        return state
+
+    def __setstate__(self, state):
+        for name in state:
+            setattr(self, name, state[name])
+
+        
 class Bag(object):
     """
     Use an instance of me to let functions within methods have easy
