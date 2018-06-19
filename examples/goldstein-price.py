@@ -24,7 +24,14 @@
 
 import os
 
+import numpy as np
+
+from twisted.python import failure
 from twisted.internet import protocol, reactor, defer
+
+from ade.util import oops, msg
+from ade.population import Population
+from ade.de import DifferentialEvolution
 
 
 class ExecProtocol(protocol.ProcessProtocol):
@@ -50,7 +57,7 @@ class ExecProtocol(protocol.ProcessProtocol):
     def connectionMade(self):
         """
         Upon connection to the executable process via stdio, releases the
-        lock.
+        initial lock.
         """
         if self.lock.locked:
             self.lock.release()
@@ -58,21 +65,19 @@ class ExecProtocol(protocol.ProcessProtocol):
     @defer.inlineCallbacks
     def cmd(self, *args):
         """
-        Immediately writes a single-line command as a sequence of
-        space-separated tokens to the executable via stdin, returning
-        a C{Deferred} that fires with the result received by stdout.
+        Sends function arguments to the executable via stdin, returning
+        a C{Deferred} that fires with the result received via
+        stdout, with numeric conversions.
         """
-        if not args:
-            raise ValueError("You must supply at least a single-word command!")
+        yield self.lock.acquire()
+        self.transport.write(" ".join([str(x) for x in args]) + '\n')
         yield self.lock.acquire()
         self.lock.release()
-        self.transport.write(" ".join(args))
-        yield self.lock.acquire()
-        return self.response
+        defer.returnValue(float(self.response))
         
     def outReceived(self, data):
         """
-        Processes a line of data from the executable, likely a response.
+        Processes a line of response data from the executable.
         """
         data = data.replace('\r', '').strip('\n')
         if not data or not self.lock.locked:
@@ -83,20 +88,21 @@ class ExecProtocol(protocol.ProcessProtocol):
 
 class Runner(object):
     """
+    I manage one executable.
     """
     def __init__(self, execPath):
         def startup():
             reactor.spawnProcess(
                 self.ep,
-                execPath, [execPath],
+                'stdbuf', ['stdbuf', '-oL', execPath],
                 env=os.environ, usePTY=False)
-
+        
         self.ep = ExecProtocol()
         reactor.callWhenRunning(startup)
         self.triggerID = reactor.addSystemEventTrigger(
             'before', 'shutdown', self.shutdown)
 
-    def shutdown(self, kill=False):
+    def shutdown(self):
         if self.triggerID is None:
             return
         triggerID = self.triggerID
@@ -104,15 +110,72 @@ class Runner(object):
         self.ep.shutdown()
         reactor.removeSystemEventTrigger(triggerID)
 
-    def eval(self, *args):
-        return float(self.ep.cmd(*[float(x) for x in args]))
+    def __call__(self, *args):
+        return self.ep.cmd(*args).addErrback(oops)
 
 
+class MultiRunner(object):
+    """
+    I manage a pool of Runners.
+    """
+    def __init__(self, execPath, N=None):
+        if N is None:
+            import multiprocessing as mp
+            N = mp.cpu_count() - 1
+        self.dq = defer.DeferredQueue(N)
+        for k in range(N):
+            r = Runner(execPath)
+            self.dq.put(r)
+
+    def shutdown(self):
+        dList = []
+        for k in range(self.dq.size):
+            d = self.dq.get().addCallback(lambda r: r.shutdown())
+            dList.append(d)
+        return defer.DeferredList(dList)
+            
+    def __call__(self, values, SSE=None):
+        def done(r):
+            result = r(*values)
+            self.dq.put(r)
+            return result
+        return self.dq.get().addCallbacks(done, oops)
+
+
+class Solver(object):
+    def __init__(self, N=None):
+        self.mr = MultiRunner(self.execPath, N)
+        self.p = Population(self.mr, self.names, self.bounds)
+        self.p.reporter.minDiff = 0.0001
+
+    def report(self, values, counter):
+        def gotSSE(SSE):
+            msg(0, self.p.pm.prettyValues(values, "SSE={:.5f} with", SSE), 0)
+        return self.mr(values).addCallbacks(gotSSE, oops)
+        
+    @defer.inlineCallbacks
+    def __call__(self):
+        yield self.p.setup()
+        self.p.addCallback(self.report)
+        de = DifferentialEvolution(self.p)
+        yield de()
+        yield self.mr.shutdown()
+        msg(0, "Final population:\n{}", self.p)
+        reactor.stop()
+
+
+class GoldSteinPrice_Solver(Solver):
+    execPath = "./goldstein-price"
+    names = ["x", "y"]
+    bounds = [(-2, +2), (-2, +2)]
+    
+    
 def main():
-    r = ExecRunner('./goldstein-price')
-    reactor.callWhenRunning(darwin.run)
+    msg(True)
+    r = GoldSteinPrice_Solver()
+    reactor.callWhenRunning(r)
     reactor.run()
 
-if __name__ == '__main__' and not args.h:
+if __name__ == '__main__':
     main()
 

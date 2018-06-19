@@ -41,8 +41,6 @@ float gp(float x, float y) {
 int main() {
   float x, y, result;
 
-  printf("Test Function: goldstein-price\n");
-  
   while (1) {
     scanf("%f %f", &x, &y);
     result = gp(x, y);
