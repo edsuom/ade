@@ -8,10 +8,12 @@ best-fit curve (with digital filtering to match thermal time
 constants) using differential evolution.
 """
 
-import sys, os.path
+import sys, os.path, bz2
+from copy import copy
 
 import numpy as np
 from scipy import signal, interpolate, stats
+from twisted.web import client
 
 from asynqueue.process import ProcessQueue
 
@@ -20,8 +22,8 @@ from ade.util import sub, Args
 
 class IIR(object):
     """
-    First-order IIR LPF section to filter a V1 or V2 sample and make
-    the tiny little thermistor's small amount of thermal capacitance
+    First-order IIR LPF section to filter a [V1, V2] sample and make
+    each tiny little thermistor's small amount of thermal capacitance
     better approximate that of the YoctoTemp sensor mounted on a small
     chunk of PCB in a ventilated housing.
     """
@@ -29,19 +31,16 @@ class IIR(object):
     ts = 10.0
     # Settling precision
     sp = 0.01
-    
-    def __init__(self, tc):
-        self.a = 0 if tc == 0 else np.exp(-self.ts / tc)
-        self.y = 0
 
-    def settle(self, x):
-        self.y = 0
+    def setup(self, tc, x0):
+        self.a = 0 if tc == 0 else np.exp(-self.ts / tc)
+        self.y = np.zeros(2)
         while True:
-            y = self(x)
-            if x == 0:
-                if y < self.sp:
+            y = self(x0)
+            if np.any(x0 == 0):
+                if np.all(y < self.sp):
                     break
-            elif 1.0 - abs(y/x) < self.sp:
+            elif np.all(1.0 - abs(y/x0) < self.sp):
                 break
     
     def __call__(self, x):
@@ -51,79 +50,114 @@ class IIR(object):
 
 class Data(object):
     """
-    Reads the CSV file the first time called.
+    Run L{setup} on my instance once to load (possibly downloading and
+    decompressing first) the CSV file. Then call the instance as many
+    times as you like with one or more thermal time constants to
+    obtain a 3-column array of temp and filtered V1, V2 values.
     """
-    def __init__(self, fh):
-        self.txy = None
+    csvPath = "tempdump.log.bz2"
+    csvURL = "http://edsuom.com/ade-tempdump.log.bz2"
+    
+    @defer.inlineCallbacks
+    def setup(self):
+        if not os.path.exists(self.csvPath):
+            yield client.downloadPage(self.csvURL, self.csvPath)
         txy = []
-        for t, x, y in self.txyerator(fh):
-            txy.append([t, x, y])
+        with bz2.BZ2File(self.csvPath, 'r') as bh:
+            while True:
+                line = bh.readline().strip()
+                if not line: break
+                parts = line.split(',')[-3:]
+                try:
+                    this_txy = [float(x.strip()) for x in parts]
+                except:
+                    continue
+                txy.append(this_txy)
         self.txy = np.array(txy)
         self.N = len(self.txy)
-
-    def txyerator(self, fh):
-        for line in fh:
-            parts = line.split(',')[-3:]
-            try:
-                txy = [float(x.strip()) for x in parts]
-            except:
-                continue
-            yield txy
             
-    def __call__(self, *tcs):
+    def __call__(self, tcs):
         """
         Builds a ladder of first-order IIR sections and filters V1, V2
-        samples through them.
+        samples through them using the time constants supplied in the
+        single sequence-like argument.
         """
         if not tcs:
             return self.txy
-        cascades = []
-        for k in (1, 2):
-            cascade = []
-            for tc in tcs:
-                section = IIR(tc)
-                section.settle(self.txy[0, k])
-                cascade.append(section)
-            cascades.append(cascade)
+        cascade = []
+        for tc in tcs:
+            section = IIR(tc)
+            section.setup(self.txy[0,1:3])
+            cascade.append(section)
         txy = np.copy(self.txy)
-        for k, cascade in enumerate(cascades):
-            for section in cascade:
-                for kk in range(self.N):
-                    # Very slow to have this looping per sample in Python
-                    txy[kk, k+1] = section(txy[kk, k+1])
+        for section in enumerate(cascade):
+            for k in range(self.N):
+                # Very slow to have this looping per sample in Python,
+                # but at least V1 and V2 are done efficiently at the
+                # same time in Numpy
+                txy[k,1:3] = section(txy[k,1:3])
         return txy
 
 
-class CurveFitter(object):
-    p0 = [0.45, 0.05, 0.01, 25.0]
-    #bounds = (
-    #    [0.1, 0.01, 0.002, 15.0],
-    #    [0.7, 0.10, 0.050, 40.0],
-    #)
-    
-    def func(self, x, *p):
-        return p[0] + p[1]*x + p[2]*x*np.exp((x-p[3])/15)
+class Evaluator(object):
+    """
+    """
+    curveParam_names = [
+        "a0",
+        "a1",
+        "a2",
+    ]
+    curveParam_bounds = [
+        (-40.0, 5.0),
+        (-20.0, 20.0),
+        (3.0,   20.0),
+    ]
+    timeConstant_bounds = [
+        (0, 80),
+        (90, 240),
+    ]
 
-    def sigma(self, X):
-        from scipy.signal import hann
-        N = len(X)
-        return 0.1 + 0.5*hann(N) + 0.1*np.power(np.linspace(1.0, 0.0, N), 3)
-    
-    def __call__(self, X, Y, ax):
-        popt, pcov = curve_fit(
-            self.func, X, Y,
-            p0=self.p0, #bounds=self.bounds,
-            sigma=self.sigma(X), absolute_sigma=False)
-        perr = np.sqrt(np.diag(pcov))
-        Yc = self.func(X, *popt)
-        print sub("\nParameters: [{}]", ", ".join([
-            sub("{:f}", x) for x in popt]))
-        print sub("Sum of squared residuals: {:f}\n{}", np.sum(
-            np.square(Y-Yc)), "-"*79)
-        print popt
-        print perr
-        ax.plot(X, Yc, 'r-')
+    def setup(self):
+        """
+        Returns two equal-length sequences, the names and bounds of all
+        parameters to be determined.
+        """
+        # The parameters
+        names, bounds = [], []
+        for prefix in ("v1_", "v2_"):
+            for name, bound in zip(
+                    self.curveParam_names, self.curveParam_bounds):
+                names.append(prefix+name)
+                bounds.append(bound)
+        self.kTC = len(names)
+        self.N_CP = self.kTC/2
+        for k, bound in enumerate(self.timeConstant_bounds):
+            names.append(sub("tc{:d}", k))
+            bounds.append(bound)
+        # The data
+        self.data = Data()
+        return self.data.setup().addCallback(lambda _: names, bounds)
 
+    def curve(self, v, a0, a1, ae, vc, v0):
+        """
+        Given a 1-D vector of actual voltages followed by arguments
+        defining curve parameters, returns a 1-D vector of
+        temperatures (degrees C) for those voltages.
+        """
+        return a0 + a1*v + a2*np.log(v)
+    
+    def __call__(self, *values):
+        SSE = 0
+        txy = self.data(values[self.kTC:])
+        for k in (0, 1):
+            kCP = k * self.N_CP
+            curveParams = values[kCP:kCP+self.N_CP]
+            t = self.curve(txy[:,k+1], *curveParams)
+            squaredResiduals = np.square(t - txy[:,0])
+            # TODO: Remove outliers
+            SSE += np.sum(squaredResiduals)
+        return SSE
+        
         
 class Runner(object):
     p = None
