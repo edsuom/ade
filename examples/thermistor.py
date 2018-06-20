@@ -123,15 +123,17 @@ class Evaluator(Picklable):
         "a0",
         "a1",
         "a2",
+        "v0",
     ]
     curveParam_bounds = [
-        (-40.0, 5.0),
-        (-20.0, 20.0),
-        (3.0,   20.0),
+        (2.0,  10.0),
+        (-5.0, 10.0),
+        (3.0,  20.0),
+        (-5.0, 2.5),
     ]
     timeConstant_bounds = [
-        (0, 80),
-        (90, 240),
+        (0, 100),
+        (100, 300),
     ]
 
     def setup(self):
@@ -158,22 +160,29 @@ class Evaluator(Picklable):
         self.data = Data()
         return self.data.setup().addCallbacks(done, oops)
 
-    def curve(self, v, a0, a1, a2):
+    def curve(self, v, a0, a1, a2, v0):
         """
         Given a 1-D vector of actual voltages followed by arguments
         defining curve parameters, returns a 1-D vector of
         temperatures (degrees C) for those voltages.
         """
-        return a0 + a1*v + a2*np.log(v)
+        if np.any(v <= v0):
+            return np.zeros_like(v)
+        return a0 + a1*v + a2*np.log(v-v0)
+
+    def curve_k(self, values, k):
+        """
+        """
+        kCP = (k-1) * self.N_CP
+        curveParams = values[kCP:kCP+self.N_CP]
+        return self.curve(self.txy[:,k], *curveParams)
     
     def __call__(self, values):
         SSE = 0
         self.txy = self.data(values[self.kTC:])
-        for k in (0, 1):
-            kCP = k * self.N_CP
-            curveParams = values[kCP:kCP+self.N_CP]
-            t = self.curve(self.txy[:,k+1], *curveParams)
-            squaredResiduals = np.square(t - self.txy[:,0])
+        for k in (1, 2):
+            t_curve = self.curve_k(values, k)
+            squaredResiduals = np.square(t_curve - self.txy[:,0])
             # TODO: Remove outliers
             SSE += np.sum(squaredResiduals)
         return SSE
@@ -188,10 +197,8 @@ class Runner(object):
         self.args = args
         self.ev = Evaluator()
         N = args.N if args.N else ProcessQueue.cores()-1
-        self.q = ProcessQueue(N, spew=True, returnFailure=True)
+        self.q = ProcessQueue(N, returnFailure=True)
         self.qLocal = ThreadQueue(raw=True)
-        self.pt = Plotter(2, 1, filePath=self.plotFilePath)
-        self.pt.set_grid(); self.pt.add_marker('.')
         self.triggerID = reactor.addSystemEventTrigger(
             'before', 'shutdown', self.shutdown)
 
@@ -218,30 +225,40 @@ class Runner(object):
         p.set_ylabel("Deg C")
         return p(X, Y)
 
-    def titlePart(self, proto, *args):
-        if not hasattr(self, 'titleParts'):
+    def titlePart(self, *args):
+        if not args or not hasattr(self, 'titleParts'):
             self.titleParts = []
-        self.titleParts.append(sub(proto, *args))
+        if not args:
+            return
+        self.titleParts.append(sub(*args))
 
     def report(self, values, counter):
         def gotSSE(SSE):
-            msg(0, self.p.pm.prettyValues(values, "SSE={:.5f} with", SSE), 0)
+            msg(0, self.p.pm.prettyValues(values, "SSE={:g} with", SSE), 0)
+            pt = Plotter(2, 1, filePath=self.plotFilePath)
+            pt.set_grid(); pt.add_marker(',')
             T = self.ev.txy[:,0]
+            self.titlePart()
             self.titlePart("Temp vs Voltage")
-            with self.pt as p:
+            self.titlePart("SSE={:g}", SSE)
+            with pt as p:
                 for k in (1, 2):
                     V = self.ev.txy[:,k]
-                xName = sub("V{:d}", k)
-                ax = self.plot(V, T, p, xName)
-            self.pt.figTitle(", ".join(self.titleParts))
-            self.pt.show()
+                    I = np.argsort(V)
+                    V = V[I]
+                    xName = sub("V{:d}", k)
+                    ax = self.plot(V, T[I], p, xName)
+                    t_curve = self.ev.curve_k(values, k)
+                    ax.plot(V, t_curve[I], 'r-')
+            pt.figTitle(", ".join(self.titleParts))
+            pt.show()
         return self.qLocal.call(self.ev, values).addCallbacks(gotSSE, oops)
-
+        
     def evaluate(self, values, xSSE):
-        #print values
-        #return self.q.call(self.ev, values).addErrback(oops)
-        #return self.qLocal.call(self.ev, values).addCallbacks(done, oops)
-        return defer.maybeDeferred(self.ev, values).addErrback(oops)
+        values = list(values)
+        return self.q.call(self.ev, values).addErrback(oops)
+        #return self.qLocal.call(self.ev.evaluate, values).addErrback(oops)
+        #return defer.maybeDeferred(self.ev, values).addErrback(oops)
     
     @defer.inlineCallbacks
     def __call__(self):
@@ -294,8 +311,10 @@ def main():
     if args.h:
         return
     import pdb, traceback, sys
+    r = Runner(args)
     try:
-        Runner(args)()
+        reactor.callWhenRunning(r)
+        reactor.run()
     except:
         type, value, tb = sys.exc_info()
         traceback.print_exc()
