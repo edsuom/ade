@@ -176,7 +176,7 @@ class Reporter(object):
     better than the best one I reported on thus far, and thus becomes
     the new best one, I will run any callbacks registered with me.
     """
-    minDiff = 0.005
+    minDiff = 0.01
     
     def __init__(self, population):
         self.p = population

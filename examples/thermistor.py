@@ -123,17 +123,17 @@ class Evaluator(Picklable):
         "a0",
         "a1",
         "a2",
-        "v0",
+        "a3",
     ]
     curveParam_bounds = [
-        (2.0,  10.0),
-        (-5.0, 10.0),
-        (3.0,  20.0),
-        (-5.0, 2.5),
+        (0.0,   15.0),
+        (-5.0,  10.0),
+        (-5.0,  10.0),
+        (12.0,  30.0),
     ]
     timeConstant_bounds = [
-        (0, 30),
-        (150, 400),
+        (0, 80),
+        (100, 300),
     ]
 
     def setup(self):
@@ -160,15 +160,13 @@ class Evaluator(Picklable):
         self.data = Data()
         return self.data.setup().addCallbacks(done, oops)
 
-    def curve(self, v, a0, a1, a2, v0):
+    def curve(self, v, *a):
         """
         Given a 1-D vector of actual voltages followed by arguments
         defining curve parameters, returns a 1-D vector of
         temperatures (degrees C) for those voltages.
         """
-        if np.any(v <= v0):
-            return np.zeros_like(v)
-        return a0 + a1*v + a2*np.log(v-v0)
+        return a[0] + a[1]*np.power(v, 0.5) +a[2]*v + a[3]*np.log(v)
 
     def curve_k(self, values, k):
         """
@@ -181,9 +179,11 @@ class Evaluator(Picklable):
         SSE = 0
         self.txy = self.data(values[self.kTC:])
         for k in (1, 2):
+            # TODO: Sort by v, replace duplicates with mean. This will
+            # reduce perverse weighting of fat regions.
             t_curve = self.curve_k(values, k)
             squaredResiduals = np.square(t_curve - self.txy[:,0])
-            # TODO: Remove outliers
+            #for kk in self.txy[:,k]:
             SSE += np.sum(squaredResiduals)
         return SSE
         
@@ -199,6 +199,8 @@ class Runner(object):
         N = args.N if args.N else ProcessQueue.cores()-1
         self.q = ProcessQueue(N, returnFailure=True)
         self.qLocal = ThreadQueue(raw=True)
+        self.pt = Plotter(2, 1, filePath=self.plotFilePath)
+        self.pt.set_grid(); self.pt.add_marker(',')
         self.triggerID = reactor.addSystemEventTrigger(
             'before', 'shutdown', self.shutdown)
 
@@ -235,13 +237,11 @@ class Runner(object):
     def report(self, values, counter):
         def gotSSE(SSE):
             msg(0, self.p.pm.prettyValues(values, "SSE={:g} with", SSE), 0)
-            pt = Plotter(2, 1, filePath=self.plotFilePath)
-            pt.set_grid(); pt.add_marker(',')
             T = self.ev.txy[:,0]
             self.titlePart()
             self.titlePart("Temp vs Voltage")
             self.titlePart("SSE={:g}", SSE)
-            with pt as p:
+            with self.pt as p:
                 for k in (1, 2):
                     V = self.ev.txy[:,k]
                     I = np.argsort(V)
@@ -250,8 +250,8 @@ class Runner(object):
                     ax = self.plot(V, T[I], p, xName)
                     t_curve = self.ev.curve_k(values, k)
                     ax.plot(V, t_curve[I], 'r-')
-            pt.figTitle(", ".join(self.titleParts))
-            pt.show()
+            self.pt.figTitle(", ".join(self.titleParts))
+            self.pt.show()
         return self.qLocal.call(self.ev, values).addCallbacks(gotSSE, oops)
         
     def evaluate(self, values, xSSE):
