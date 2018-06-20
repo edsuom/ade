@@ -78,7 +78,7 @@ class Data(Picklable):
             print "Downloading tempdump.log.bz2 data file from edsuom.com...",
             yield client.downloadPage(self.csvURL, self.csvPath)
             print "Done"
-        txy = []
+        txy = []; t_counts = {}
         print "Decompressing and parsing tempdump.log.bz2...",
         with bz2.BZ2File(self.csvPath, 'r') as bh:
             while True:
@@ -91,8 +91,15 @@ class Data(Picklable):
                 except:
                     continue
                 txy.append(this_txy)
+                t = this_txy[0]
+                t_counts[t] = t_counts.get(t, 0) + 1
+        print "Done"
+        print "Doing array conversions...",
         self.txy = np.array(txy)
         self.N = len(self.txy)
+        self.weights = np.empty(self.N)
+        for k in range(self.N):
+            self.weights[k] = 1.0 / t_counts[self.txy[k,0]]
         print "Done"
             
     def __call__(self, tcs):
@@ -127,8 +134,8 @@ class Evaluator(Picklable):
     ]
     curveParam_bounds = [
         (0.0,   15.0),
-        (-5.0,  10.0),
-        (-5.0,  10.0),
+        (0.0,   10.0),
+        (-10.0, 10.0),
         (12.0,  30.0),
     ]
     timeConstant_bounds = [
@@ -179,11 +186,9 @@ class Evaluator(Picklable):
         SSE = 0
         self.txy = self.data(values[self.kTC:])
         for k in (1, 2):
-            # TODO: Sort by v, replace duplicates with mean. This will
-            # reduce perverse weighting of fat regions.
             t_curve = self.curve_k(values, k)
             squaredResiduals = np.square(t_curve - self.txy[:,0])
-            #for kk in self.txy[:,k]:
+            squaredResiduals *= self.data.weights
             SSE += np.sum(squaredResiduals)
         return SSE
         
@@ -257,8 +262,6 @@ class Runner(object):
     def evaluate(self, values, xSSE):
         values = list(values)
         return self.q.call(self.ev, values).addErrback(oops)
-        #return self.qLocal.call(self.ev.evaluate, values).addErrback(oops)
-        #return defer.maybeDeferred(self.ev, values).addErrback(oops)
     
     @defer.inlineCallbacks
     def __call__(self):
