@@ -132,8 +132,8 @@ class Evaluator(Picklable):
         (-5.0, 2.5),
     ]
     timeConstant_bounds = [
-        (0, 100),
-        (100, 300),
+        (0, 30),
+        (150, 400),
     ]
 
     def setup(self):
