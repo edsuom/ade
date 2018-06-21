@@ -167,6 +167,7 @@ class Evaluator(Picklable):
     ]
     timeConstant_bounds = [
         (0, 300),
+        (0, 300),
     ]
 
     def setup(self):
@@ -193,6 +194,14 @@ class Evaluator(Picklable):
         self.data = Data()
         return self.data.setup().addCallbacks(done, oops)
 
+    def constraint(self, values):
+        """
+        Only allows successive time constants that increase with each
+        stage. Avoids duplicate evaluation of equivalent filters.
+        """
+        tcs = [values[x] for x in sorted(values.keys()) if x.startswith('tc')]
+        return np.all(np.greater(np.diff(tcs), 0))
+    
     def txy_valid(self, k, sort=False):
         """
         Returns a subset of I{txy} with valid (not NaN) voltage readings
@@ -324,7 +333,9 @@ class Runner(object):
         args = self.args
         names_bounds = yield self.ev.setup().addErrback(oops)
         self.p = Population(
-            self.evaluate, names_bounds[0], names_bounds[1], popsize=args.p)
+            self.evaluate,
+            names_bounds[0], names_bounds[1],
+            popsize=args.p, constraints=[self.ev.constraint])
         yield self.p.setup().addErrback(oops)
         self.p.addCallback(self.report)
         F = [float(x) for x in args.F.split(',')]
