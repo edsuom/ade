@@ -154,16 +154,22 @@ class Evaluator(Picklable):
     """
     """
     curveParam_names = [
-        "a0",
-        "a1",
-        "a2",
-        "a3",
+        'vp',
+        'v1_rs',
+        'v1_a0',
+        'v1_a1',
+        'v2_rs',
+        'v2_a0',
+        'v2_a1',
     ]
     curveParam_bounds = [
-        (0.0,   10.0),
-        (2.0,   12.0),
-        (-3.0,  3.0),
-        (12.0,  25.0),
+        (22.0,  24.0),
+        (7.0,   11.0),
+        (0.1,   0.4),
+        (15.0,  25.0),
+        (7.0,   11.0),
+        (0.1,   0.4),
+        (15.0,  25.0),
     ]
     timeConstant_bounds = [
         (0, 180),
@@ -179,14 +185,17 @@ class Evaluator(Picklable):
             return names, bounds
         
         # The parameters
+        self.I_CP = [[], []]
         names, bounds = [], []
-        for prefix in ("v1_", "v2_"):
-            for name, bound in zip(
-                    self.curveParam_names, self.curveParam_bounds):
-                names.append(prefix+name)
-                bounds.append(bound)
+        for name, bound in zip(self.curveParam_names, self.curveParam_bounds):
+            for k in (1, 2):
+                prefix = sub("v{:d}_", k)
+                if name.startswith(prefix):
+                    self.I_CP[k-1].append(len(names))
+                    break
+            names.append(name)
+            bounds.append(bound)
         self.kTC = len(names)
-        self.N_CP = self.kTC/2
         for k, bound in enumerate(self.timeConstant_bounds):
             names.append(sub("tc{:d}", k))
             bounds.append(bound)
@@ -223,13 +232,13 @@ class Evaluator(Picklable):
             return tv[I,:], weights[I]
         return tv, weights
     
-    def curve(self, v, *a):
+    def curve(self, v, vp, rs, a0, a1):
         """
         Given a 1-D vector of actual voltages followed by arguments
         defining curve parameters, returns a 1-D vector of
         temperatures (degrees C) for those voltages.
         """
-        return a[0] + a[1]*np.power(v, 0.5) +a[2]*v + a[3]*np.log(v)
+        return a1 * np.log(rs*v / (a0*(vp-v)))
 
     def curve_k(self, values, k, sort=False):
         """
@@ -239,8 +248,9 @@ class Evaluator(Picklable):
         those voltage readings and a 1-D array of weights for each
         reading.
         """
-        kCP = (k-1) * self.N_CP
-        curveParams = values[kCP:kCP+self.N_CP]
+        curveParams = [values[0]]
+        for kk in self.I_CP[k-1]:
+            curveParams.append(values[kk])
         tv, weights = self.txy_valid(k, sort)
         return tv, self.curve(tv[:,1], *curveParams), weights
     
