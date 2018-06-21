@@ -43,19 +43,21 @@ class IIR(Picklable):
     """
     # One sample every ten seconds
     ts = 10.0
-    # Settling precision
-    sp = 0.01
+    # Settling iterations
+    Ns = 1000
 
-    def setup(self, tc, x0):
-        self.a = 0 if tc == 0 else np.exp(-self.ts / tc)
-        self.y = np.zeros(2)
-        while True:
+    def setup(self, x0, tc=None):
+        """
+        Call with just desired output of filter to settle to that input
+        and output. If setting up for the first time, also define the
+        filter time constant I{tc}.
+        """
+        if tc is not None:
+            self.a = 0 if tc == 0 else np.exp(-self.ts / tc)
+            self.y = np.zeros(2)
+        for k in range(self.Ns):
             y = self(x0)
-            if np.any(x0 == 0):
-                if np.all(y < self.sp):
-                    break
-            elif np.all(1.0 - abs(y/x0) < self.sp):
-                break
+        return y
     
     def __call__(self, x):
         self.y = x + self.a*self.y
@@ -83,23 +85,38 @@ class Data(Picklable):
         with bz2.BZ2File(self.csvPath, 'r') as bh:
             while True:
                 line = bh.readline().strip()
-                if txy and not line:
-                    break
-                parts = line.split(',')[-3:]
-                try:
-                    this_txy = [float(x.strip()) for x in parts]
-                except:
+                if not line:
+                    if txy:
+                        break
+                    else: continue
+                if line.startswith('#'):
                     continue
-                txy.append(this_txy)
-                t = this_txy[0]
-                t_counts[t] = t_counts.get(t, 0) + 1
+                if line.startswith('-'):
+                    # Dashed line indicates continuity break, need to
+                    # insert a NaN temp reading
+                    txy.append([np.nan, np.nan, np.nan])
+                    continue
+                this_txy = []
+                for k, part in enumerate(line.split(',')[-3:]):
+                    try:
+                        value = float(part.strip())
+                    except:
+                        if k == 0:
+                            continue
+                        value = np.nan
+                    this_txy.append(value)
+                    if k == 0:
+                        t_counts[value] = t_counts.get(value, 0) + 1
+                if len(this_txy) == 3:
+                    txy.append(this_txy)
         print "Done"
         print "Doing array conversions...",
         self.txy = np.array(txy)
         self.N = len(self.txy)
-        self.weights = np.empty(self.N)
-        for k in range(self.N):
-            self.weights[k] = 1.0 / t_counts[self.txy[k,0]]
+        self.weights = np.zeros(self.N)
+        T = self.txy[:,0]
+        for k in np.flatnonzero(np.isfinite(T)):
+            self.weights[k] = 1.0 / t_counts[T[k]]
         print "Done"
             
     def __call__(self, tcs):
@@ -111,14 +128,24 @@ class Data(Picklable):
         cascade = []
         for tc in tcs:
             section = IIR()
-            section.setup(tc, self.txy[0,1:3])
+            section.setup(self.txy[0,1:3], tc)
             cascade.append(section)
         txy = np.copy(self.txy)
+        kbSet = set()
         for section in cascade:
+            # Very slow to have this looping per sample in Python,
+            # but at least V1 and V2 are done efficiently at the
+            # same time in Numpy
             for k in range(self.N):
-                # Very slow to have this looping per sample in Python,
-                # but at least V1 and V2 are done efficiently at the
-                # same time in Numpy
+                if np.isnan(txy[k,0]) and k not in kbSet:
+                    # Continuity break, use values after break
+                    kbSet.add(k)
+                    txy[k,:] = txy[k+1,:]
+                if k in kbSet:
+                    # At break, settle filter section to new values...
+                    section.setup(txy[k,1:3])
+                    continue
+                # ...otherwise, filter V1, V2
                 txy[k,1:3] = section(txy[k,1:3])
         return txy
 
@@ -134,13 +161,13 @@ class Evaluator(Picklable):
     ]
     curveParam_bounds = [
         (0.0,   15.0),
-        (0.0,   10.0),
-        (-10.0, 10.0),
+        (0.0,   15.0),
+        (-5.0,  5.0),
         (12.0,  30.0),
     ]
     timeConstant_bounds = [
-        (0, 80),
-        (100, 300),
+        (0, 60),
+        (80, 300),
     ]
 
     def setup(self):
@@ -167,6 +194,27 @@ class Evaluator(Picklable):
         self.data = Data()
         return self.data.setup().addCallbacks(done, oops)
 
+    def txy_valid(self, k, sort=False):
+        """
+        Returns a subset of I{txy} with valid (not NaN) voltage readings
+        for v1 (k=1) or v2 (k=2). The returned array has two columns,
+        one for temp readings and one for the selected voltage
+        readings, and possibly fewer rows than I{txy}. Also returns a
+        1-D array of weights corresponding to the rows in the 2-D
+        array.
+
+        Set I{sort} to C{True} to have the arrays sorted by ascending
+        voltage.
+        """
+        tv = self.txy[:, [0,k]]
+        I = np.flatnonzero(np.isfinite(tv).all(1))
+        tv = tv[I]
+        weights = self.data.weights[I]
+        if sort:
+            I = np.argsort(tv[:,1])
+            return tv[I,:], weights[I]
+        return tv, weights
+    
     def curve(self, v, *a):
         """
         Given a 1-D vector of actual voltages followed by arguments
@@ -175,23 +223,28 @@ class Evaluator(Picklable):
         """
         return a[0] + a[1]*np.power(v, 0.5) +a[2]*v + a[3]*np.log(v)
 
-    def curve_k(self, values, k):
+    def curve_k(self, values, k, sort=False):
         """
+        Returns the YoctoTemp temperature readings and valid voltages
+        observed for the specified YoctoVolt input #1 (k=1) or #2
+        (k=2), along with the curve-fitted predicted temps for each of
+        those voltage readings and a 1-D array of weights for each
+        reading.
         """
         kCP = (k-1) * self.N_CP
         curveParams = values[kCP:kCP+self.N_CP]
-        return self.curve(self.txy[:,k], *curveParams)
+        tv, weights = self.txy_valid(k, sort)
+        return tv, self.curve(tv[:,1], *curveParams), weights
     
     def __call__(self, values):
         SSE = 0
         self.txy = self.data(values[self.kTC:])
         for k in (1, 2):
-            t_curve = self.curve_k(values, k)
-            squaredResiduals = np.square(t_curve - self.txy[:,0])
-            squaredResiduals *= self.data.weights
+            tv, t_curve, weights = self.curve_k(values, k)
+            squaredResiduals = weights * np.square(t_curve - tv[:,0])
             SSE += np.sum(squaredResiduals)
         return SSE
-        
+
         
 class Runner(object):
     """
@@ -202,9 +255,10 @@ class Runner(object):
         self.args = args
         self.ev = Evaluator()
         N = args.N if args.N else ProcessQueue.cores()-1
-        self.q = ProcessQueue(N, returnFailure=True)
+        self.q = None if args.l else ProcessQueue(N, returnFailure=True)
         self.qLocal = ThreadQueue(raw=True)
-        self.pt = Plotter(2, 1, filePath=self.plotFilePath)
+        self.pt = Plotter(
+            2, 1, filePath=self.plotFilePath, width=18, height=11)
         self.pt.set_grid(); self.pt.add_marker(',')
         self.triggerID = reactor.addSystemEventTrigger(
             'before', 'shutdown', self.shutdown)
@@ -248,20 +302,22 @@ class Runner(object):
             self.titlePart("SSE={:g}", SSE)
             with self.pt as p:
                 for k in (1, 2):
-                    V = self.ev.txy[:,k]
-                    I = np.argsort(V)
-                    V = V[I]
                     xName = sub("V{:d}", k)
-                    ax = self.plot(V, T[I], p, xName)
-                    t_curve = self.ev.curve_k(values, k)
-                    ax.plot(V, t_curve[I], 'r-')
+                    tv, t_curve, weights = self.ev.curve_k(
+                        values, k, sort=True)
+                    # Scatter plot of temp readings and filtered
+                    # voltage readings
+                    ax = self.plot(tv[:,1], tv[:,0], p, xName)
+                    # Plot current best-fit curve, with a bit of extrapolation
+                    ax.plot(tv[:,1], t_curve, 'r-')
             self.pt.figTitle(", ".join(self.titleParts))
             self.pt.show()
         return self.qLocal.call(self.ev, values).addCallbacks(gotSSE, oops)
         
     def evaluate(self, values, xSSE):
         values = list(values)
-        return self.q.call(self.ev, values).addErrback(oops)
+        q = self.qLocal if self.q is None else self.q
+        return q.call(self.ev, values).addErrback(oops)
     
     @defer.inlineCallbacks
     def __call__(self):
@@ -308,6 +364,7 @@ args('-r', '--random-base', "Use DE/rand/1 instead of DE/best/1")
 args('-n', '--not-adaptive', "Don't use automatic F adaptation")
 args('-u', '--uniform', "Initialize population uniformly instead of with LHS")
 args('-N', '--N-cores', 0, "Limit the number of CPU cores")
+args('-l', '--local-queue', "Use the local ThreadQueue, no subprocesses")
 
 
 def main():
