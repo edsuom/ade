@@ -163,17 +163,17 @@ class Evaluator(Picklable):
         'v2_a1',
     ]
     curveParam_bounds = [
-        (21.0,  25.0),
+        (22.0,  24.0),
         (7.0,   11.0),
-        (0.01,  0.4),
-        (5.0,   40.0),
+        (0.1,   0.4),
+        (15.0,  25.0),
         (7.0,   11.0),
-        (0.01,  0.4),
-        (5.0,   40.0),
+        (0.1,   0.4),
+        (15.0,  25.0),
     ]
     timeConstant_bounds = [
-        (0, 250),
-        (0, 250),
+        (0, 180),
+        (0, 180),
     ]
 
     def setup(self):
@@ -254,13 +254,15 @@ class Evaluator(Picklable):
         tv, weights = self.txy_valid(k, sort)
         return tv, self.curve(tv[:,1], *curveParams), weights
     
-    def __call__(self, values):
+    def __call__(self, values, xSSE=None):
         SSE = 0
         self.txy = self.data(values[self.kTC:])
         for k in (1, 2):
             tv, t_curve, weights = self.curve_k(values, k)
             squaredResiduals = weights * np.square(t_curve - tv[:,0])
             SSE += np.sum(squaredResiduals)
+            if xSSE and SSE > xSSE:
+                break
         return SSE
 
         
@@ -335,7 +337,7 @@ class Runner(object):
     def evaluate(self, values, xSSE):
         values = list(values)
         q = self.qLocal if self.q is None else self.q
-        return q.call(self.ev, values).addErrback(oops)
+        return q.call(self.ev, values, xSSE).addErrback(oops)
     
     @defer.inlineCallbacks
     def __call__(self):
