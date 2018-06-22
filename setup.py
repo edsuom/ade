@@ -46,7 +46,14 @@ kw = {'version':'0.9',
       
       'install_requires':required,
       'packages':['ade', 'ade.test'],
-      
+      'package_data':        {
+          'ade': ['examples/*'],
+      },
+      'entry_points':      {
+          'console_scripts': [
+              'ade-examples = ade:extract_examples',
+          ],
+      },
       'zip_safe':False,
 }
 
