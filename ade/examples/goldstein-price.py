@@ -22,6 +22,21 @@
 # express or implied. See the License for the specific language
 # governing permissions and limitations under the License.
 
+"""
+Example script for the I{ade} package: goldstein-price.py
+
+Runs as many subordinate python processes as there are CPU cores to
+solve the Goldstein-Price test function using asynchronous
+differential evolution.
+
+This will happen very fast on a modern multicore CPU!
+
+You need to compile the C code first by running the following command:
+
+C{gcc -Wall -o goldstein-price goldstein-price.c}
+
+"""
+
 import os
 
 import numpy as np
@@ -35,6 +50,10 @@ from ade.de import DifferentialEvolution
 
 
 class ExecProtocol(protocol.ProcessProtocol):
+    """
+    Process protocol for communicating with a process running the
+    goldstein-price executable you compiled, via STDIO.
+    """
     def __init__(self):
         self.running = None
         self.lock = defer.DeferredLock()
@@ -121,7 +140,7 @@ class MultiRunner(object):
     def __init__(self, execPath, N=None):
         if N is None:
             import multiprocessing as mp
-            N = mp.cpu_count() - 1
+            N = mp.cpu_count()
         self.dq = defer.DeferredQueue(N)
         for k in range(N):
             r = Runner(execPath)

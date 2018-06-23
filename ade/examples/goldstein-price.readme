@@ -1,0 +1,6 @@
+Compile the executable with
+
+gcc -Wall -o goldstein-price goldstein-price.c
+
+
+Then run python goldstein-price.py

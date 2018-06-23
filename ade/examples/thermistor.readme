@@ -1,0 +1,16 @@
+To see options, run
+
+python thermistor.py -h
+
+
+
+The included file thermistor.log is the result of running
+
+python thermistor.py -p 12 -N 8
+
+on an eight-core CPU for about half an hour. Take a look at
+thermistor.png to see the final curve fit.
+
+When you run python thermistor.py with no options or your own
+selections, you will overwrite thermistor.png. Delete the image file
+and run ade-examples again to restore the default if you wish.

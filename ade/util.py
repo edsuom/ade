@@ -1,12 +1,11 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 #
-# pingspice:
-# Object-oriented circuit construction and efficient asynchronous
-# simulation with Ngspice and twisted.
+# ade:
+# Asynchronous Differential Evolution.
 #
-# Copyright (C) 2017 by Edwin A. Suominen,
-# http://edsuom.com/pingspice
+# Copyright (C) 2018 by Edwin A. Suominen,
+# http://edsuom.com/ade
 #
 # See edsuom.com for API documentation as well as information about
 # Ed's background and other projects, software and otherwise.

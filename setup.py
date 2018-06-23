@@ -54,7 +54,7 @@ kw = {'version':'0.9',
               'ade-examples = ade:extract_examples',
           ],
       },
-      'zip_safe':False,
+      'zip_safe':True,
 }
 
 kw['keywords'] = [
@@ -88,4 +88,8 @@ TODO
 
 ### Finally, run the setup
 setup(name=NAME, **kw)
-
+print("\n" + '-'*79)
+print("To create a subdirectory 'ade-examples' of example files")
+print("in the current directory, you may run the command 'ade-examples'.")
+print("It's not required to use the ade package, but you might find")
+print("it instructive.")

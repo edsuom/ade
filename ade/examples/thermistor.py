@@ -1,11 +1,37 @@
-#!/usr/bin/python
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+#
+# ade:
+# Asynchronous Differential Evolution.
+#
+# Copyright (C) 2018 by Edwin A. Suominen,
+# http://edsuom.com/ade
+#
+# See edsuom.com for API documentation as well as information about
+# Ed's background and other projects, software and otherwise.
+# 
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the
+# License. You may obtain a copy of the License at
+# 
+#   http://www.apache.org/licenses/LICENSE-2.0
+# 
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an "AS
+# IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
+# express or implied. See the License for the specific language
+# governing permissions and limitations under the License.
+
 
 """
-Reads a three-item-per-line CSV file containing the temp (as read
-by YoctoTemp, in degrees C), and the voltage at inputs 1 and 2 of the
-YoctoVolt with thermistors connecting to 23V. Then finds a nonlinear
-best-fit curve (with digital filtering to match thermal time
-constants) using differential evolution.
+Example script for the I{ade} package: thermistor.py
+
+Reads a three-item-per-line CSV file containing temperatures (as read
+by a YoctoTemp, in degrees C) inside an outdoor equipment shed, and
+the voltage at inputs 1 and 2 of a YoctoVolt with thermistors
+connecting to 23V. Then uses asynchronous differential evolution to
+efficiently find a nonlinear best-fit curve, with digital filtering to
+match thermal time constants.
 """
 
 import sys, os.path, bz2
@@ -152,6 +178,10 @@ class Data(Picklable):
 
 class Evaluator(Picklable):
     """
+    Construct an instance of me, run the L{setup} method and wait for
+    the C{Deferred} it returns to fire, and then call the instance a
+    bunch of times with parameter values for a curve to get (deferred)
+    sum-of-squared-error fitness of the curve to the thermistor data.
     """
     curveParam_names = [
         'vp',
@@ -178,8 +208,8 @@ class Evaluator(Picklable):
 
     def setup(self):
         """
-        Returns two equal-length sequences, the names and bounds of all
-        parameters to be determined.
+        Returns a C{Deferred} that fires with two equal-length sequences,
+        the names and bounds of all parameters to be determined.
         """
         def done(*null):
             return names, bounds
@@ -268,6 +298,11 @@ class Evaluator(Picklable):
         
 class Runner(object):
     """
+    I run everything to fit a curve to thermistor data using
+    asynchronous differential evolution. Construct an instance of me
+    with an instance of L{Args} that has parsed command-line options,
+    then have the Twisted reactor call the instance when it
+    starts. Then start the reactor and watch the fun.
     """
     plotFilePath = "thermistor.png"
     

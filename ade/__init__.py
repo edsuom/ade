@@ -23,4 +23,33 @@
 # governing permissions and limitations under the License.
 
 def extract_examples():
-    pass
+    """
+    Call via the I{ade-examples} entry point to extract example files
+    to a subdirectory I{ade-examples} of your current directory,
+    creating the subdirectory if necessary. It will not overwrite
+    existing files, so feel free to modify the examples. Delete a
+    modified example file and run this again to restore the default
+    file.
+    """
+    pkg_dir = ('ade', 'examples')
+    from ade.util import msg; msg(True)
+    import os, os.path, shutil, pkg_resources
+    sDir = pkg_resources.resource_filename(*pkg_dir)
+    eDir = os.path.abspath("-".join(pkg_dir))
+    msg("Extracting {} to\n{}\n{}", " ".join(pkg_dir), eDir, "-"*79)
+    if os.path.exists(eDir):
+        msg("Subdirectory already exists")
+    else:
+        os.mkdir(eDir)
+        msg("Subdirectory created")
+    for fileName in pkg_resources.resource_listdir(*pkg_dir):
+        if fileName.startswith('.'):
+            continue
+        ePath = os.path.join(eDir, fileName)
+        if os.path.exists(ePath):
+            msg("{} already exists", ePath)
+        else:
+            sPath = os.path.join(sDir, fileName)
+            shutil.copy(sPath, ePath)
+            msg("{} created", ePath)
+
