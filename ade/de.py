@@ -293,7 +293,6 @@ class DifferentialEvolution(object):
         I{kt}.
         """
         if not self.stopRunning:
-            sym = ""
             k0, k1 = self.p.sample(2, kt, kb)
             # Await legit values for all individuals used here
             yield self.p.lock(kt, kb, k0, k1)

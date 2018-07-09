@@ -83,7 +83,19 @@ Asynchronous Differential Evolution, with efficient multiprocessing.
 """.split("\n"))
 
 kw['long_description'] = """
-TODO
+Performs the Differential Evolution (DE) algorithm
+asynchronously. With a multiprocess evaluation function running on a
+multicore CPU or cluster, ade can get the DE processing done several
+times faster than standard single-threaded DE. It does this without
+departing in any way from the numeric operations performed by the
+classic Storn and Price algorithm with either a randomly chosen
+candidate or the best available candidate.
+
+You get a substantial multiprocessing speed-up and the
+well-understood, time-tested behavior of the classic DE/rand/1/bin or
+DE/best/1/bin algorithm. (You can pick which one to use.) The
+underlying numeric recipe is not altered at all, but everything runs a
+lot faster.
 """
 
 ### Finally, run the setup

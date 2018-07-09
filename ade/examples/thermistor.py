@@ -34,11 +34,9 @@ efficiently find a nonlinear best-fit curve, with digital filtering to
 match thermal time constants.
 """
 
-import sys, os.path, bz2
-from copy import copy
+import os.path, bz2
 
 import numpy as np
-from scipy import signal, interpolate, stats
 from twisted.internet import reactor, defer
 from twisted.web import client
 
@@ -49,15 +47,6 @@ from yampex.plot import Plotter
 from ade.util import *
 from ade.population import Population
 from ade.de import DifferentialEvolution
-
-# For providing some limited info about unhandled Deferred failures
-from twisted.logger import globalLogPublisher
-from twisted.logger._levels import LogLevel
-def analyze(event):
-    if event.get("log_level") == LogLevel.critical:
-        print sub("\nERROR: {}\n", event)
-        #reactor.stop()
-globalLogPublisher.addObserver(analyze)
 
 
 class IIR(Picklable):
@@ -365,7 +354,7 @@ class Runner(object):
                     ax = self.plot(tv[:,1], tv[:,0], p, xName)
                     # Plot current best-fit curve, with a bit of extrapolation
                     ax.plot(tv[:,1], t_curve, 'r-')
-            self.pt.figTitle(", ".join(self.titleParts))
+            self.pt.set_title(", ".join(self.titleParts))
             self.pt.show()
         return self.qLocal.call(self.ev, values).addCallbacks(gotSSE, oops)
         
@@ -427,15 +416,9 @@ args('-l', '--local-queue', "Use the local ThreadQueue, no subprocesses")
 def main():
     if args.h:
         return
-    import pdb, traceback, sys
     r = Runner(args)
-    try:
-        reactor.callWhenRunning(r)
-        reactor.run()
-    except:
-        type, value, tb = sys.exc_info()
-        traceback.print_exc()
-        pdb.post_mortem(tb)
+    reactor.callWhenRunning(r)
+    reactor.run()
 
 
 if __name__ == '__main__':
