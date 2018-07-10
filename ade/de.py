@@ -243,13 +243,13 @@ class DifferentialEvolution(object):
         j = random.randint(0, self.p.Nd-1)
         for k in range(self.p.Nd):
             if k == j:
-                # I, the mutant, get to keep at least this one value
+                # The mutant gets to keep at least this one value
                 continue
             if self.CR < random.uniform(0, 1.0):
-                # CR is probability of my mutant value being
+                # CR is probability of the mutant's value being
                 # used. Only if U[0,1] random variate is bigger (as it
-                # seldom will be with typical CR ~ 0.9), do I have to
-                # discard my value for the parent's
+                # seldom will be with typical CR ~ 0.9), is the mutant's
+                # value discarded and the parent's used.
                 mutant[k] = parent[k]
 
     @defer.inlineCallbacks
