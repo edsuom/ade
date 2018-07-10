@@ -34,7 +34,7 @@ required = ['Twisted', 'numpy', 'scipy', 'matplotlib', 'pydoe', 'AsynQueue']
 
 
 ### Define setup options
-kw = {'version':'0.8',
+kw = {'version':'0.8.1',
       'license':'Apache License (2.0)',
       'platforms':'OS Independent',
 

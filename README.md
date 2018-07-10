@@ -6,24 +6,25 @@
 * [Project Page](http://edsuom.com/ade.html) at **edsuom.com**
 
 *ade* performs the
-[differential evolution](https://en.wikipedia.org/wiki/Differential_evolution)
-(DE) algorithm asynchronously. With a multiprocess evaluation function
-running on a multicore CPU or cluster, *ade* can get the DE processing
-done several times faster than standard single-threaded DE. It does
-this without departing in any way from the numeric operations
-performed by the classic Storn and Price algorithm with either a
-randomly chosen candidate or the best available candidate.
+[Differential Evolution](https://en.wikipedia.org/wiki/Differential_evolution)
+(DE) algorithm asynchronously. Running on a multicore CPU or cluster,
+*ade* can get the DE processing done several times faster than
+standard single-threaded DE. It does this without departing in any way
+from the numeric operations performed by the classic Storn and Price
+algorithm using either a randomly chosen or best candidate scheme.
  
 You get a substantial multiprocessing speed-up *and* the
 well-understood, time-tested behavior of the classic `DE/rand/1/bin`
 or `DE/best/1/bin` algorithm. (You can pick which one to use.) The
-underlying numeric recipe is not altered *at all*, but everything runs
-a lot faster.
+very same target[] and base[] selection, mutation,[] scaling, and
+crossover[] are done for a sequence of targets in the population, just
+like you're used to. The underlying numeric recipe is not altered *at
+all*, but everything runs a lot faster.
 
 How is this possible? The answer is found in asynchronous processing
 and the
 [deferred lock](https://twistedmatrix.com/documents/current/api/twisted.internet.defer.DeferredLock.html)
-concurrency mechanism provided by the Twisted framework.
+concurrency mechanism provided by the Twisted framework. Read the detailed tutorial at http://edsuom.com/ade.html to find out more.
 
 
 ### License
