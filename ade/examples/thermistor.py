@@ -34,7 +34,7 @@ efficiently find a nonlinear best-fit curve, with digital filtering to
 match thermal time constants.
 """
 
-import os.path, bz2
+import os.path, bz2, time
 
 import numpy as np
 from twisted.internet import reactor, defer
@@ -182,11 +182,11 @@ class Evaluator(Picklable):
         'v2_a1',
     ]
     curveParam_bounds = [
-        (22.0,  24.0),
-        (7.0,   11.0),
+        (22.0,  25.0),
+        (5.0,   15.0),
         (0.1,   0.4),
         (15.0,  25.0),
-        (7.0,   11.0),
+        (5.0,   15.0),
         (0.1,   0.4),
         (15.0,  25.0),
     ]
@@ -302,7 +302,7 @@ class Runner(object):
         self.q = None if args.l else ProcessQueue(N, returnFailure=True)
         self.qLocal = ThreadQueue(raw=True)
         self.pt = Plotter(
-            2, 1, filePath=self.plotFilePath, width=18, height=11)
+            2, 1, filePath=self.plotFilePath, width=9, height=5)
         self.pt.set_grid(); self.pt.add_marker(',')
         self.triggerID = reactor.addSystemEventTrigger(
             'before', 'shutdown', self.shutdown)
@@ -366,6 +366,7 @@ class Runner(object):
     @defer.inlineCallbacks
     def __call__(self):
         msg(True)
+        t0 = time.time()
         args = self.args
         names_bounds = yield self.ev.setup().addErrback(oops)
         self.p = Population(
@@ -384,6 +385,7 @@ class Runner(object):
         yield de()
         yield self.shutdown()
         msg(0, "Final population:\n{}", self.p)
+        msg(0, "Elapsed time: {:.2f} seconds", time.time()-t0, 0)
         reactor.stop()
 
 
@@ -402,8 +404,8 @@ args = Args(
     """
 )
 args('-m', '--maxiter', 100, "Maximum number of DE generations to run")
-args('-p', '--popsize', 4, "Population: # individuals per unknown parameter")
-args('-C', '--CR', 0.6, "DE Crossover rate CR")
+args('-p', '--popsize', 15, "Population: # individuals per unknown parameter")
+args('-C', '--CR', 0.7, "DE Crossover rate CR")
 args('-F', '--F', "0.5,1.0", "DE mutation scaling F: two values for range")
 args('-b', '--bitter-end', "Keep working to the end even with little progress")
 args('-r', '--random-base', "Use DE/rand/1 instead of DE/best/1")

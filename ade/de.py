@@ -348,8 +348,10 @@ class DifferentialEvolution(object):
         msg("Performing DE with CR={}, F={}, {}", self.CR, self.fm, desc, '-')
         # Evolve!
         for kg in range(self.maxiter):
+            self.p.reporter.progressChar()
             F_info = sub(" F={}", self.fm)
-            msg(-1, "Generation {:d}/{:d} {}", kg+1, self.maxiter, F_info , '-')
+            msg(-1, "Generation {:d}/{:d} {}",
+                kg+1, self.maxiter, F_info , '-')
             yield self.p.waitForReports()
             dList = []
             iBest = self.p.best()

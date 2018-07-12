@@ -468,6 +468,8 @@ class MockIndividual(object):
 
 
 class MockParameterManager(object):
+    maxLineLength = 100
+    
     def fromUnity(self, values):
         return -5 + 10*values
     

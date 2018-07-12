@@ -168,7 +168,7 @@ class TestDifferentialEvolution(tb.TestCase):
         
     @defer.inlineCallbacks
     def test_challenge(self):
-        Np = 100; Nd = 5
+        Np = 120; Nd = 5
         yield self.makeDE(Np, Nd)
         from ade import individual
         for k in (10,11):

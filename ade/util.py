@@ -159,11 +159,13 @@ class Messenger(object):
             return fhPrev
         if len(args) == 1:
             arg = args[0]
-            text = self.dashes(True) if arg == '-' else arg
-            if len(text) == 1:
-                self.writeChar(text)
+            if not arg:
+                self.writeChar('\n')
             else:
-                self.writeLine(text)
+                text = self.dashes(True) if arg == '-' else arg
+                if len(text) == 1:
+                    self.writeChar(text)
+                else: self.writeLine(text)
             return self
         for repeat in range(2):
             if isinstance(args[0], int):

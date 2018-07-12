@@ -45,6 +45,11 @@ from util import *
 
 class ParameterManager(object):
     """
+    I manager the digital DNA parameters of the evolving species. I
+    can pretty-print values with their parameter names, check if
+    values pass constraints, limit values to their bounds, scale
+    unity-range values to their appropriate ranges, and let you
+    iterate over sorted parameter names.
     """
     maxLineLength = 100
     dashes = "-"*maxLineLength
@@ -188,6 +193,7 @@ class Reporter(object):
         self.cbrScheduled = Bag()
         self.dt = DeferredTracker()
         self.lock = defer.DeferredLock()
+        self._syms_on_line = 0
 
     def addCallback(self, func, *args, **kw):
         """
@@ -229,6 +235,7 @@ class Reporter(object):
                 for func, args, kw in self.callbacks:
                     yield defer.maybeDeferred(
                         func, values, counter, *args, **kw)
+            self.progressChar()
             self.cbrInProgress = False
 
         self.cbrScheduled(values)
@@ -296,9 +303,26 @@ class Reporter(object):
         else:
             ratio = np.round(iNumerator.SSE / iDenominator.SSE)
             sym = str(int(ratio)) if ratio < 10 else "9"
-        msg.writeChar(sym)
+        self.progressChar(sym)
         return ratio
 
+    def progressChar(self, sym=None):
+        """
+        Logs the supplied ASCII character I{sym} to the current
+        console/log line. If the number of symbols logged to the
+        current line reaches my line-length limit, a is inserted. To
+        reset the count of symbols logged to the current line, call
+        this method with no symbol provided.
+        """
+        if sym is None:
+            self._syms_on_line = 0
+            return
+        msg.writeChar(sym)
+        self._syms_on_line += 1
+        if self._syms_on_line == self.pm.maxLineLength-1:
+            msg("")
+            self._syms_on_line = 0
+            
     def __call__(self, i=None, iOther=None, rbb=False, force=False):
         if i is None:
             if self.iBest:
