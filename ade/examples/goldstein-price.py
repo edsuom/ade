@@ -37,7 +37,7 @@ C{gcc -Wall -o goldstein-price goldstein-price.c}
 
 """
 
-import os
+import os, time
 
 import numpy as np
 
@@ -162,11 +162,15 @@ class MultiRunner(object):
 
 
 class Solver(object):
-    def __init__(self, N=None):
-        self.mr = MultiRunner(self.execPath, N)
-        self.p = Population(self.mr, self.names, self.bounds)
+    # Number of parallel processes to run (leave it at None to
+    # have the number set to however many CPU cores you have)
+    N = None
+    
+    def __init__(self):
+        self.mr = MultiRunner(self.execPath, self.N)
+        self.p = Population(self.mr, self.names, self.bounds, popsize=20)
         self.p.reporter.minDiff = 0.0001
-
+    
     def report(self, values, counter):
         def gotSSE(SSE):
             msg(0, self.p.pm.prettyValues(values, "SSE={:.5f} with", SSE), 0)
@@ -174,12 +178,14 @@ class Solver(object):
         
     @defer.inlineCallbacks
     def __call__(self):
+        t0 = time.time()
         yield self.p.setup()
         self.p.addCallback(self.report)
         de = DifferentialEvolution(self.p)
         yield de()
         yield self.mr.shutdown()
         msg(0, "Final population:\n{}", self.p)
+        msg(0, "Elapsed time: {:.2f} seconds", time.time()-t0, 0)
         reactor.stop()
 
 

@@ -1,0 +1,406 @@
+Decompressing and parsing tempdump.log.bz2... Done
+Doing array conversions... Done
+
+Initializing 108 population members
+----------------------------------------------------------------------------------------------------
+24742592985222732233528116234993533428334259928923242212723913184112126224221853223639678629192321514531996
+
+Population: Top 7 of 108 individuals
+
+        SSE |  3809.07644  6399.21752  6710.38827  7637.24636  7892.14608 10794.76827 11272.48382
+----------------------------------------------------------------------------------------------------
+        tc0 |      55.783      135.96      123.79      105.81      27.835      4.5334      60.337
+        tc1 |      122.15      159.44      179.31      167.79      140.16      52.998      155.46
+      v1_a0 |     0.24693       0.248     0.23882     0.22888     0.26063     0.25497     0.31225
+      v1_a1 |      21.251      17.747      23.079       16.54      18.544      23.656      23.859
+      v1_rs |      9.1113      9.9307      8.1923      10.005      10.248       8.764      9.5348
+      v2_a0 |     0.18667     0.29403     0.32948     0.35871     0.15967     0.24006     0.30067
+      v2_a1 |      16.669      20.703      20.548      21.875      16.515      20.916      23.588
+      v2_rs |      8.4631      8.9842      10.242      9.8084      8.7051      9.3769      9.5192
+         vp |      23.771       23.39      23.161      22.361      22.872      23.749      23.607
+----------------------------------------------------------------------------------------------------
+Best individual:
+<SSE=3809.0764 tc0=55.7826 tc1=122.15 v1_a0=0.246926 v1_a1=21.2511 v1_rs=9.11131 v2_a0=0.186674
+v2_a1=16.6688 v2_rs=8.46313 vp=23.771>
+
+Performing DE with CR=0.6, F=U(0.5, 1.0), DE/best/1/bin
+----------------------------------------------------------------------------------------------------
+
+Generation 1/100  F=U(0.5, 1.0)
+----------------------------------------------------------------------------------------------------
+
+SSE=21257.3 with tc0=63.8305 tc1=171.989 v1_a0=0.244754 v1_a1=19.7596 v1_rs=9.58145 v2_a0=0.23097
+v2_a1=20.3538 v2_rs=9.8321 vp=22.3976
+
+XXX6X82X2X4X19
+
+SSE=17352.6 with tc0=49.0783 tc1=124.737 v1_a0=0.254245 v1_a1=23.3126 v1_rs=9.77651 v2_a0=0.216964
+v2_a1=23.281 v2_rs=7.03089 vp=23.8898
+
+9XX7XX2X1499XX
+
+SSE=8857.85 with tc0=27.8348 tc1=169.987 v1_a0=0.260633 v1_a1=19.9317 v1_rs=10.2482 v2_a0=0.159666
+v2_a1=16.5145 v2_rs=8.7051 vp=22.8722
+
+1X22X4XX3823XX34XX2X3
+
+SSE=4620.28 with tc0=85.6948 tc1=177.797 v1_a0=0.248741 v1_a1=17.9608 v1_rs=10.5085 v2_a0=0.187959
+v2_a1=16.3334 v2_rs=9.8045 vp=23.4903
+
+XXXXX91X3XX22X2XX4XXX921XX6167X457215XX9791199
+
+Generation 2/100  F=U(0.5, 1.0)
+----------------------------------------------------------------------------------------------------
+XX32X59XX329X2X1XXXXXXXXXX10X111X1
+
+SSE=4288.46 with tc0=60.337 tc1=173.392 v1_a0=0.312248 v1_a1=22.0734 v1_rs=9.57001 v2_a0=0.300673
+v2_a1=20.6018 v2_rs=9.39019 vp=22.8241
+
+3XX1XX74XXX521X1XXXX11XX3XX1311XX1XXXXXX3X5XXXX264XX2X1X33XXX3XXX
+
+Generation 3/100  F=U(0.5, 1.0)
+----------------------------------------------------------------------------------------------------
+XXX3X1X91XXXXXXXXXXXXXX982XXX9XX3XX2
+
+SSE=3154.26 with tc0=32.3662 tc1=149.816 v1_a0=0.286291 v1_a1=21.6868 v1_rs=10.2995 v2_a0=0.194348
+v2_a1=16.7827 v2_rs=9.43741 vp=23.979
+
+X3X2XXXXX31XX9X11XXXX1XXXXXXXXXX21X1XX21X5XX4XXX9X1XXXXXXXXXXX1
+
+Generation 4/100  F=U(0.5, 1.0)
+----------------------------------------------------------------------------------------------------
+4X1XXXX15XXX3XXXX61X5X2X3X32XX93XXX2X1X313XX12XX1XXX
+
+SSE=1951.42 with tc0=23.1082 tc1=153.584 v1_a0=0.238822 v1_a1=22.2281 v1_rs=8.19233 v2_a0=0.217654
+v2_a1=18.5914 v2_rs=9.16762 vp=23.9521
+
+3511XX2X63XXX7X1XX1XX13X31X2XXX73XXXXXXXXXXX21X1XXXXX
+
+Generation 5/100  F=U(0.5, 1.0)
+----------------------------------------------------------------------------------------------------
+2XX4XXXXX1XXX11XXXXXX2XX1XXXXX3XXXX1X6XXXXXXXXXX0X2X3X12XXXX3XXXXX13XXX26XXX341XXX4XXXX1XXXX26511XXX5141
+
+Generation 6/100  F=U(0.5, 1.0)
+----------------------------------------------------------------------------------------------------
+XX9X1XXXXXXXXXXXXXXXXX2X3XX52XXXXXXXXXXX915XXXX2XX1XXXX3X2XXXX7XXX1X2XXXXX12XX2113XXXX531XXXXXXX2XX1X31XX
+
+Generation 7/100  F=U(0.5, 1.0)
+----------------------------------------------------------------------------------------------------
+XX0X3XXXXXXX31XXX21XXXXX2XXX5XXX13XXXX0X1XX22XX11XX1XX2XX9XX44XXXX4X
+
+SSE=1374.81 with tc0=16.2124 tc1=127.871 v1_a0=0.265729 v1_a1=18.794 v1_rs=10.7157 v2_a0=0.264042
+v2_a1=19.2544 v2_rs=9.79803 vp=23.8299
+
+XXXXX2XXXX2X2X2XXXXX9X2XXX3XXX12XX311X1X
+
+Generation 8/100  F=U(0.5, 1.0)
+----------------------------------------------------------------------------------------------------
+XXXXXXX1XXXXXXX1XXXX1XXXXXXXXXX1111X2X3XXX341XX1
+
+SSE=1282.11 with tc0=1.19179 tc1=121.752 v1_a0=0.260838 v1_a1=20.0865 v1_rs=9.94753 v2_a0=0.253849
+v2_a1=20.0285 v2_rs=9.36965 vp=23.7861
+
+XXXXXX1XXXXX12X3XX2XXXXXX1X113XXXXXXXXXXXXX1X3XXXX2XXXXXXX
+
+Generation 9/100  F=U(0.5, 1.0)
+----------------------------------------------------------------------------------------------------
+XX2XXX1X4X4XX21XXXX1X2XXXXXXXXX2X1XXX2XX1XXXXXXXXXXXXXX121X12X1XXX1XXXXXXXXXXX1XXXXXXX1X1X121XXX1XXXXXXX
+
+Generation 10/100  F=U(0.5, 1.0)
+----------------------------------------------------------------------------------------------------
+XXXX2XXX1XXXXXX12XXXXXX2XXXX22X3XXXXXXXX2XXXXXXXX2XXXXXXXXXXXXX2XXXXXXXXX2XX122X1XXX2XXXXXXXXXXXXXXXXXXXXXX
+
+Generation 11/100  F=U(0.5, 1.0)
+----------------------------------------------------------------------------------------------------
+XXXXXXX2XX2XX1XXXXXXXX4X2XXXXX1XXX2XXXXXXXXXXXXXXXX2XXXX2X5XXXXXXXXX1XXXXXX12XX2XXXXXXXX1XXXXXXX1XXXX23XX
+
+Generation 12/100  F=U(0.5, 1.0)
+----------------------------------------------------------------------------------------------------
+X2XXXXXX0XX4XXXX1XXXXXXXXX4XXXXXXX2XXXX0XXX2XXXXX22XXX1XXXXX
+
+SSE=1094.62 with tc0=29.4856 tc1=136.771 v1_a0=0.227016 v1_a1=19.9459 v1_rs=8.77987 v2_a0=0.27782
+v2_a1=19.5842 v2_rs=10.2507 vp=23.7653
+
+XXXXX111XXXXXXXXXXXXXXXXXX1XXXXX22XXXXXXXXXXXX
+
+Generation 13/100  F=U(0.5, 1.0)
+----------------------------------------------------------------------------------------------------
+XXXXXXXXXXX1XXXX1XXXXXXX1XXXXXXXXXXXXXX2XXXXXXXXXXXXXXX1XXXX2XX1XXXX1XXX2XX1XX2XXXXXXXXXX1XXXXXXX1XXXX1XX2
+
+Generation 14/100  F=U(0.5, 1.0)
+----------------------------------------------------------------------------------------------------
+XXXXXXXXXXXXXXXXXX1XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX4XXX1XXXXX1X1X2XX1XXXX1XXXXXXXXX2XXXX2XXXXXXXXXXXXXXXXXX
+
+Generation 15/100  F=U(0.5, 1.0)
+----------------------------------------------------------------------------------------------------
+XXXXXXXX1X12XXXX1XXXXXXX1XX1XXXXXX2XXXXXXXXXXX1X4XXXXXXXXXXX21XXXXXXX2XX1X2X1XX31XXXXXXX1XXXXX2XXX2X2XXXXXX
+
+Generation 16/100  F=U(0.5, 1.0)
+----------------------------------------------------------------------------------------------------
+XXXXXX11XX2XXXXXXXXXXXXX2XXXXXXXXXXXXXXXXXXXX0XXXXXXXXXXXXXXXXXXX11XXXX2XXX1XXXXXXXXX1XXXXXXXXXXXXXXXXXXXXX2
+
+Generation 17/100  F=U(0.5, 1.0)
+----------------------------------------------------------------------------------------------------
+XXXXXX11XXXX2XXXXXX2XXXX1XX2XXXXXXXX1XX2221XXXXX1XXXX1XXXXXXXXXXXX2XXXXX1X2XXXXXXXXX2XXXXXXXXXXX1X111XXXXX1
+
+Generation 18/100  F=U(0.5, 1.0)
+----------------------------------------------------------------------------------------------------
+XX1XX1X2XXXX2XX1XXXXXXX21X22XXXX2X1XXX1XXX1XXXX1XX2XXX1XXXXXXXXXX1XXX1XXXX1XXXXX11XXXXXXXX1XXX2XXXXXXXXXXXX
+
+Generation 19/100  F=U(0.5, 1.0)
+----------------------------------------------------------------------------------------------------
+XXXXXX1XXXXXXXXX4X11XXXXX2XXXXXXXXXXXXXXXXXXXXXXXXXXXXX2XX1XXXXXXXXXXX3XXXXX
+
+SSE=978.659 with tc0=38.5345 tc1=126.538 v1_a0=0.264117 v1_a1=20.1634 v1_rs=10.004 v2_a0=0.251353
+v2_a1=19.0597 v2_rs=9.7003 vp=23.7954
+
+XX3XXXXXX122XXXXXXXX2X2X1XXXXXXX
+
+Generation 20/100  F=U(0.5, 1.0)
+----------------------------------------------------------------------------------------------------
+1XXXXXXXXX1XXXXXXX2XXXXXXXX1XXXXXXXXX2XXXX1XXXXXXXXXXXXXXXXXX6XXXXXXXXXX2XXXX4XXXXXXXXX1XXXXXXXXX13XXX0XXX1
+
+Generation 21/100  F=U(0.5, 1.0)
+----------------------------------------------------------------------------------------------------
+XXXXXXXXXXX1XXXXXXXXXXX1X1XXXXX1X1XXXXXXX1XXXXXXXXXXXXXXXXXX1XXX3XXXXXXXXXXXXXXXXX1XXX1XXX2XXXXXX1XXXXXXXX2X
+
+Generation 22/100  F=U(0.5, 1.0)
+----------------------------------------------------------------------------------------------------
+2X2XXXXXXXXXX0XXXXXX2XXXXXXXXXXXX2XX1XX2XXXXXXXXXXX2X1XXXXXXX1XXXXXXXXX0XXX2X2X11X11XX1XXXXXXXXXX1XXXXXXXXXX
+
+Generation 23/100  F=U(0.5, 1.0)
+----------------------------------------------------------------------------------------------------
+XXXXX1XXXX0XXXXXXX1XX1XXXXXXXXXXXXXXX1XXXXXXXXXX1X12X1X2XXXXXXXXXXXXXXX1XX1112XXXXXXXXX2XX1XXXX1XX2X2XXXXX
+
+Generation 24/100  F=U(0.5, 1.0)
+----------------------------------------------------------------------------------------------------
+X2XXXXXX1XXX2XXXXXXX1XXXXXXXXXXXXXXX2XXXXXX1X1XXXXXXXXXXXXXXXX2XXXXXX2XXXXXXXXXXXXXXXX4XXXXXXXXXXXXXXXXXXXXX
+
+Generation 25/100  F=U(0.5, 1.0)
+----------------------------------------------------------------------------------------------------
+XXXXXXXXXXX1XXXXXXXX1XXXXXXXXXX2X1XXXXXX1XXXXXXXXXX2XXXXXX21XXXXXXXXXXXX1XXX1XX11XXXXXXXXXXXXXXXXXXXXXXXX2XX
+
+Generation 26/100  F=U(0.5, 1.0)
+----------------------------------------------------------------------------------------------------
+1XXXXXX1XXXXXXX3XXXXXXXXXXXXXXXXXXXXXXXX1XXX1X2XXX1XX2X1XXXXXXXXXXXXX1XXXXXXXXXXXXXXX1XXXXXX11XXX2XX121XX
+
+Generation 27/100  F=U(0.5, 1.0)
+----------------------------------------------------------------------------------------------------
+XXXXXXXXXXXXXXX1XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX1XXXXXXX11X1XX1XXXXX2XXXXX1XX1X12XXXXXXX1XXXX2XXXXXXXXXX
+
+Generation 28/100  F=U(0.5, 1.0)
+----------------------------------------------------------------------------------------------------
+XXX12XXXXX1XXXXXXXX2XXXXXXXXXXX1XXXXXXXXXXXXX1XXXXXXXXXX1XXXXX1XXXX11XXXXXX
+
+SSE=960.725 with tc0=28.4838 tc1=103.747 v1_a0=0.266777 v1_a1=19.7441 v1_rs=10.2985 v2_a0=0.238569
+v2_a1=19.0475 v2_rs=9.38175 vp=23.8625
+
+X1XXXXXXXXXXXXXXX1XXXXXX1X1XXX1
+
+Generation 29/100  F=U(0.5, 1.0)
+----------------------------------------------------------------------------------------------------
+XXXXXXXXX1XXXXXXXXXXXXXXXX5X1XXXXXX1XXXXXXXXX2XXX1XXXXXXXX1XXXXXXXXXXXXXXXX1XXXXXXXXXXXXXX1XXXXXXX11XXX11XX
+
+Generation 30/100  F=U(0.5, 1.0)
+----------------------------------------------------------------------------------------------------
+XXXXXXXXXXXXX1XXXXXXXXXX1XXXXXXXXXX1X1X1XX1X3XXXXXXXXXXXXXXXX0XXXX1XXXXXXXXXXX1XXX1XXX1X1XXXXXXXXXXXXXXXXXX
+
+Generation 31/100  F=U(0.445, 1.0)
+----------------------------------------------------------------------------------------------------
+XXX0X2XXX1X1XXXXXXXXXXXXX1XXX2XX1XXXXXX1XXXXXXXXXXX1XXXXXXXXXXXXXXXXXX12X1XX1XXX1XXXXXXXX11XXXXXXX2XXXXXXXXX
+
+Generation 32/100  F=U(0.493056632402, 1.0)
+----------------------------------------------------------------------------------------------------
+XXXXXXX1X1XXXXXXX2XXXXXXXXXXXXX1X0XXXX1XXXXXXXXXXXXXXXX1XXXXXXXXXXXXXXXXXXX1XXXXXXX3XX1XXXX1XXXXXXXXXX1XXX
+
+Generation 33/100  F=U(0.5, 1.0)
+----------------------------------------------------------------------------------------------------
+1XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX1XXXXXXXXXXXXXXXXXXXXXXXX1XXXXXX1XX2XXXX1XXXXXXX1XXXX1XXXXXXX1XX
+
+Generation 34/100  F=U(0.445, 1.0)
+----------------------------------------------------------------------------------------------------
+1XX12XXXXX1XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX4XXXXXXXXXXX1XXXXXXXX1XXXXXXXX1XXXXXXX1XXXXXXX1XXXXX1XXXXXXX
+
+Generation 35/100  F=U(0.493056632402, 1.0)
+----------------------------------------------------------------------------------------------------
+XXX1XXXXXXXXXXXXXXXXX1XXXXXXXXXXXXXX1XXXXXXXXXX11XXXXXX1XXXXXXXX1XXXXX1XXXXXXXX1XXXXXXXXXXXXXXXXXXXXXXXXXXX
+
+Generation 36/100  F=U(0.438820402838, 1.0)
+----------------------------------------------------------------------------------------------------
+XXXXXXXXXXXXXXXXXXXXXXXXXXX2XXXXXXXXXXXXXX1X1X1XXXXXXXXXXXXXXXXXXXXXXXX11XXX10XXXXXX1XXXX2X1XXXXXXX1XXXXXXXX
+
+Generation 37/100  F=U(0.390550158526, 1.0)
+----------------------------------------------------------------------------------------------------
+XXXXXXXX2XXXXXXXXXXXXXX2XX1X1XX1XXXXXXXXXXXXXXXXXXX1XXXXXXX11XXXXXXXXXXXXXXXXXXXXXXXXXX1XXXXXX1XXXXXX1XX1XX
+
+Generation 38/100  F=U(0.347589641088, 1.0)
+----------------------------------------------------------------------------------------------------
+XX1XXXXXXXXXX1XXXX11XXXXXXXXXXXXXXXXXXXXXXXX0XXXXXXXXXXXXXX1XXXXXX1X1XXXXX1XXXXXXX1XXXXXXXXXXXXXXXXXXXX1XX
+
+Generation 39/100  F=U(0.309354780568, 1.0)
+----------------------------------------------------------------------------------------------------
+X0X1XXXXXX1XX2XXX2XXX1XXXXXXXXXXXXXX1XXXXX1XXX1XXXXXXXX1XXXXXXXXXXXX0XX1XXXXXXXX1XXXXXXXXXXX1XXXXXXXXXXXX1X
+
+Generation 40/100  F=U(0.275325754706, 1.0)
+----------------------------------------------------------------------------------------------------
+XXXXX1XX11XXXXXX1XXXXXXXXXXXX11XXXXXXXXXXXXXXXXXXXXXX1XXXXXXXXXXXXX0XXXXXXX1X10XXXXXXXXXXXXXXXXXXXXX1XXX1XX
+
+Generation 41/100  F=U(0.245039921688, 1.0)
+----------------------------------------------------------------------------------------------------
+X1XXX1XXXXXXXXXXXXXX2XXX111XXX1XXXXXXXXXXXXXX1XXXX1XXXXXXXXXXXXXXXX11XXXXX1XXXXXX2XX1XXX1XXXXXXXXXXXXXXXXXX1
+
+Generation 42/100  F=U(0.271502378857, 1.0)
+----------------------------------------------------------------------------------------------------
+XXXXXXXX1XXXXXX1XXXXXXXXX
+
+SSE=947.972 with tc0=23.6233 tc1=100.363 v1_a0=0.25878 v1_a1=19.8024 v1_rs=10.0017 v2_a0=0.234958
+v2_a1=19.3069 v2_rs=8.96434 vp=23.9943
+
+X1X1X1XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX1XXXXXXXXXXXXXXXXXXXXX1XXXXXXXXXXXXX
+
+Generation 43/100  F=U(0.241637117183, 1.0)
+----------------------------------------------------------------------------------------------------
+1XXXXXXX1X1XX1XXXXXXXXXXXXXXX1XXXXXXXXXXXXXXXXXXXXX111X1XXX1XX1XXX1X1XXXXXXXXXXXX1X1XXXXXXXX11X1XXXXXX1XXXX1
+
+Generation 44/100  F=U(0.215057034293, 1.0)
+----------------------------------------------------------------------------------------------------
+XXXXXX1XXXXXXXXXX1XXXXXXXX1XXXXXX1XX1XXXXXXXXXX1XXXXXXXXXXXXX1XXXXXXX1XXXXX0XXX1XXXXXXX1X1XX
+
+SSE=936.885 with tc0=19.3331 tc1=91.1831 v1_a0=0.249515 v1_a1=20.0302 v1_rs=9.44687 v2_a0=0.238757
+v2_a1=19.2863 v2_rs=9.19345 vp=23.8537
+
+1XXX1X0XXXX1XXX
+
+SSE=925.214 with tc0=15.8873 tc1=85.4304 v1_a0=0.242529 v1_a1=20.0845 v1_rs=9.15343 v2_a0=0.237359
+v2_a1=19.0199 v2_rs=9.19866 vp=23.7134
+
+X
+
+Generation 45/100  F=U(0.191400760521, 1.0)
+----------------------------------------------------------------------------------------------------
+X1X1XXXXXXX1XXXXXXXXXXXXXXX1XXXXXXX1XX1X1XXXXXXXXXXXXXXXXXX1XXXXXXXXXX1XXXXXXXXXXX1XXXXXXXXXXXXXXXXX1XXXXX
+
+Generation 46/100  F=U(0.170346676863, 1.0)
+----------------------------------------------------------------------------------------------------
+XX1XXXXXXXX1XXXXXXXXXXXXXX1X1XXXXXX1XXX1XX11XXXXXXX1XXXXXX1XXXXXXXXXXXXXXX1XXXXXXXXXXXXXXXXXXXXXXXXX1XXX
+
+Generation 47/100  F=U(0.151608542408, 1.0)
+----------------------------------------------------------------------------------------------------
+XXXXXXXXXXXXXXXX1XX1X1XX1XXXXX1XXXXXXXXXXX1XXXXXX1XXXXXX1XXX1X1X1XXXXXXXXXXXXXXXXXX1XXXXX1XXX1X1XX1X1XXX1XXX
+
+Generation 48/100  F=U(0.134931602743, 1.0)
+----------------------------------------------------------------------------------------------------
+XXXXXXXXXXXXXXXXXXXX10XXXXXXXXXXXXXXX1XX11X1XXXXXXXXXXXXX1XXXX2XXXXXXXXXXXXXXXXXXXXXXXXX1XXX11XXXXXXXX11X
+
+Generation 49/100  F=U(0.120089126442, 1.0)
+----------------------------------------------------------------------------------------------------
+XXXXXXXXX1XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX1XXXXXXX1XXXXXXXXXXXXX1XXXXXXXXXXXXXXXXXXXXXXXXXXX1011XXXX
+
+Generation 50/100  F=U(0.106879322533, 1.0)
+----------------------------------------------------------------------------------------------------
+X1X1XX1XXXX1XXXXX1XX0X1XXX110XXXXXXXXX1XXX1XXXXXXX11XXX1XXXXXXXX11XXXXXXXXXXXXX0XXXXXX1XXXXXXXX1XXXXX0X0XXX
+
+Generation 51/100  F=U(0.0951225970545, 1.0)
+----------------------------------------------------------------------------------------------------
+XX0XXXXXXX1XXX0XXXXX0XXX1X0XXXXXXX110XXXXX1XXX1XXXXXX01XXXXXXX1X1XX1XXX11XXXXXXXXXXXX1XXXXXXXXXXX1X01X0XXXXX
+
+Generation 52/100  F=U(0.0846591113785, 1.0)
+----------------------------------------------------------------------------------------------------
+XX1X1XX1XXXXXXXXXXXXXX1XXXX1XXX1XXXXXXXXXXXXXXXXX1XX10XXXXX1XXXXXXXXXXXX1X1XXXXXX0X0XXXXX11XXXXXXXXXXX1XXXXX
+
+Generation 53/100  F=U(0.0846591113785, 0.87)
+----------------------------------------------------------------------------------------------------
+XXXXXXXXXXXX0XXXXXXXXXXXXXXXX1XXXXXXXXXXXXXXXXXXXX0XXXXXX1XXXXXXXX11XXXXX1XX1XX1XX001XXX1XXXXXXXXXXXXXXXXXXX
+
+Generation 54/100  F=U(0.0846591113785, 0.7569)
+----------------------------------------------------------------------------------------------------
+XXXX1XXXXXXX1XX1XXXXXXXXX1XXXXXXXX01XX101XXXXXXXXXX0XXXX1X0XX1XXXXXXXXX1XXXX1XXXXXXXXX1XXX11XXXXXXXXXX11XXXX
+
+Generation 55/100  F=U(0.0846591113785, 0.658503)
+----------------------------------------------------------------------------------------------------
+XXXXX0XXXXX1XX0XXXXX1XX0X01XXXXXXX1X1X1X1XXXXXXXX0X01XX1XXX1XXXXXX0XXXXX1111XXXXXXXXXXXX1XXXXXXXX1XXXXXXXX1X
+
+Generation 56/100  F=U(0.0846591113785, 0.57289761)
+----------------------------------------------------------------------------------------------------
+XXXX1XXXXXXXXXXX1XXX0XX0XXXX1XXXXXXXXXXXXXX11X1XX00XXXXXXXXXXXXX1XXXX1X1XXXXXXXXXX0XXXXXXXXXXXXX1XX0XXXX1X1X
+
+Generation 57/100  F=U(0.0846591113785, 0.4984209207)
+----------------------------------------------------------------------------------------------------
+1XXXXXXXXXXX11XXXXXXXXXXXXX1XXXXX1XXXXXXX0XXXXX01X1XXX
+
+SSE=915.502 with tc0=3.54253 tc1=82.3318 v1_a0=0.219819 v1_a1=19.8747 v1_rs=8.34508 v2_a0=0.221939
+v2_a1=19.1319 v2_rs=8.50515 vp=23.6448
+
+X1X0XXXX11XXX1XXXX10X0XXXXX0XXXXXXXXXX1110XXXX1X0XXX0X
+
+Generation 58/100  F=U(0.0846591113785, 0.433626201009)
+----------------------------------------------------------------------------------------------------
+XXXXXXXX1XXXXXXX0XXXXXXX0XXXXXXXXXXXXX0XXXXXXXXXX0XXXXXXXXXXXXXXX1XXXX0XXXXXXXXXX0XXXXXXXXXXXX1XXXXXXXXXXXXX
+
+Generation 59/100  F=U(0.0846591113785, 0.377254794878)
+----------------------------------------------------------------------------------------------------
+XXXXXXXXXXX0XXXX0XXXXXXX1X1XXXX0XXXXXXXX010XXXX0XXXXXXXXXXXXXXXX1XXXX1XXXXXXX0XXXX1XXXXXXXXXXXXXXXXXXXX1XXXX
+
+Generation 60/100  F=U(0.0846591113785, 0.328211671544)
+----------------------------------------------------------------------------------------------------
+X10XXX1XXXXXXXX01XXXXXXXX0XXXXXXXXX1XXXXXXXXXXXXXXXXX1XXXXXXXXX0XX1XXXXXXXX0XXXXXX0X0XXXXX1XXXXXXXXX1XXXXXXX
+
+Generation 61/100  F=U(0.0846591113785, 0.285544154243)
+----------------------------------------------------------------------------------------------------
+XXXXX1XXXXX11XXXXXXXXXXXXXXXXXXXXXXXX1X01XXXX1XXXX1X10XX100XXXX1XXX1XXXXXXXX0XXXXX1XXXXXXXXXXXX00X1XXXXX0XXX
+
+Generation 62/100  F=U(0.0846591113785, 0.285544154243)
+----------------------------------------------------------------------------------------------------
+1XXXXXX1X1XX1XXXXXXXXXXXXXX1X1X10XXXXXXXXXXXXX0XXX0XXXXXXXXXX0XX0XXXXXXXXXXXXXXX0XX0XXXXX0XX1X1XXX0XX1010XXX
+
+Generation 63/100  F=U(0.0846591113785, 0.285544154243)
+----------------------------------------------------------------------------------------------------
+XXXXX0XXXXX0XXXXXX0X0XX0XXXXXXXXXXXX0X0XXXXXXXXX1X0XXX0XXX0XXX0X0XXX1XX0XX1X0XXX01XX0XXXXX1XX0XX1XX10XXXXXXX
+
+Generation 64/100  F=U(0.0846591113785, 0.285544154243)
+----------------------------------------------------------------------------------------------------
+XX0XXXXXXXXXX01X0XXXXXXXXX1XX1X0XXX0XXX1XXXXXXX1XXXXXXXXXXXXXXXXXXXXXXX01XX1XXXXX0XXXXXXX1XX0X0X1XXXXXXXXX1X
+
+Generation 65/100  F=U(0.0846591113785, 0.285544154243)
+----------------------------------------------------------------------------------------------------
+XXXXX1X0X1XXXXXXXXXXXXXXX0XXXXX0XX01XX1XXXXX0000XXX0XXXXXXXXXXX00XXXXXX0XXXXXXX0XXXXXXXXXXXX0XXXX0X0X0X1XXXX
+
+Generation 66/100  F=U(0.0846591113785, 0.285544154243)
+----------------------------------------------------------------------------------------------------
+XXXX0XX0X01XXXXXXXXX0XXXXXXXXX0XXXX1X0X01XX00XXXXXXXXXXXXXXXX00XX0XX0XXXXXX0XXX01XX1XX0XXXXXXXX00XXXXXXXX0X0
+
+Generation 67/100  F=U(0.0846591113785, 0.285544154243)
+----------------------------------------------------------------------------------------------------
+XXXX0XXX0XXXXXXXXXX00XXX00XXXX1X00XX0XXXXXXXXXXX0XXXXXXX1XXXX0XXXX0XXXXXXXXX0XXXXXXXXXXXXXXX0XXX01X00X00XXXX
+
+Generation 68/100  F=U(0.0846591113785, 0.285544154243)
+----------------------------------------------------------------------------------------------------
+XXXXXXXXXXXXXXXXXXXXXXXXXXX0X0XXXXXXX0XXXXXXX0XXXXXXXXXX0XXXXXXXXXXXXXXXXXXXXXXXXXX0XXXXXXXXXXX0XXXXXXXXXXXX
+
+Challengers failing too much, stopped
+
+SSE=913.473 with tc0=1.51171 tc1=89.7851 v1_a0=0.236336 v1_a1=19.9622 v1_rs=8.92821 v2_a0=0.220573
+v2_a1=19.1166 v2_rs=8.46522 vp=23.6576
+
+ProcessQueue is shut down
+Local ThreadQueue is shut down
+
+Final population:
+Population: Top 7 of 108 individuals
+
+        SSE |   913.47342   913.53169   913.56301   913.61279   913.61635   913.63276   913.63453
+----------------------------------------------------------------------------------------------------
+        tc0 |      1.5117      2.2841      0.9231     0.41192      1.6111      2.5024      3.2198
+        tc1 |      89.785      89.677      91.492      94.905      93.382      95.953      93.253
+      v1_a0 |     0.23634     0.23878     0.23786     0.23781     0.23869     0.23801     0.23785
+      v1_a1 |      19.962      19.964      19.959      19.954      19.964      19.951      19.976
+      v1_rs |      8.9282       9.012       8.974      8.9704      9.0099      8.9887      8.9784
+      v2_a0 |     0.22057        0.22     0.21867     0.21837     0.21915     0.21968      0.2209
+      v2_a1 |      19.117      19.118      19.113      19.114      19.108      19.117      19.124
+      v2_rs |      8.4652      8.4412      8.3889       8.374      8.4099      8.4248      8.4692
+         vp |      23.658      23.654      23.645      23.634      23.656      23.639      23.668
+----------------------------------------------------------------------------------------------------
+Best individual:
+<SSE=913.4734 tc0=1.51171 tc1=89.7851 v1_a0=0.236336 v1_a1=19.9622 v1_rs=8.92821 v2_a0=0.220573
+v2_a1=19.1166 v2_rs=8.46522 vp=23.6576>
+
