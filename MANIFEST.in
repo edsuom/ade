@@ -1,7 +1,7 @@
 include NOTICE
 include LICENSE.txt
 
-exclude goldstein-price
-exclude thermistor.png
+exclude ade/examples/goldstein-price
+exclude ade/examples/thermistor.png
 
 
