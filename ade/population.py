@@ -143,9 +143,8 @@ class ParameterManager(object):
         Differential Evolution using the CEC2017 Benchmark"), this is
         second and performance only to resampling for a new DE
         mutant. (They also propose a "scaled mutant" method that is
-        more complicated and would present huge obstacles to
-        calculating L{prTransition}, but according to their Tables 1,
-        2, doesn't appear significantly better.)
+        more complicated, but according to their Tables 1, 2, doesn't
+        appear significantly better.)
         """
         values = np.where(values < self.mins, 2*self.mins - values, values)
         values = np.where(values > self.maxs, 2*self.maxs - values, values)
@@ -351,11 +350,24 @@ class Reporter(object):
         
 class Population(object):
     """
-    Construct me with a sequence of I{bounds} that each define the
-    lower and upper limits of my parameters, a callable I{func} that
-    accepts a 1-D Numpy array of values within those limits and of the
-    same length as the sequence of bounds and returns a fitness metric
-    where lower values indicate better fitness.
+    Construct me with a callable evaluation I{func} that accepts a 1-D
+    Numpy array of parameter values, a sequence of I{names} for the
+    parameters, and a sequence of I{bounds} containing 2-tuples that
+    each define the lower and upper limits of the values.
+
+    The evaluation function must return the sum of squared errors
+    (SSE) as a single float value. In addition to the array of
+    parameter values, it must also accept a keyword or optional second
+    argument I{xSSE}, which (if provided) is the SSE of the target
+    individual being challenged. The evaluation function need not
+    continue its computations if it accumulates an SSE greater than
+    I{xSSE}; it can just return that greater SSE and conclude
+    operations. That's because DE uses a greedy evaluation function,
+    where the challenger will always be accepted if it is *any* better
+    than the target.
+
+    If just one argument (the paremeter value 1-D array) is provided,
+    your evaluation function must return the fully computed SSE.
     """
     # Default population size per parameter
     popsize = 10
