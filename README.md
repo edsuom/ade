@@ -5,21 +5,29 @@
 * [PyPI Page](https://pypi.python.org/pypi/ade/)
 * [Project Page](http://edsuom.com/ade.html) at **edsuom.com**
 
-*ade* performs the
 [Differential Evolution](https://en.wikipedia.org/wiki/Differential_evolution)
-(DE) algorithm asynchronously. Running on a multicore CPU or cluster,
-*ade* can get the DE processing done several times faster than
-standard single-threaded DE. It does this without departing in any way
-from the numeric operations performed by the classic Storn and Price
-algorithm using either a randomly chosen or best candidate scheme.
- 
+(DE) is a type of genetic algorithm that works especially well for
+optimizing combinations of real-valued variables. The *ade* Python
+package does simple and smart population initialization, informative
+progress reporting, adaptation of the vector differential scaling
+factor *F* based on how much each generation is improving, and
+automatic termination after a reasonable level of convergence to the
+best solution.
+
+But most significantly, *ade* performs Differential Evolution
+*asynchronously*. When running on a multicore CPU or cluster, *ade*
+can get the DE processing done several times faster than standard
+single-threaded DE. It does this without departing in any way from the
+numeric operations performed by the classic Storn and Price algorithm,
+using either a randomly chosen or best candidate scheme.
+
 You get a substantial multiprocessing speed-up *and* the
 well-understood, time-tested behavior of the classic `DE/rand/1/bin`
 or `DE/best/1/bin` algorithm. (You can pick which one to use.) The
-very same target[] and base[] selection, mutation,[] scaling, and
-crossover[] are done for a sequence of targets in the population, just
-like you're used to. The underlying numeric recipe is not altered *at
-all*, but everything runs a lot faster.
+very same target and base selection, mutation, scaling, and
+crossover are done for a sequence of targets in the population, just
+like you're used to. The underlying numeric recipe is not altered at
+all, but everything runs a lot faster.
 
 How is this possible? The answer is found in asynchronous processing
 and the
