@@ -34,7 +34,7 @@ required = ['Twisted', 'numpy', 'scipy', 'matplotlib', 'pydoe', 'AsynQueue']
 
 
 ### Define setup options
-kw = {'version':'0.8.2',
+kw = {'version':'0.8.3',
       'license':'Apache License (2.0)',
       'platforms':'OS Independent',
 
@@ -90,7 +90,7 @@ Asynchronous Differential Evolution, with efficient multiprocessing.
 kw['long_description'] = """
 Performs the Differential Evolution (DE) algorithm
 asynchronously. With a multiprocess evaluation function running on a
-multicore CPU or cluster, ade can get the DE processing done several
+multicore CPU or cluster, *ade* can get the DE processing done several
 times faster than standard single-threaded DE. It does this without
 departing in any way from the numeric operations performed by the
 classic Storn and Price algorithm with either a randomly chosen
@@ -101,6 +101,18 @@ well-understood, time-tested behavior of the classic DE/rand/1/bin or
 DE/best/1/bin algorithm. (You can pick which one to use.) The
 underlying numeric recipe is not altered at all, but everything runs a
 lot faster.
+
+The *ade* package also does simple and smart population initialization,
+informative progress reporting, adaptation of the vector differential
+scaling factor *F* based on how much each generation is improving, and
+automatic termination after a reasonable level of convergence to the
+best solution.
+
+For a tutorial and usage examples, see the `project page`_ at
+**edsuom.com**.
+
+.. _project page: http://edsuom.com/ade.html
+
 """
 
 ### Finally, run the setup
