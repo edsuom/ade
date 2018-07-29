@@ -22,6 +22,10 @@
 # express or implied. See the License for the specific language
 # governing permissions and limitations under the License.
 
+"""
+B{A}synchronous B{D}ifferential B{E}volution.
+"""
+
 def extract_examples():
     """
     Call via the I{ade-examples} entry point to extract example files
