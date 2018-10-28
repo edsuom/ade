@@ -69,12 +69,12 @@ class Data(Picklable):
     csvPath = "tempdump.csv.bz2"
     csvURL = "http://edsuom.com/ade-tempdump.csv.bz2"
     firstColumn = 1
-    ranges = (0, 213), (442, 2920), (3302, 6000), (6550, 7000), (7200, None)
-    #ranges = [(0, None)]
+    ranges = [(0, 213), (442, 2920), (3302, 6000), (6550, 7000),
+              (7200, 8210), (8280, 8345), (8380, None)]
 
     dTdt_halfWeight = 0.05 / 10
-    dTdt_power = 2
-    weightCutoff = 0.5
+    dTdt_power = 3
+    weightCutoff = 0.2
     
     @defer.inlineCallbacks
     def setup(self):
@@ -104,7 +104,6 @@ class Data(Picklable):
         value_lists.sort(None, lambda x: x[0])
         t_list = []
         t0 = value_lists[0][0]
-        T_list = []
         selected_value_lists = []
         for k, value_list in enumerate(value_lists):
             for k0, k1 in self.ranges:
@@ -123,6 +122,9 @@ class Data(Picklable):
             self.dTdt_halfWeight / (np.abs(dTdt) + self.dTdt_halfWeight),
             self.dTdt_power)
         self.weights = np.pad(weights, (1, 0), 'constant')
+        # Hack to weight cold readings more, since fewer of them.
+        self.weights = np.where(self.X[:,0] < 4.0, 10*self.weights, self.weights)
+        self.weights = np.where(self.X[:,0] < -5.0, 3*self.weights, self.weights)
         print "Done"
     
     def cutoffWeights(self, above=False):
@@ -158,16 +160,17 @@ class Evaluator(Picklable):
     sum-of-squared-error fitness of the curve to the thermistor data.
     """
     T_kelvin_offset = +273.15 # deg C
+    prefixes = "ABCDEF"
     prefix_bounds = {
-        'A':   (1E-4, 1E-2),
-        'B':   (1E-5, 1E-3),
-        'C':   (1E-7, 1E-6),
-        'D':   (-1E-5, 0),
-        'a':   (0.75, 1.25),
-        'b':   (0.75, 1.25),
-        'c':   (0.75, 1.25),
-        'd':   (0.75, 1.25),
+        'A':   (5E-4, 6E-3),
+        'B':   (5E-5, 5E-4),
+        'C':   (5E-8, 3E-6),
+        'D':   (-1E-8, +1E-8),
+        'E':   (-1E-13, +1E-13),
+        'F':   (-1E-18, +1E-18),
     }
+    for prefix in prefixes.lower():
+        prefix_bounds[prefix] = (0.4, 3.0)
 
     def setup(self):
         """
@@ -178,7 +181,6 @@ class Evaluator(Picklable):
         parameter name.
         """
         def done(null):
-            data.plot()
             for name in ('t', 'X', 'weights'):
                 setattr(self, name, getattr(data, name))
             return names, bounds
@@ -189,9 +191,9 @@ class Evaluator(Picklable):
         prefixes = sorted(self.prefix_bounds.keys())
         for k in range(7):
             for prefix in prefixes:
-                if k == 0 and prefix in 'ABCD':
+                if k == 0 and prefix in self.prefixes:
                     name = prefix
-                elif k > 0 and prefix in 'abcd':
+                elif k > 0 and prefix in self.prefixes.lower():
                     name = self.prefix2name(prefix, k)
                 else: continue
                 names.append(name)
@@ -209,7 +211,7 @@ class Evaluator(Picklable):
         Returns a list of parameter values to use in a call to L{curve}
         for the specified Yocto-MaxThermistor input I{k} (1-6).
         """
-        names = ['A', 'B', 'C', 'D']
+        names = [x for x in self.prefixes]
         for prefix in [x.lower() for x in names]:
             names.append(self.prefix2name(prefix, k))
         return [values[self.indices[x]] for x in names]
@@ -226,8 +228,8 @@ class Evaluator(Picklable):
         
         """
         lnR = np.log(R)
-        a, b, c, d = [params[k]*params[k+4] for k in range(4)]
-        T_kelvin = 1.0 / (a + b*lnR + c*(lnR**3) + d*R)
+        a, b, c, d, e, f = [params[k]*params[k+6] for k in range(6)]
+        T_kelvin = 1.0 / (a + b*lnR + c*(lnR**3) + d*R + e*R**2 + f*R**3)
         return T_kelvin - self.T_kelvin_offset
 
     def __call__(self, values, xSSE=None):
@@ -326,7 +328,8 @@ class Runner(object):
         msg(True)
         t0 = time.time()
         args = self.args
-        names_bounds = yield self.ev.setup().addErrback(oops)
+        names_bounds = yield self.ev.setup(
+            self.args[0] if len(self.args) else None).addErrback(oops)
         self.p = Population(
             self.evaluate,
             names_bounds[0], names_bounds[1], popsize=args.p)

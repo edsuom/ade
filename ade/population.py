@@ -376,9 +376,9 @@ class Population(object):
     Np_min = 20
     # Population is never bigger than this, no matter how many
     # parameters or requested size per parameter
-    Np_max = 300
+    Np_max = 500
     # Target score of improvements in each generation/iteration
-    targetFraction = 5.0 / 100
+    targetFraction = 4.0 / 100
     
     def __init__(self, func, names, bounds, constraints=[], popsize=None):
         def evalFunc(values, xSSE):
