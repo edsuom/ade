@@ -37,6 +37,8 @@ match thermal time constants.
 import os.path, bz2, time
 
 import numpy as np
+from scipy import signal
+
 from twisted.internet import reactor, defer
 from twisted.web import client
 
@@ -53,19 +55,31 @@ class Data(Picklable):
     """
     Run L{setup} on my instance to load (possibly downloading and
     decompressing first) the CSV file.
+
+    @ivar t: A 1-D Numpy vector containing the number of seconds
+        elapsed from the first reading.
+
+    @ivar X: A 2-D Numpy array with the first column temperature
+        readings and the following columns thermistor resistance
+        readings
+
+    @ivar weights: A 1-D array of weights for each row in that array.
+    
     """
     csvPath = "tempdump.csv.bz2"
     csvURL = "http://edsuom.com/ade-tempdump.csv.bz2"
     firstColumn = 1
-    ranges = (0, 213), (442, 2920), (3302, 6000), (6550, 7000), (7200, None)
+    #ranges = (0, 213), (442, 2920), (3302, 6000), (6550, 7000), (7200, None)
+    ranges = [(0, None)]
+
+    dTdt_halfWeight = 0.02 / 10
+    weightCutoff = 0.5
     
     @defer.inlineCallbacks
     def setup(self):
         """
-        "Returns" a (deferred) 2-D Numpy array with the first column
-        temperature readings and the following columns thermistor
-        resistance readings, and a 1-D array of weights for each row
-        in that array.
+        "Returns" a (deferred) that fires when setup is done and my I{t},
+        I{X}, and I{weights} ivars are ready.
         """
         if not os.path.exists(self.csvPath):
             print "Downloading tempdump.csv.bz2 data file from edsuom.com...",
@@ -87,38 +101,50 @@ class Data(Picklable):
         print "Done"
         print "Doing array conversions...",
         value_lists.sort(None, lambda x: x[0])
+        t_list = []
+        t0 = value_lists[0][0]
+        T_list = []
         selected_value_lists = []
         for k, value_list in enumerate(value_lists):
             for k0, k1 in self.ranges:
                 if k >= k0 and (k1 is None or k < k1):
-                    T = value_list[1]
-                    T_counts[T] = T_counts.get(T, 0) + 1
+                    t_list.append(value_list[0] - t0)
                     selected_value_lists.append(value_list[1:])
                     break
         print sub(
             "Read {:d} of {:d} data points", len(selected_value_lists), k+1)
-        X = np.array(selected_value_lists)
+        self.t = np.array(t_list)
+        self.X = np.array(selected_value_lists)
         N = len(selected_value_lists)
-        weights = np.zeros(N)
-        for k in range(N):
-            weights[k] = 1.0 / T_counts[X[k,0]]
+        T_filt = signal.lfilter([1, 1], [2], self.X[:,0])
+        dTdt = np.diff(T_filt) / np.diff(self.t)
+        self.weights = np.pad(
+            self.dTdt_halfWeight / (np.abs(dTdt) + self.dTdt_halfWeight),
+            (1, 0), 'constant')
         print "Done"
-        defer.returnValue((X, weights))
-
-    def plot(self, X):
+    
+    def cutoffWeights(self, above=False):
+        comparator = np.greater if above else np.less
+        return np.flatnonzero(comparator(self.weights, self.weightCutoff))
+        
+    def plot(self):
         """
-        Just plot everything in I{X}, with annotations.
+        Just plot my data with annotations.
         """
-        T = X[:,0]
-        N = len(T)
+        I_below = self.cutoffWeights()
+        I_above = self.cutoffWeights(above=True)
+        T = self.X[I_above, 0]
+        T_cutoff = self.X[I_below, 0]
         pp = Plotter(3, 2, width=12, height=10)
         pp.add_marker('.')
         pp.add_plotKeyword('markersize', 1)
         with pp as p:
             for k in range(6):
-                R = X[:,k+1]
+                R = self.X[I_above, k+1]
                 p.set_title(sub("Thermistor #{:d}", k+1))
-                p(R, T)
+                ax = p(R, T)
+                R = self.X[I_below, k+1]
+                ax.plot(R, T_cutoff, 'r.', markersize=1)
         pp.show()
 
 
@@ -131,13 +157,14 @@ class Evaluator(Picklable):
     """
     T_kelvin_offset = +273.15 # deg C
     prefix_bounds = {
-        'a':   (1E-4, 1E-2),
-        'b':   (1E-5, 1E-3),
-        'c':   (1E-7, 1E-6),
-        'd':   (-1E-5, 0),
-        'x':   (0.75, 1.25),
-        'y':   (0.75, 1.25),
-        'z':   (0.75, 1.25),
+        'A':   (1E-4, 1E-2),
+        'B':   (1E-5, 1E-3),
+        'C':   (1E-7, 1E-6),
+        'D':   (-1E-5, 0),
+        'a':   (0.75, 1.25),
+        'b':   (0.75, 1.25),
+        'c':   (0.75, 1.25),
+        'd':   (0.75, 1.25),
     }
 
     def setup(self):
@@ -148,9 +175,10 @@ class Evaluator(Picklable):
         Also creates a dict of I{indices} in those sequences, keyed by
         parameter name.
         """
-        def done(stuff):
-            #data.plot(stuff[0])
-            self.X, self.weights = stuff
+        def done(null):
+            data.plot()
+            for name in ('t', 'X', 'weights'):
+                setattr(self, name, getattr(data, name))
             return names, bounds
 
         names = []
@@ -159,9 +187,9 @@ class Evaluator(Picklable):
         prefixes = sorted(self.prefix_bounds.keys())
         for k in range(7):
             for prefix in prefixes:
-                if k == 0 and prefix in 'abcd':
+                if k == 0 and prefix in 'ABCD':
                     name = prefix
-                elif k > 0 and prefix in 'xyz':
+                elif k > 0 and prefix in 'abcd':
                     name = self.prefix2name(prefix, k)
                 else: continue
                 names.append(name)
@@ -179,21 +207,24 @@ class Evaluator(Picklable):
         Returns a list of parameter values to use in a call to L{curve}
         for the specified Yocto-MaxThermistor input I{k} (1-6).
         """
-        names = ['a', 'b', 'c', 'd']
-        for prefix in ('x', 'y', 'z'):
+        names = ['A', 'B', 'C', 'D']
+        for prefix in [x.lower() for x in names]:
             names.append(self.prefix2name(prefix, k))
         return [values[self.indices[x]] for x in names]
     
-    def curve(self, R, a, b, c, d, x, y, z):
+    def curve(self, R, *params):
         """
         Given a 1-D vector of thermistor resistances followed by arguments
         defining curve parameters, returns a 1-D vector of
         temperatures (degrees C) for those resistances.
+
+        T = 1 / (A*b + B*b*ln(R) + C*c*ln(R)^3 + D*d*R) - 273.15
+
+        where R is in Ohms and T is in degrees C.
+        
         """
-        a *= x
-        b *= y
-        c *= z
         lnR = np.log(R)
+        a, b, c, d = [params[k]*params[k+4] for k in range(4)]
         T_kelvin = 1.0 / (a + b*lnR + c*(lnR**3) + d*R)
         return T_kelvin - self.T_kelvin_offset
 
