@@ -69,10 +69,11 @@ class Data(Picklable):
     csvPath = "tempdump.csv.bz2"
     csvURL = "http://edsuom.com/ade-tempdump.csv.bz2"
     firstColumn = 1
-    #ranges = (0, 213), (442, 2920), (3302, 6000), (6550, 7000), (7200, None)
-    ranges = [(0, None)]
+    ranges = (0, 213), (442, 2920), (3302, 6000), (6550, 7000), (7200, None)
+    #ranges = [(0, None)]
 
-    dTdt_halfWeight = 0.02 / 10
+    dTdt_halfWeight = 0.05 / 10
+    dTdt_power = 2
     weightCutoff = 0.5
     
     @defer.inlineCallbacks
@@ -118,9 +119,10 @@ class Data(Picklable):
         N = len(selected_value_lists)
         T_filt = signal.lfilter([1, 1], [2], self.X[:,0])
         dTdt = np.diff(T_filt) / np.diff(self.t)
-        self.weights = np.pad(
+        weights = np.power(
             self.dTdt_halfWeight / (np.abs(dTdt) + self.dTdt_halfWeight),
-            (1, 0), 'constant')
+            self.dTdt_power)
+        self.weights = np.pad(weights, (1, 0), 'constant')
         print "Done"
     
     def cutoffWeights(self, above=False):
