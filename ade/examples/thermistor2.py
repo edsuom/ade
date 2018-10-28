@@ -51,6 +51,16 @@ from ade.population import Population
 from ade.de import DifferentialEvolution
 
 
+# For providing some limited info about unhandled Deferred failures
+from twisted.logger import globalLogPublisher
+from twisted.logger._levels import LogLevel
+def analyze(event):
+    if event.get("log_level") == LogLevel.critical:
+        print sub("\nERROR: {}\n", event)
+        #reactor.stop()
+globalLogPublisher.addObserver(analyze)
+
+
 class Data(Picklable):
     """
     Run L{setup} on my instance to load (possibly downloading and
@@ -115,7 +125,6 @@ class Data(Picklable):
             "Read {:d} of {:d} data points", len(selected_value_lists), k+1)
         self.t = np.array(t_list)
         self.X = np.array(selected_value_lists)
-        N = len(selected_value_lists)
         T_filt = signal.lfilter([1, 1], [2], self.X[:,0])
         dTdt = np.diff(T_filt) / np.diff(self.t)
         weights = np.power(
@@ -328,8 +337,7 @@ class Runner(object):
         msg(True)
         t0 = time.time()
         args = self.args
-        names_bounds = yield self.ev.setup(
-            self.args[0] if len(self.args) else None).addErrback(oops)
+        names_bounds = yield self.ev.setup().addErrback(oops)
         self.p = Population(
             self.evaluate,
             names_bounds[0], names_bounds[1], popsize=args.p)
@@ -363,9 +371,9 @@ args = Args(
     OS may have something that works, too.)
     """
 )
-args('-m', '--maxiter', 100, "Maximum number of DE generations to run")
+args('-m', '--maxiter', 500, "Maximum number of DE generations to run")
 args('-p', '--popsize', 15, "Population: # individuals per unknown parameter")
-args('-C', '--CR', 0.7, "DE Crossover rate CR")
+args('-C', '--CR', 0.5, "DE Crossover rate CR")
 args('-F', '--F', "0.5,1.0", "DE mutation scaling F: two values for range")
 args('-b', '--bitter-end', "Keep working to the end even with little progress")
 args('-r', '--random-base', "Use DE/rand/1 instead of DE/best/1")
