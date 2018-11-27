@@ -50,10 +50,9 @@ def oops(failureObj, log=None, keepGoing=False):
     else:
         log.failure(text())
     if not keepGoing:
-        import pdb, traceback, sys
+        import pdb, traceback, sys, reactor
         type, value, tb = sys.exc_info()
         pdb.post_mortem(tb)
-        from twisted.internet import reactor
         reactor.stop()
 
 

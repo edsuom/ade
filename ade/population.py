@@ -233,7 +233,7 @@ class Reporter(object):
                 prev_values = values
                 for func, args, kw in self.callbacks:
                     yield defer.maybeDeferred(
-                        func, values, counter, *args, **kw)
+                        func, values, counter, *args, **kw).addErrback(oops)
             self.progressChar()
             self.cbrInProgress = False
 
@@ -461,7 +461,7 @@ class Population(object):
             columns = [name] + [field(X[kr,kc]) for kc in range(N_top)]
             addRow()
         lines.append(self.pm.dashes)
-        lines.append(sub("Best individual:\n{}\n", repr(self.iSorted[0])))
+        lines.append(sub("Best individual:\n{}\n", repr(self.best())))
         return "\n".join(lines)
 
     def limit(self, i):

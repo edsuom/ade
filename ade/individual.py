@@ -28,7 +28,7 @@ An Individual class for parameter combinations that occupy a
 Population and get evaluated.
 """
 
-import random
+import random, pickle
 
 import numpy as np
 from twisted.internet import defer, task
@@ -140,3 +140,17 @@ class Individual(object):
             return self
         return self.p.evalFunc(self.values, xSSE).addCallback(done)
 
+    @property
+    def params(self):
+        pd = {}
+        for k, value in enumerate(self):
+            name = self.p.pm.names[k]
+            pd[name] = value
+        return pd
+    
+    def save(self, filePath):
+        """
+        Saves my parameters to I{filePath} as a pickled dict.
+        """
+        with open(filePath, 'wb') as fh:
+            pickle.dump(self.params, fh)
