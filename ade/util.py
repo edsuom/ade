@@ -96,6 +96,8 @@ class Bag(object):
 
 
 class Messenger(object):
+    """
+    """
     N_dashes = 100
     
     def __init__(self):
@@ -113,7 +115,7 @@ class Messenger(object):
         return text
     
     def writeLine(self, line):
-        if self.fh is None:
+        if not self.fh:
             return
         if self.newlineNeeded:
             self.fh.write("\n")
@@ -122,7 +124,7 @@ class Messenger(object):
         self.fh.flush()
 
     def writeChar(self, x):
-        if self.fh is None:
+        if not self.fh:
             return
         self.fh.write(x)
         self.fh.flush()

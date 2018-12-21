@@ -205,6 +205,10 @@ class DifferentialEvolution(object):
     that can be evaluated according to the population object's
     evaluation function, which must return a fitness metric where
     lower values indicate better fitness.
+
+    @keyword logHandle: An open handle for a log file, or C{True} to
+        log output to STDOUT, or C{None} to suppress logging. Default
+        is STDOUT.
     """
     attributes = {
         'CR':           0.8,
@@ -220,6 +224,7 @@ class DifferentialEvolution(object):
 
     def __init__(self, population, **kw):
         self.p = population
+        msg(kw.pop('logHandle', True))
         self.p.reporter()
         for name in self.attributes:
             value = kw.get(name, getattr(self, name, None))

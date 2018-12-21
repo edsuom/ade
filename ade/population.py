@@ -479,14 +479,19 @@ class Population(object):
         return Individual(self, values)
 
     @defer.inlineCallbacks
-    def setup(self, uniform=False, blank=False):
+    def setup(self, uniform=False, blank=False, filePath=None):
         """
         Sets up my initial population using a Latin hypercube to
-        initialize pseudorandom parameters with minimal
-        clustering. With parameter constraints, this doesn't work as
-        well, because the initial values matrix must be refreshed,
-        perhaps many times. But it may still be better than uniform
-        initial population sampling.
+        initialize pseudorandom parameters with minimal clustering,
+        unless I{uniform} is set. With parameter constraints, this
+        doesn't work as well, because the initial values matrix must
+        be refreshed, perhaps many times. But it may still be better
+        than uniform initial population sampling.
+
+        If I{blank} is set, the initial individuals are all given a
+        placeholder infinite SSE instead of being evaluated.
+
+        #TODO: Load from filePath.
 
         Returns a C{Deferred} fires when the population has been set up.
         """
@@ -536,13 +541,18 @@ class Population(object):
                 break
             i = getIndividual()
             if blank:
-                i.SSE = 1000
+                i.SSE = np.inf
                 evaluated(i)
             else: i.evaluate().addCallbacks(evaluated, oops)
         msg(0, repr(self))
         self._sortNeeded = True
         self.kBest = self.iList.index(self.iSorted[0])
 
+    def save(self, filePath):
+        """
+        TODO
+        """
+        
     def addCallback(self, func, *args, **kw):
         self.reporter.addCallback(func, *args, **kw)
 
@@ -665,5 +675,3 @@ class Population(object):
 
     def best(self):
         return self.iSorted[0]
-    
-        
