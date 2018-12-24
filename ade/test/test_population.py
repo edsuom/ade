@@ -107,7 +107,7 @@ class TestParameterManager(tb.TestCase):
 class TestReporter(tb.TestCase):
     def setUp(self):
         self.calls = []
-        self.p = tb.MockPopulation(tb.ackley, [(0,1)]*2, ['x', 'y'], popsize=1)
+        self.p = tb.MockPopulation(tb.ackley, ['x', 'y'], [(0,1)]*2, popsize=1)
         self.r = population.Reporter(self.p)
         self.r.addCallback(self.cbImmediate, 3.14, bar=9.87)
 
@@ -192,15 +192,55 @@ class TestReporter(tb.TestCase):
         self.assertEqual(text, "0X2X9X3X")
 
     @defer.inlineCallbacks
-    def test_call(self):
+    def test_msgRatio_nans(self):
+        def reciprocal(x, xSSE):
+            if x[0] == 0: return np.nan
+            return 1.0 / x[0]
+        self.p = tb.MockPopulation(reciprocal, ['x'], [(-5, 5)], popsize=1)
+        self.r = population.Reporter(self.p)
         fh = StringIO()
         msg(fh)
-        iPrev = self.p.spawn(np.array([1.005, 1.005]))
-        mr = self.r(iPrev)
-        self.assertEqual(mr, 0)
-        yield iPrev.evaluate()
-        mr = self.r(iPrev)
-        self.assertEqual(mr, 0)
+        iPrev = yield self.p.spawn([1.0]).evaluate()
+        expectedRatios = [0, 0, 1, 2, 3]
+        for k, x in enumerate([0, 1, 1.4, 2, 3.1]):
+            # Closer to (0), thus higher SSE
+            i = yield self.p.spawn(np.array([x])).evaluate()
+            ratio = self.r.msgRatio(iPrev, i)
+            self.assertAlmostEqual(ratio, expectedRatios[k])
+        text = fh.getvalue()
+        msg(None)
+        self.assertEqual(text, "X0123")
+
+    @defer.inlineCallbacks
+    def test_fileReport_otherNone(self):
+        fh = StringIO()
+        msg(fh)
+        # First -> best
+        i1 = yield self.p.spawn(np.array([0.1, 0.1])).evaluate()
+        ratio = yield self.r._fileReport(i1, None)
+        self.assertEqual(self.r.iBest, i1)
+        self.assertEqual(ratio, 0)
+        self.assertEqual(fh.getvalue()[-1], "*")
+        # Second, 4x worse
+        i2 = yield self.p.spawn(np.array([1.005, 1.005])).evaluate()
+        ratio = yield self.r._fileReport(i2, None)
+        self.assertEqual(self.r.iBest, i1)
+        self.assertEqual(ratio, 4)
+        self.assertEqual(fh.getvalue()[-1], "4")
+        # Force it to be best, for further testing
+        self.r.iBest = i2
+        # Third, slightly better than second
+        i3 = yield self.p.spawn(np.array([1.00, 1.00])).evaluate()
+        ratio = yield self.r._fileReport(i3, None)
+        self.assertEqual(self.r.iBest, i3)
+        self.assertEqual(ratio, 0)
+        self.assertEqual(fh.getvalue()[-1], "!")
+    
+    @defer.inlineCallbacks
+    def test_fileReport(self):
+        fh = StringIO()
+        msg(fh)
+        iPrev = yield self.p.spawn(np.array([1.005, 1.005])).evaluate()
         mrExpected = [
             (0, "0"),
             (4, "4"),
@@ -209,9 +249,49 @@ class TestReporter(tb.TestCase):
         ]
         for mre, x in zip(mrExpected, (1.0, 0.1, 0.05, 0.02)):
             i = yield self.p.spawn(np.array([x, x])).evaluate()
-            mr = self.r(i)
+            mr = yield self.r._fileReport(i, iPrev)
             self.assertEqual(mr, mre[0])
             self.assertEqual(fh.getvalue()[-1], str(mre[1]))
+        msg(None)
+
+    @defer.inlineCallbacks
+    def test_call_double(self):
+        fh = StringIO()
+        msg(fh)
+        iPrev = yield self.p.spawn(np.array([1.005, 1.005])).evaluate()
+        mrExpected = [
+            (0, "0"),
+            (4, "4"),
+            (3, "3"),
+            (0, "X"),
+            (19, "9"),
+        ]
+        for mre, x in zip(mrExpected, (1.0, 0.1, 0.05, 0.1, 0.01)):
+            print "\n", mre, x
+            i = yield self.p.spawn(np.array([x, x])).evaluate()
+            mr = yield self.r(i, iPrev)
+            print mr
+            self.assertEqual(mr, mre[0])
+            self.assertEqual(fh.getvalue()[-1], str(mre[1]))
+            iPrev = i
+        msg(None)
+        
+    @defer.inlineCallbacks
+    def test_call_single(self):
+        fh = StringIO()
+        msg(fh)
+        mrExpected = [
+            (0, "*"),
+            (0, "X"),
+            (0, "!"),
+            (9, "9"),
+            (42, "9"),
+        ]
+        for mre, x in zip(mrExpected, (0.05, 0.05, 0.02, 0.1, 0.5)):
+            i = yield self.p.spawn(np.array([x, x])).evaluate()
+            mr = yield self.r(i)
+            self.assertEqual(mr, mre[0])
+            #self.assertEqual(fh.getvalue()[-1], str(mre[1]))
         msg(None)
 
         
@@ -266,7 +346,7 @@ class TestPopulation(tb.TestCase):
         self.assertTrue(self.p.replacement())
         self.assertEqual(self.p.replacementScore, 0)
         self.assertFalse(self.p.replacement())
-        self.assertAlmostEqual(self.p.statusQuoScore, self.p.Np*5.0/100)
+        self.assertAlmostEqual(self.p.statusQuoScore, self.p.Np*4.0/100)
         self.p.replacement(0)
         self.assertEqual(self.p.replacementScore, 0)
         self.assertFalse(self.p.replacement())

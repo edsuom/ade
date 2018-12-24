@@ -54,7 +54,7 @@ class TestIndividual(tb.TestCase):
         i.SSE = 123.456
         self.assertItemsAlmostEqual(list(i), [0.5, 0.5])
         text = repr(i)
-        self.assertIn('SSE=123.46', text)
+        self.assertIn('SSE=123.456', text)
         if self.verbose:
             print text
         

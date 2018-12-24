@@ -37,6 +37,7 @@ from scipy import stats
 from pyDOE import lhs
 from twisted.internet import defer
 
+from asynqueue.null import NullQueue
 from asynqueue.util import DeferredTracker
 
 from individual import Individual
@@ -181,7 +182,10 @@ class Reporter(object):
     the new best one, I will run any callbacks registered with me.
     """
     minDiff = 0.01
-    
+
+    # Set True to show replacement of best individual on STDOUT
+    debug = False
+        
     def __init__(self, population):
         self.p = population
         self.pm = self.p.pm
@@ -193,6 +197,7 @@ class Reporter(object):
         self.dt = DeferredTracker()
         self.lock = defer.DeferredLock()
         self._syms_on_line = 0
+        self.q = NullQueue(returnFailure=True)
 
     def addCallback(self, func, *args, **kw):
         """
@@ -268,12 +273,18 @@ class Reporter(object):
         """
         yield self.lock.acquire()
         if i.partial_SSE:
-            # Inefficient: This evaluation is done again, and yet
-            # again later by solver if callbacks are run. But they
-            # don't get run all that often.
+            # Inefficient: This evaluation is done again, and perhaps
+            # yet again later by someone else if callbacks are
+            # run. But this re-evaluation doesn't get done all that
+            # often, only when a new best candidate is presented.
             yield i.evaluate()
-        # Double-check that it's really better than my best
+        # Double-check that it's really better than my best, after we
+        # know a full evaluation has been done
         if self.iBest is None or i < self.iBest:
+            if self.debug:
+                try:
+                    print sub("\n{}\n\t--->\n{}\n", repr(self.iBest), repr(i))
+                except: pass
             self.iBest = i
             values = copy(i.values)
             if not self.iLastReported or \
@@ -292,13 +303,17 @@ class Reporter(object):
         divided by denominator SSE.
         """
         if not iNumerator or not iDenominator:
+            # This shouldn't happen
             return 0
-        if iNumerator < iDenominator:
+        if iNumerator < iDenominator or np.isnan(iDenominator.SSE):
             ratio = 0
             sym = sym_lt
         elif self.isEquivSSE(iDenominator, iNumerator):
             ratio = 0
             sym = "0"
+        elif np.isnan(iNumerator.SSE):
+            ratio = 1000
+            sym = "9"
         else:
             ratio = np.round(iNumerator.SSE / iDenominator.SSE)
             sym = str(int(ratio)) if ratio < 10 else "9"
@@ -321,33 +336,57 @@ class Reporter(object):
         if self._syms_on_line == self.pm.maxLineLength-1:
             msg("")
             self._syms_on_line = 0
+
+    @defer.inlineCallbacks
+    def _fileReport(self, i, iOther):
+        if iOther is None:
+            if self.iBest is None:
+                # First, thus best
+                yield self.newBest(i)
+                self.progressChar("*")
+                result = 0
+            elif i < self.iBest:
+                # Better than (former) best, so make best. The "ratio"
+                # of how much worse than best will be 0
+                yield self.newBest(i)
+                self.progressChar("!")
+                result = 0
+            else:
+                # Worse than best (or same, unlikely), ratio is how
+                # much worse
+                result = self.msgRatio(i, self.iBest)
+        else:
+            # If better than best (or first), make new best. Ratio is
+            # still vs other, though
+            if self.iBest is None or i < self.iBest:
+                yield self.newBest(i)
+            # Ratio is how much better than other. Thus, numerator is
+            # other, because ratio is other SSE vs this SSE
+            result = self.msgRatio(iOther, i)
+        defer.returnValue(result)
             
-    def __call__(self, i=None, iOther=None, rbb=False, force=False):
+    def __call__(self, i=None, iOther=None):
+        """
+        Files a report on the individual I{i}, perhaps vs. another
+        individual I{iOther}. Returns immediately with a C{Deferred},
+        but processing the report is done via a queue, strictly in the
+        order received. The C{Deferred} eventually fires with the
+        ratio of how much better I{i} is than I{iOther}, or, if
+        I{iOther} isn't specified, how much B{worse} I{i} is than the
+        best individual reported thus far. (A "better" individual has
+        a lower SSE.)
+        """
         if i is None:
             if self.iBest:
                 values = self.iBest.values
                 self.runCallbacks(values)
-            return
+            return defer.succeed(None)
         if not i:
-            return 0
-        if iOther is None:
-            if self.iBest is None:
-                iOther = None
-                self.newBest(i)
-            else:
-                iOther = self.iBest
-                if force or i < iOther:
-                    iOther = i
-                    i = self.iBest
-                    self.newBest(i)
-            if rbb:
-                return self.msgRatio(iOther, i, sym_lt="!")
-            return self.msgRatio(i, iOther)
-        if i < self.iBest:
-            self.newBest(i)
-        return self.msgRatio(iOther, i)
-        
-        
+            return defer.succeed(0)
+        if iOther is not None: iOther = iOther.copy()
+        return self.q.call(self._fileReport, i.copy(), iOther)
+
+
 class Population(object):
     """
     Construct me with a callable evaluation I{func} that accepts a 1-D
@@ -524,7 +563,7 @@ class Population(object):
             ds.release()
             if i.SSE is None or len(self.iList) >= self.Np:
                 return
-            self.reporter(i)
+            dList.append(self.reporter(i))
             self.iList.append(i)
             self.dLocks.append(defer.DeferredLock())
         
@@ -547,7 +586,11 @@ class Population(object):
         msg(0, repr(self))
         self._sortNeeded = True
         self.kBest = self.iList.index(self.iSorted[0])
-
+        # Wait for all queued reports to get processed. Most of that
+        # wait is for re-evaluation of individuals with partial SSEs,
+        # which doesn't apply to initial setup. So this will be quick.
+        yield defer.DeferredList(dList)
+    
     def save(self, filePath):
         """
         TODO
@@ -604,19 +647,19 @@ class Population(object):
             # 3 has 2.25, or nearly 2x as much as 2
             self.replacementScore += (improvementRatio - 0.75)
 
-    def report(self, iNew=None, iOld=None, rbb=False, force=False):
+    def report(self, iNew=None, iOld=None):
         """
         Provides a message via the log messenger about the supplied
         Individual, optionally with a comparison to another
         Individual. If no second individual is supplied, the
         comparison will be with the best individual thus far reported
         on.
-
+        
         Does a call to L{replacement} if the new individual is better.
         """
-        ratio = self.reporter(iNew, iOld, rbb, force)
-        if ratio:
-            self.replacement(ratio)
+        def done(ratio):
+            if ratio: self.replacement(ratio)
+        return self.reporter(iNew, iOld).addCallbacks(done, oops)
 
     def waitForReports(self):
         return self.reporter.waitForCallbacks()

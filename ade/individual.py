@@ -65,6 +65,12 @@ class Individual(object):
 
     def spawn(self, values):
         return Individual(self.p, values)
+
+    def copy(self):
+        i = Individual(self.p, list(self.values))
+        i.SSE = self.SSE
+        i.partial_SSE = self.partial_SSE
+        return i
     
     def __getitem__(self, k):
         return self.values[k]

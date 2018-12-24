@@ -412,10 +412,16 @@ class MockIndividual(object):
         self.partial_SSE = False
 
     def __repr__(self):
-        print self.SSE, self.values
+        return str(self.SSE) + ": " + str(self.values)
         
     def spawn(self, values):
         return MockIndividual(self.p, values)
+
+    def copy(self):
+        i = MockIndividual(self.p, list(self.values))
+        i.SSE = self.SSE
+        i.partial_SSE = self.partial_SSE
+        return i
 
     def __sub__(self, other):
         return MockIndividual(self.values - other.values)
@@ -489,7 +495,7 @@ class MockParameterManager(object):
 
     
 class MockPopulation(object):
-    def __init__(self, func, bounds, names, constraints=[], popsize=10):
+    def __init__(self, func, names, bounds, constraints=[], popsize=10):
         def evalFunc(values, xSSE):
             return defer.maybeDeferred(func, values, xSSE)
 

@@ -324,7 +324,7 @@ class DifferentialEvolution(object):
                         # the target
                         self.p[kt] = iChallenger
                     if iChallenger:
-                        self.p.report(iChallenger, iTarget)
+                        yield self.p.report(iChallenger, iTarget)
                 # Now that the individual at the target index has been
                 # determined, we can finally release the lock for that index
                 self.p.release(kt)
@@ -389,6 +389,7 @@ class DifferentialEvolution(object):
                         break
         else:
             msg(-1, "Maximum number of iterations reached")
-        self.p.report()
+        # File report for best individual
+        yield self.p.report()
         yield self.p.waitForReports()
         defer.returnValue(self.p)
