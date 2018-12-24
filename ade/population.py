@@ -250,7 +250,6 @@ class Reporter(object):
     def waitForCallbacks(self):
         return self.dt.deferToAll()
 
-    @defer.inlineCallbacks
     def newBest(self, i):
         """
         Registers and reports a new best Individual. Calling this method
@@ -271,29 +270,21 @@ class Reporter(object):
 
         Returns a reference to the previous best value.
         """
-        yield self.lock.acquire()
-        if i.partial_SSE:
-            # Inefficient: This evaluation is done again, and perhaps
-            # yet again later by someone else if callbacks are
-            # run. But this re-evaluation doesn't get done all that
-            # often, only when a new best candidate is presented.
-            yield i.evaluate()
         # Double-check that it's really better than my best, after we
         # know a full evaluation has been done
         if self.iBest is None or i < self.iBest:
             if self.debug:
                 try:
-                    # Not sure of a legit reason for this to fail, but
-                    # it sometimes does. Not worth debugging right now
                     print sub("\n{}\n\t--->\n{}\n", repr(self.iBest), repr(i))
                 except: pass
             self.iBest = i
             values = copy(i.values)
-            if not self.iLastReported or \
+            if True or not self.iLastReported or \
                not self.isEquivSSE(i, self.iLastReported):
                 self.iLastReported = i
                 self.runCallbacks(values)
-        self.lock.release()
+        else:
+            import pdb; pdb.set_trace()
         
     def msgRatio(self, iNumerator, iDenominator, sym_lt="X"):
         """
@@ -339,18 +330,17 @@ class Reporter(object):
             msg("")
             self._syms_on_line = 0
 
-    @defer.inlineCallbacks
     def _fileReport(self, i, iOther):
         if iOther is None:
             if self.iBest is None:
                 # First, thus best
-                yield self.newBest(i)
+                self.newBest(i)
                 self.progressChar("*")
                 result = 0
             elif i < self.iBest:
                 # Better than (former) best, so make best. The "ratio"
                 # of how much worse than best will be 0
-                yield self.newBest(i)
+                self.newBest(i)
                 self.progressChar("!")
                 result = 0
             else:
@@ -364,16 +354,14 @@ class Reporter(object):
             result = self.msgRatio(iOther, i)
             # If better than best (or first), make new best
             if self.iBest is None or i < self.iBest:
-                yield self.newBest(i)
+                self.newBest(i)
                 self.progressChar("+")
-        defer.returnValue(result)
-            
+        return result
+    
     def __call__(self, i=None, iOther=None):
         """
         Files a report on the individual I{i}, perhaps vs. another
-        individual I{iOther}. Returns immediately with a C{Deferred},
-        but processing the report is done via a queue, strictly in the
-        order received. The C{Deferred} eventually fires with the
+        individual I{iOther}. Returns with the
         ratio of how much better I{i} is than I{iOther}, or, if
         I{iOther} isn't specified, how much B{worse} I{i} is than the
         best individual reported thus far. (A "better" individual has
@@ -383,11 +371,10 @@ class Reporter(object):
             if self.iBest:
                 values = self.iBest.values
                 self.runCallbacks(values)
-            return defer.succeed(None)
+            return
         if not i:
-            return defer.succeed(0)
-        if iOther is not None: iOther = iOther.copy()
-        return self.q.call(self._fileReport, i.copy(), iOther)
+            return 0
+        return self._fileReport(i, iOther)
 
 
 class Population(object):
@@ -423,8 +410,8 @@ class Population(object):
     targetFraction = 4.0 / 100
     
     def __init__(self, func, names, bounds, constraints=[], popsize=None):
-        def evalFunc(values, xSSE):
-            return defer.maybeDeferred(func, values, xSSE)
+        def evalFunc(values):
+            return defer.maybeDeferred(func, values)
 
         if not callable(func):
             raise ValueError(sub("Object '{}' is not callable", func))
@@ -566,11 +553,10 @@ class Population(object):
             ds.release()
             if i.SSE is None or len(self.iList) >= self.Np:
                 return
-            dList.append(self.reporter(i))
+            self.reporter(i)
             self.iList.append(i)
             self.dLocks.append(defer.DeferredLock())
         
-        dList = []
         kIV = [None]*2
         self.iList = []
         self.dLocks = []
@@ -589,10 +575,6 @@ class Population(object):
         msg(0, repr(self))
         self._sortNeeded = True
         self.kBest = self.iList.index(self.iSorted[0])
-        # Wait for all queued reports to get processed. Most of that
-        # wait is for re-evaluation of individuals with partial SSEs,
-        # which doesn't apply to initial setup. So this will be quick.
-        yield defer.DeferredList(dList)
     
     def save(self, filePath):
         """
@@ -660,9 +642,8 @@ class Population(object):
         
         Does a call to L{replacement} if the new individual is better.
         """
-        def done(ratio):
-            if ratio: self.replacement(ratio)
-        return self.reporter(iNew, iOld).addCallbacks(done, oops)
+        ratio = self.reporter(iNew, iOld)
+        if ratio: self.replacement(ratio)
 
     def waitForReports(self):
         return self.reporter.waitForCallbacks()

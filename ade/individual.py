@@ -49,7 +49,7 @@ class Individual(object):
 
     @ivar values: A 1-D Numpy array of parameter values.
     """
-    __slots__ = ['values', 'SSE', 'partial_SSE', 'p']
+    __slots__ = ['values', 'SSE', 'p']
 
     def __init__(self, p, values=None):
         self.p = p
@@ -57,7 +57,6 @@ class Individual(object):
             self.values = np.empty(p.Nd)
         else: self.update(values)
         self.SSE = None
-        self.partial_SSE = False
 
     def __repr__(self):
         prelude = "" if self.SSE is None else sub("SSE={:.4f}", self.SSE)
@@ -69,7 +68,6 @@ class Individual(object):
     def copy(self):
         i = Individual(self.p, list(self.values))
         i.SSE = self.SSE
-        i.partial_SSE = self.partial_SSE
         return i
     
     def __getitem__(self, k):
@@ -132,7 +130,7 @@ class Individual(object):
             values = np.array(values)
         self.values = values
     
-    def evaluate(self, xSSE=None):
+    def evaluate(self):
         """
         Computes the sum of squared errors (SSE) from my evaluation
         function using my current I{values}. Stores the result in my
@@ -142,9 +140,8 @@ class Individual(object):
         def done(SSE):
             self.p.counter += 1
             self.SSE = SSE
-            self.partial_SSE = xSSE is not None
             return self
-        return self.p.evalFunc(self.values, xSSE).addCallback(done)
+        return self.p.evalFunc(self.values).addCallback(done)
 
     @property
     def params(self):

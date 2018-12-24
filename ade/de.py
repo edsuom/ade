@@ -318,13 +318,13 @@ class DifferentialEvolution(object):
                 if self.p.pm.passesConstraints(iChallenger.values):
                     # Passes constraints!
                     # Now the hard part: Evaluate fitness of the challenger
-                    yield iChallenger.evaluate(xSSE=iTarget.SSE)
+                    yield iChallenger.evaluate()
                     if iChallenger < iTarget:
                         # The challenger won the tournament, replace
                         # the target
                         self.p[kt] = iChallenger
                     if iChallenger:
-                        yield self.p.report(iChallenger, iTarget)
+                        self.p.report(iChallenger, iTarget)
                 # Now that the individual at the target index has been
                 # determined, we can finally release the lock for that index
                 self.p.release(kt)
@@ -390,6 +390,6 @@ class DifferentialEvolution(object):
         else:
             msg(-1, "Maximum number of iterations reached")
         # File report for best individual
-        yield self.p.report()
+        self.p.report()
         yield self.p.waitForReports()
         defer.returnValue(self.p)
