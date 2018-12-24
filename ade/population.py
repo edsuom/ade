@@ -283,12 +283,14 @@ class Reporter(object):
         if self.iBest is None or i < self.iBest:
             if self.debug:
                 try:
+                    # Not sure of a legit reason for this to fail, but
+                    # it sometimes does. Not worth debugging right now
                     print sub("\n{}\n\t--->\n{}\n", repr(self.iBest), repr(i))
                 except: pass
             self.iBest = i
             values = copy(i.values)
             if not self.iLastReported or \
-               not self.isEquivSSE(self.iLastReported, i):
+               not self.isEquivSSE(i, self.iLastReported):
                 self.iLastReported = i
                 self.runCallbacks(values)
         self.lock.release()
@@ -356,13 +358,14 @@ class Reporter(object):
                 # much worse
                 result = self.msgRatio(i, self.iBest)
         else:
-            # If better than best (or first), make new best. Ratio is
-            # still vs other, though
+            # Ratio is how much better this is than other. Thus,
+            # numerator is other, because ratio is other SSE vs this
+            # SSE
+            result = self.msgRatio(iOther, i)
+            # If better than best (or first), make new best
             if self.iBest is None or i < self.iBest:
                 yield self.newBest(i)
-            # Ratio is how much better than other. Thus, numerator is
-            # other, because ratio is other SSE vs this SSE
-            result = self.msgRatio(iOther, i)
+                self.progressChar("+")
         defer.returnValue(result)
             
     def __call__(self, i=None, iOther=None):
