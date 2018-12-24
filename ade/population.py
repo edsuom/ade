@@ -184,7 +184,7 @@ class Reporter(object):
     minDiff = 0.01
 
     # Set True to show replacement of best individual on STDOUT
-    debug = False
+    debug = True
         
     def __init__(self, population):
         self.p = population
@@ -274,9 +274,7 @@ class Reporter(object):
         # know a full evaluation has been done
         if self.iBest is None or i < self.iBest:
             if self.debug:
-                try:
-                    print sub("\n{}\n\t--->\n{}\n", repr(self.iBest), repr(i))
-                except: pass
+                print "\n", self.iBest, "\n\t--->\n", i, "\n"
             self.iBest = i
             values = copy(i.values)
             if True or not self.iLastReported or \
@@ -284,6 +282,7 @@ class Reporter(object):
                 self.iLastReported = i
                 self.runCallbacks(values)
         else:
+            print "Well, shit..."
             import pdb; pdb.set_trace()
         
     def msgRatio(self, iNumerator, iDenominator, sym_lt="X"):
