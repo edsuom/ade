@@ -230,10 +230,16 @@ class Reporter(object):
     def runCallbacks(self, i):
         """
         Queues up a report for the supplied Individual I{i}, calling each
-        registered callbacks in turn. If any callback returns result
-        (deferred or immediate) that is not C{None}, enters the
-        debugger so the user can figure out what the callback was
-        complaining about.
+        registered callbacks in turn. If any callback complains about
+        the report by returning a result (deferred or immediate) that
+        is not C{None}, processes the complaint and then gives the
+        individual a worst-possible SSE.
+
+        Default processing is to enter the debugger so the user can
+        figure out what the callback was complaining about. But if my
+        I{complaintCallback} is set to a callable (must accept the
+        individual and the complainer's returned result as its two
+        args), that will be called instead of the debugger.
         """
         @defer.inlineCallbacks
         def runUntilFree():
@@ -257,6 +263,9 @@ class Reporter(object):
                         else:
                             print "Callback function complained about", i
                             import pdb; pdb.set_trace()
+                        # Modify the individual in-place to never be
+                        # winner of a challenge again
+                        i.SSE = np.inf
             self.progressChar()
             self.cbrInProgress = False
 
