@@ -80,14 +80,8 @@ class Individual(object):
         for value in self.values:
             yield value
 
-    def __len__(self):
-        return self.Nd
-
-    def __nonzero__(self):
-        return bool(self.SSE)
-    
     def __eq__(self, other):
-        return self.SSE == other.SSE
+        return self.SSE == other.SSE and self.equals(other)
 
     def equals(self, other):
         if hasattr(other, 'values'):

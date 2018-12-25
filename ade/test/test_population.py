@@ -108,38 +108,60 @@ class TestReporter(tb.TestCase):
     def setUp(self):
         self.calls = []
         self.p = tb.MockPopulation(tb.ackley, ['x', 'y'], [(0,1)]*2, popsize=1)
-        self.r = population.Reporter(self.p)
+        self.r = population.Reporter(self.p, self.processComplaint)
         self.r.addCallback(self.cbImmediate, 3.14, bar=9.87)
 
-    def cbImmediate(self, values, counter, foo, bar=None):
-        self.calls.append(['cbi', values, counter, foo, bar])
-
-    def cbDeferred(self, values, counter):
+    def cbImmediate(self, values, counter, SSE, foo, bar=None):
+        self.calls.append(['cbi', values, counter, SSE, foo, bar])
+        if SSE == 0:
+            # Complaint
+            return 123
+    
+    def cbDeferred(self, values, counter, SSE):
         def doNow(null):
-            self.calls.append(['cbd', values, counter])
+            self.calls.append(['cbd', values, counter, SSE])
         return self.deferToDelay(0.5).addCallback(doNow)
+
+    def processComplaint(self, i, result):
+        self.calls.append(['processComplaint', i, result])
     
     def test_runCallbacks_basic(self):
-        self.r.runCallbacks([1, 2, 3])
+        i = self.p.spawn([1.0, 2.0])
+        i.SSE = 0.876
+        self.r.runCallbacks(i)
         self.assertEqual(
             self.calls,
-            [['cbi', [1, 2, 3], 0, 3.14, 9.87]])
+            [['cbi', [1.0, 2.0], 0, 0.876, 3.14, 9.87]])
+        return self.r.waitForCallbacks()
+
+    def test_runCallbacks_complaint(self):
+        i = self.p.spawn([0.0, 0.0])
+        i.SSE = 0.0
+        self.r.runCallbacks(i)
+        self.assertEqual(
+            self.calls,
+            [['cbi', [0.0, 0.0], 0, 0.0, 3.14, 9.87],
+             ['processComplaint', i, 123]])
         return self.r.waitForCallbacks()
     
     @defer.inlineCallbacks
     def test_runCallbacks_stacked(self):
+        i1 = self.p.spawn([1, 2])
+        i1.SSE = 0.876
+        i2 = self.p.spawn([3, 4])
+        i2.SSE = 0.543
         self.r.addCallback(self.cbDeferred)
-        self.r.runCallbacks([1, 2, 3])
-        self.r.cbrScheduled([4, 5, 6])
+        self.r.runCallbacks(i1)
+        self.r.cbrScheduled(i2)
         self.assertEqual(self.calls, [
-            ['cbi', [1, 2, 3], 0, 3.14, 9.87],
+            ['cbi', [1, 2], 0, 0.876, 3.14, 9.87],
         ])
         yield self.r.waitForCallbacks()
         self.assertEqual(self.calls, [
-            ['cbi', [1, 2, 3], 0, 3.14, 9.87],
-            ['cbd', [1, 2, 3], 0],
-            ['cbi', [4, 5, 6], 0, 3.14, 9.87],
-            ['cbd', [4, 5, 6], 0],
+            ['cbi', [1, 2], 0, 0.876, 3.14, 9.87],
+            ['cbd', [1, 2], 0, 0.876],
+            ['cbi', [3, 4], 0, 0.543, 3.14, 9.87],
+            ['cbd', [3, 4], 0, 0.543],
         ])
 
     @defer.inlineCallbacks
@@ -193,7 +215,7 @@ class TestReporter(tb.TestCase):
 
     @defer.inlineCallbacks
     def test_msgRatio_nans(self):
-        def reciprocal(x, xSSE):
+        def reciprocal(x):
             if x[0] == 0: return np.nan
             return 1.0 / x[0]
         self.p = tb.MockPopulation(reciprocal, ['x'], [(-5, 5)], popsize=1)
@@ -237,61 +259,32 @@ class TestReporter(tb.TestCase):
         self.assertEqual(fh.getvalue()[-1], "!")
     
     @defer.inlineCallbacks
-    def test_fileReport(self):
-        fh = StringIO()
-        msg(fh)
-        iPrev = yield self.p.spawn(np.array([1.005, 1.005])).evaluate()
-        mrExpected = [
-            (0, "0"),
-            (4, "4"),
-            (11, "9"),
-            (36, "9"),
-        ]
-        for mre, x in zip(mrExpected, (1.0, 0.1, 0.05, 0.02)):
-            i = yield self.p.spawn(np.array([x, x])).evaluate()
-            mr = yield self.r._fileReport(i, iPrev)
-            self.assertEqual(mr, mre[0])
-            self.assertEqual(fh.getvalue()[-1], str(mre[1]))
-        msg(None)
-
-    @defer.inlineCallbacks
     def test_call_double(self):
         fh = StringIO()
         msg(fh)
         iPrev = yield self.p.spawn(np.array([1.005, 1.005])).evaluate()
-        mrExpected = [
-            (0, "0"),
-            (4, "4"),
-            (3, "3"),
-            (0, "X"),
-            (19, "9"),
-        ]
-        for mre, x in zip(mrExpected, (1.0, 0.1, 0.05, 0.1, 0.01)):
-            print "\n", mre, x
+        ratiosExpected = [0, 4, 3, 0, 10]
+        for ratioExpected, x in zip(ratiosExpected, (1.0, 0.1, 0.05, 0.5, 0.06)):
+            #print "\n", ratioExpected, x
             i = yield self.p.spawn(np.array([x, x])).evaluate()
-            mr = yield self.r(i, iPrev)
-            print mr
-            self.assertEqual(mr, mre[0])
-            self.assertEqual(fh.getvalue()[-1], str(mre[1]))
+            ratio = yield self.r(i, iPrev)
+            self.assertEqual(ratio, ratioExpected)
             iPrev = i
+        self.assertEqual(fh.getvalue(), "0+4+3+X9")
         msg(None)
-        
+
     @defer.inlineCallbacks
     def test_call_single(self):
         fh = StringIO()
         msg(fh)
-        mrExpected = [
-            (0, "*"),
-            (0, "X"),
-            (0, "!"),
-            (9, "9"),
-            (42, "9"),
-        ]
-        for mre, x in zip(mrExpected, (0.05, 0.05, 0.02, 0.1, 0.5)):
+        ratiosExpected = [0, 0, 0, 13, 1]
+        for ratioExpected, x in zip(ratiosExpected, (1.0, 0.1, 0.05, 0.5, 0.06)):
+            #print "\n", ratioExpected, x
             i = yield self.p.spawn(np.array([x, x])).evaluate()
-            mr = yield self.r(i)
-            self.assertEqual(mr, mre[0])
-            #self.assertEqual(fh.getvalue()[-1], str(mre[1]))
+            ratio = yield self.r(i)
+            self.assertEqual(ratio, ratioExpected)
+            iPrev = i
+        self.assertEqual(fh.getvalue(), "*!!91")
         msg(None)
 
         

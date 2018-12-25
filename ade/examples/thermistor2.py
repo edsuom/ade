@@ -241,7 +241,7 @@ class Evaluator(Picklable):
         T_kelvin = 1.0 / (a + b*lnR + c*(lnR**3) + d*R + e*R**2 + f*R**3)
         return T_kelvin - self.T_kelvin_offset
 
-    def __call__(self, values, xSSE=None):
+    def __call__(self, values):
         SSE = 0
         T = self.X[:,0]
         for k in range(1, 7):
@@ -250,8 +250,6 @@ class Evaluator(Picklable):
             T_curve = self.curve(R, *params)
             squaredResiduals = self.weights * np.square(T_curve - T)
             SSE += np.sum(squaredResiduals)
-            if xSSE and SSE > xSSE:
-                break
         return SSE
 
         
@@ -300,13 +298,18 @@ class Runner(object):
             return
         self.titleParts.append(sub(*args))
 
-    def report(self, values, counter):
-        def gotSSE(SSE):
-            msg(0, self.p.pm.prettyValues(values, "SSE={:g} with", SSE), 0)
+    def report(self, values, counter, SSE):
+        def gotSSE(SSE2):
+            SSE_avg = 0.5*(SSE+SSE2)
+            SSE_diff = 100*np.abs(SSE2-SSE)/SSE
+            SSE_info = sub(
+                "SSE={:g} (computed twice with {:.2f}% difference)",
+                SSE_avg, SSE_diff)
+            msg(0, self.p.pm.prettyValues(values, SSE_info+", with"), 0)
             T = self.ev.X[:,0]
             self.titlePart()
             self.titlePart("Temp vs Voltage")
-            self.titlePart("SSE={:g}", SSE)
+            self.titlePart(SSE_info)
             self.titlePart("k={:d}", counter)
             with self.pt as p:
                 for k in range(1, 7):
@@ -327,10 +330,10 @@ class Runner(object):
             self.pt.set_grid(); self.pt.add_marker(',')
         return self.qLocal.call(self.ev, values).addCallbacks(gotSSE, oops)
         
-    def evaluate(self, values, xSSE):
+    def evaluate(self, values):
         values = list(values)
         q = self.qLocal if self.q is None else self.q
-        return q.call(self.ev, values, xSSE).addErrback(oops)
+        return q.call(self.ev, values).addErrback(oops)
     
     @defer.inlineCallbacks
     def __call__(self):

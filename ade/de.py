@@ -297,37 +297,36 @@ class DifferentialEvolution(object):
         L{Individual.evaluate} is the winner and is assigned to index
         I{kt}.
         """
+        k0, k1 = self.p.sample(2, kt, kb)
+        # Await legit values for all individuals used here
+        yield self.p.lock(kt, kb, k0, k1)
         if not self.stopRunning:
-            k0, k1 = self.p.sample(2, kt, kb)
-            # Await legit values for all individuals used here
-            yield self.p.lock(kt, kb, k0, k1)
-            if not self.stopRunning:
-                iTarget, iBase, i0, i1 = self.p.individuals(kt, kb, k0, k1)
-                # All but the target can be released right away,
-                # because we are only using their local values here
-                # and don't care if someone else changes them at this
-                # point. The target can't be released yet because its
-                # value might change and someone waiting on its result
-                # will need the accurate one
-                self.p.release(kb, k0, k1)
-                # Do the mutation and crossover with unbounded values
-                iChallenger = iBase + (i0 - i1) * self.fm.get()
-                self.crossover(iTarget, iChallenger)
-                # Continue with Pr(values) / Pr(midpoints)
-                self.p.limit(iChallenger)
-                if self.p.pm.passesConstraints(iChallenger.values):
-                    # Passes constraints!
-                    # Now the hard part: Evaluate fitness of the challenger
-                    yield iChallenger.evaluate()
-                    if iChallenger < iTarget:
-                        # The challenger won the tournament, replace
-                        # the target
-                        self.p[kt] = iChallenger
-                    if iChallenger:
-                        self.p.report(iChallenger, iTarget)
-                # Now that the individual at the target index has been
-                # determined, we can finally release the lock for that index
-                self.p.release(kt)
+            iTarget, iBase, i0, i1 = self.p.individuals(kt, kb, k0, k1)
+            # All but the target can be released right away,
+            # because we are only using their local values here
+            # and don't care if someone else changes them at this
+            # point. The target can't be released yet because its
+            # value might change and someone waiting on its result
+            # will need the accurate one
+            self.p.release(kb, k0, k1)
+            # Do the mutation and crossover with unbounded values
+            iChallenger = iBase + (i0 - i1) * self.fm.get()
+            self.crossover(iTarget, iChallenger)
+            # Continue with Pr(values) / Pr(midpoints)
+            self.p.limit(iChallenger)
+            if self.p.pm.passesConstraints(iChallenger.values):
+                # Passes constraints!
+                # Now the hard part: Evaluate fitness of the challenger
+                yield iChallenger.evaluate()
+                if iChallenger < iTarget:
+                    # The challenger won the tournament, replace
+                    # the target
+                    self.p[kt] = iChallenger
+                if iChallenger:
+                    self.p.report(iChallenger, iTarget)
+        # Now that the individual at the target index has been
+        # determined, we can finally release the lock for that index
+        self.p.release(kt)
             
     @defer.inlineCallbacks
     def __call__(self):

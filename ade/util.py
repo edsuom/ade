@@ -50,10 +50,12 @@ def oops(failureObj, log=None, keepGoing=False):
     else:
         log.failure(text())
     if not keepGoing:
-        import pdb, traceback, sys, reactor
+        import pdb, traceback, sys, os
+        from twisted.internet import reactor
         type, value, tb = sys.exc_info()
         pdb.post_mortem(tb)
         reactor.stop()
+        os._exit(1)
 
 
 class Picklable(object):

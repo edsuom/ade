@@ -153,7 +153,7 @@ class MultiRunner(object):
             dList.append(d)
         return defer.DeferredList(dList)
             
-    def __call__(self, values, SSE=None):
+    def __call__(self, values):
         def done(r):
             result = r(*values)
             self.dq.put(r)
@@ -171,10 +171,8 @@ class Solver(object):
         self.p = Population(self.mr, self.names, self.bounds, popsize=20)
         self.p.reporter.minDiff = 0.0001
     
-    def report(self, values, counter):
-        def gotSSE(SSE):
-            msg(0, self.p.pm.prettyValues(values, "SSE={:.5f} with", SSE), 0)
-        return self.mr(values).addCallbacks(gotSSE, oops)
+    def report(self, values, counter, SSE):
+        msg(0, self.p.pm.prettyValues(values, "SSE={:.5f} with", SSE), 0)
         
     @defer.inlineCallbacks
     def __call__(self):

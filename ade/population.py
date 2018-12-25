@@ -180,14 +180,17 @@ class Reporter(object):
     In either case, whenever the first- or only-supplied Individual is
     better than the best one I reported on thus far, and thus becomes
     the new best one, I will run any callbacks registered with me.
+
+    @keyword complaintCallback: Set to a callable that accepts an
+        C{Individual} instance and the result of a callback function
+        that may complain about the individual whose values and SSE
+        were reported to it.
     """
     minDiff = 0.01
 
-    # Set True to show replacement of best individual on STDOUT
-    debug = True
-        
-    def __init__(self, population):
+    def __init__(self, population, complaintCallback=None):
         self.p = population
+        self.complaintCallback = complaintCallback
         self.pm = self.p.pm
         self.iBest = None
         self.iLastReported = None
@@ -202,9 +205,9 @@ class Reporter(object):
     def addCallback(self, func, *args, **kw):
         """
         Call this to register as a callback a function that accepts (1) a
-        1-D Numpy array of I{values} from a new best Individual and
-        (2) the value of my report I{counter}, as well as any other
-        arguments and keywords you provide.
+        1-D Numpy array of I{values} from a new best Individual, (2)
+        the value of my report I{counter}, and (3) the individual's
+        SSE, as well as any other arguments and keywords you provide.
 
         I will run all the callbacks whenever I report on an
         Individual with an SSE that is lower than any of the other
@@ -224,30 +227,49 @@ class Reporter(object):
         ratio = betterSSE / worseSSE
         return abs(ratio - 1.0) < self.minDiff 
 
-    def runCallbacks(self, values):
+    def runCallbacks(self, i):
+        """
+        Queues up a report for the supplied Individual I{i}, calling each
+        registered callbacks in turn. If any callback returns result
+        (deferred or immediate) that is not C{None}, enters the
+        debugger so the user can figure out what the callback was
+        complaining about.
+        """
         @defer.inlineCallbacks
         def runUntilFree():
             counter = self.p.counter
             self.cbrInProgress = True
-            prev_values = None
+            iPrev = None
             while self.cbrScheduled:
-                values = self.cbrScheduled.pop()
-                if prev_values is not None and \
-                   np.all(np.equal(values, prev_values)):
-                    break
-                prev_values = values
+                i = self.cbrScheduled.pop()
+                if iPrev and i == iPrev:
+                    continue
+                iPrev = i
                 for func, args, kw in self.callbacks:
-                    yield defer.maybeDeferred(
-                        func, values, counter, *args, **kw).addErrback(oops)
+                    d = defer.maybeDeferred(
+                        func, i.values, counter, i.SSE, *args, **kw)
+                    d.addErrback(oops)
+                    result = yield d
+                    if result is not None:
+                        if self.complaintCallback:
+                            yield defer.maybeDeferred(
+                                self.complaintCallback, i, result)
+                        else:
+                            print "Callback function complained about", i
+                            import pdb; pdb.set_trace()
             self.progressChar()
             self.cbrInProgress = False
 
-        self.cbrScheduled(values)
+        self.cbrScheduled(i)
         if self.cbrInProgress:
             return
         self.dt.put(runUntilFree())
 
     def waitForCallbacks(self):
+        """
+        Returns a C{Deferred} that fires when all reporting callbacks
+        currently queued up have been completed.
+        """
         return self.dt.deferToAll()
 
     def newBest(self, i):
@@ -273,17 +295,16 @@ class Reporter(object):
         # Double-check that it's really better than my best, after we
         # know a full evaluation has been done
         if self.iBest is None or i < self.iBest:
-            if self.debug:
-                print "\n", self.iBest, "\n\t--->\n", i, "\n"
+            if self.p.debug:
+                msg("\n" + self.iBest + "\n\t--->\n" + i + "\n")
             self.iBest = i
-            values = copy(i.values)
-            if True or not self.iLastReported or \
-               not self.isEquivSSE(i, self.iLastReported):
-                self.iLastReported = i
-                self.runCallbacks(values)
-        else:
-            print "Well, shit..."
-            import pdb; pdb.set_trace()
+            if self.iLastReported and self.isEquivSSE(i, self.iLastReported):
+                return
+            self.iLastReported = i
+            self.runCallbacks(i)
+            return
+        print "Well, shit. New best wasn't actually best. Fix this!\n"
+        import pdb; pdb.set_trace()
         
     def msgRatio(self, iNumerator, iDenominator, sym_lt="X"):
         """
@@ -368,8 +389,7 @@ class Reporter(object):
         """
         if i is None:
             if self.iBest:
-                values = self.iBest.values
-                self.runCallbacks(values)
+                self.runCallbacks(self.iBest)
             return
         if not i:
             return 0
@@ -384,18 +404,7 @@ class Population(object):
     each define the lower and upper limits of the values.
 
     The evaluation function must return the sum of squared errors
-    (SSE) as a single float value. In addition to the array of
-    parameter values, it must also accept a keyword or optional second
-    argument I{xSSE}, which (if provided) is the SSE of the target
-    individual being challenged. The evaluation function need not
-    continue its computations if it accumulates an SSE greater than
-    I{xSSE}; it can just return that greater SSE and conclude
-    operations. That's because DE uses a greedy evaluation function,
-    where the challenger will always be accepted if it is *any* better
-    than the target.
-
-    If just one argument (the paremeter value 1-D array) is provided,
-    your evaluation function must return the fully computed SSE.
+    (SSE) as a single float value.
     """
     # Default population size per parameter
     popsize = 10
@@ -407,8 +416,15 @@ class Population(object):
     Np_max = 500
     # Target score of improvements in each generation/iteration
     targetFraction = 4.0 / 100
+    # Set True to log replacement of best individual (results in a
+    # very messy log)
+    debug = False
     
-    def __init__(self, func, names, bounds, constraints=[], popsize=None):
+    def __init__(
+            self, func, names, bounds,
+            constraints=[], popsize=None,
+            debug=False, complaintCallback=None):
+        """"""
         def evalFunc(values):
             return defer.maybeDeferred(func, values)
 
@@ -416,8 +432,9 @@ class Population(object):
             raise ValueError(sub("Object '{}' is not callable", func))
         self.evalFunc = func # evalFunc
         self.Nd = len(bounds)
+        self.debug = debug
         self.pm = ParameterManager(names, bounds, constraints)
-        self.reporter = Reporter(self)
+        self.reporter = Reporter(self, complaintCallback)
         if popsize: self.popsize = popsize
         self.Np = min([self.popsize * self.Nd, self.Np_max])
         self.Np = max([self.Np_min, self.Np])
@@ -581,6 +598,8 @@ class Population(object):
         """
         
     def addCallback(self, func, *args, **kw):
+        """
+        """
         self.reporter.addCallback(func, *args, **kw)
 
     def replacement(self, improvementRatio=None, sqs=None):

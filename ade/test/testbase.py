@@ -86,7 +86,7 @@ def realAckley(X):
     z += -np.exp(0.5*(np.sum(np.cos(2*np.pi*X))))
     return z + np.e + 20
 
-def ackley(X, xSSE):
+def ackley(X):
     return deferToThread(realAckley, X)
         
 
@@ -465,12 +465,11 @@ class MockIndividual(object):
         np.clip(self.values, self.p.pm.mins, self.p.pm.maxs, self.values)
         return self
     
-    def evaluate(self, xSSE=None):
+    def evaluate(self):
         def done(SSE):
             self.SSE = SSE
-            self.partial_SSE = xSSE is not None
             return self
-        return self.p.evalFunc(self.values, xSSE).addCallback(done)
+        return self.p.evalFunc(self.values).addCallback(done)
 
 
 class MockParameterManager(object):
@@ -495,9 +494,11 @@ class MockParameterManager(object):
 
     
 class MockPopulation(object):
+    debug = False
+    
     def __init__(self, func, names, bounds, constraints=[], popsize=10):
-        def evalFunc(values, xSSE):
-            return defer.maybeDeferred(func, values, xSSE)
+        def evalFunc(values):
+            return defer.maybeDeferred(func, values)
 
         self.Nd = len(bounds)
         self.Np = self.Nd * popsize

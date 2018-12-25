@@ -273,15 +273,13 @@ class Evaluator(Picklable):
         tv, weights = self.txy_valid(k, sort)
         return tv, self.curve(tv[:,1], *curveParams), weights
     
-    def __call__(self, values, xSSE=None):
+    def __call__(self, values):
         SSE = 0
         self.txy = self.data(values[self.kTC:])
         for k in (1, 2):
             tv, t_curve, weights = self.curve_k(values, k)
             squaredResiduals = weights * np.square(t_curve - tv[:,0])
             SSE += np.sum(squaredResiduals)
-            if xSSE and SSE > xSSE:
-                break
         return SSE
 
         
@@ -337,13 +335,18 @@ class Runner(object):
             return
         self.titleParts.append(sub(*args))
 
-    def report(self, values, counter):
-        def gotSSE(SSE):
-            msg(0, self.p.pm.prettyValues(values, "SSE={:g} with", SSE), 0)
+    def report(self, values, counter, SSE):
+        def gotSSE(SSE2):
+            SSE_avg = 0.5*(SSE+SSE2)
+            SSE_diff = 100*np.abs(SSE2-SSE)/SSE
+            SSE_info = sub(
+                "SSE={:g} (computed twice with {:.2f}% difference)",
+                SSE_avg, SSE_diff)
+            msg(0, self.p.pm.prettyValues(values, SSE_info+", with"), 0)
             T = self.ev.txy[:,0]
             self.titlePart()
             self.titlePart("Temp vs Voltage")
-            self.titlePart("SSE={:g}", SSE)
+            self.titlePart(SSE_info)
             with self.pt as p:
                 for k in (1, 2):
                     xName = sub("V{:d}", k)
@@ -358,10 +361,10 @@ class Runner(object):
             self.pt.show()
         return self.qLocal.call(self.ev, values).addCallbacks(gotSSE, oops)
         
-    def evaluate(self, values, xSSE):
+    def evaluate(self, values):
         values = list(values)
         q = self.qLocal if self.q is None else self.q
-        return q.call(self.ev, values, xSSE).addErrback(oops)
+        return q.call(self.ev, values).addErrback(oops)
     
     @defer.inlineCallbacks
     def __call__(self):
