@@ -93,14 +93,14 @@ class Individual(object):
     def __lt__(self, other):
         if self.SSE is None:
             return False
-        if other.SSE is None:
+        if getattr(other, 'SSE', None) is None:
             return True
         return self.SSE < other.SSE
 
     def __gt__(self, other):
         if self.SSE is None:
             return True
-        if other.SSE is None:
+        if getattr(other, 'SSE', None) is None:
             return False
         return self.SSE > other.SSE
     
@@ -116,6 +116,14 @@ class Individual(object):
         """
         return self.spawn(self.values * F)
 
+    def blacklist(self):
+        """
+        Sets my SSE to the worst possible value and forces my population
+        to update its sorting to account for my degraded status.
+        """
+        self.SSE = np.inf
+        del self.p.iSorted
+    
     def update(self, values):
         if len(values) != self.p.Nd:
             raise ValueError(sub(

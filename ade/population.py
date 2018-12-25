@@ -227,7 +227,7 @@ class Reporter(object):
         ratio = betterSSE / worseSSE
         return abs(ratio - 1.0) < self.minDiff 
 
-    def runCallbacks(self, i):
+    def runCallbacks(self, i, iPrevBest=None):
         """
         Queues up a report for the supplied Individual I{i}, calling each
         registered callbacks in turn. If any callback complains about
@@ -263,9 +263,11 @@ class Reporter(object):
                         else:
                             print "Callback function complained about", i
                             import pdb; pdb.set_trace()
-                        # Modify the individual in-place to never be
-                        # winner of a challenge again
-                        i.SSE = np.inf
+                        # Modify the individual in-place to never again be
+                        # winner of a challenge or basis for new individuals
+                        i.blacklist()
+                        if iPrevBest and iPrevBest < self.iBest:
+                            self.iBest = iPrevBest
             self.progressChar()
             self.cbrInProgress = False
 
@@ -305,12 +307,13 @@ class Reporter(object):
         # know a full evaluation has been done
         if self.iBest is None or i < self.iBest:
             if self.p.debug:
-                msg("\n" + self.iBest + "\n\t--->\n" + i + "\n")
+                print "\n", self.iBest, "\n\t--->\n", i, "\n"
+            iPrevBest = self.iBest
             self.iBest = i
             if self.iLastReported and self.isEquivSSE(i, self.iLastReported):
                 return
             self.iLastReported = i
-            self.runCallbacks(i)
+            self.runCallbacks(i, iPrevBest)
             return
         print "Well, shit. New best wasn't actually best. Fix this!\n"
         import pdb; pdb.set_trace()
@@ -488,6 +491,9 @@ class Population(object):
             self._iSorted = sorted(self.iList, key=lambda i: i.SSE)
             self._sortNeeded = False
         return self._iSorted
+    @iSorted.deleter
+    def iSorted(self):
+        self._iSorted = sorted(self.iList, key=lambda i: i.SSE)
     
     def __repr__(self):
         def field(x):
