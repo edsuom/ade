@@ -49,7 +49,7 @@ class Individual(object):
 
     @ivar values: A 1-D Numpy array of parameter values.
     """
-    __slots__ = ['values', 'SSE', 'p']
+    __slots__ = ['values', '_SSE', 'p']
 
     def __init__(self, p, values=None):
         self.p = p
@@ -59,9 +59,19 @@ class Individual(object):
         self.SSE = None
 
     def __repr__(self):
-        prelude = "" if self.SSE is None else sub("SSE={:.4f}", self.SSE)
+        prelude = "" if self.SSE is None else sub(
+            "SSE={:.4f}", float(self.SSE))
         return sub("<{}>", self.p.pm.prettyValues(self.values, prelude))
 
+    @property
+    def SSE(self):
+        if self._SSE is None:
+            return np.inf
+        return float(self._SSE)
+    @SSE.setter
+    def SSE(self, x):
+        self._SSE = x
+    
     def spawn(self, values):
         return Individual(self.p, values)
 
@@ -69,6 +79,9 @@ class Individual(object):
         i = Individual(self.p, list(self.values))
         i.SSE = self.SSE
         return i
+
+    def __float__(self):
+        return self.SSE
     
     def __getitem__(self, k):
         return self.values[k]
@@ -91,18 +104,10 @@ class Individual(object):
         return np.all(self.values == other)
 
     def __lt__(self, other):
-        if self.SSE is None:
-            return False
-        if getattr(other, 'SSE', None) is None:
-            return True
-        return self.SSE < other.SSE
+        return float(self) < float(other)
 
     def __gt__(self, other):
-        if self.SSE is None:
-            return True
-        if getattr(other, 'SSE', None) is None:
-            return False
-        return self.SSE > other.SSE
+        return float(self) > float(other)
     
     def __sub__(self, other):
         return self.spawn(self.values - other.values)

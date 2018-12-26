@@ -261,7 +261,8 @@ class Reporter(object):
                             yield defer.maybeDeferred(
                                 self.complaintCallback, i, result)
                         else:
-                            print "Callback function complained about", i
+                            print "\n\nCallback function complained about"
+                            print i, "\n"
                             import pdb; pdb.set_trace()
                         # Modify the individual in-place to never again be
                         # winner of a challenge or basis for new individuals
