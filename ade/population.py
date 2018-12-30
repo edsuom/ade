@@ -76,6 +76,9 @@ class ParameterManager(object):
         Returns an easily readable string representation of the supplied
         I{values} with their parameter names, sorted.
 
+        Adds a '*' if < 5% of the way from lower to upper bound, or
+        '**' if > 95% of the way
+
         You can provide as an additional argument a prelude string, or
         a string proto with additional args, and the string will
         precede the values.
@@ -83,8 +86,15 @@ class ParameterManager(object):
         lineParts = []
         if args:
             lineParts.append(args[0].format(*args[1:]))
+        unityValues = self.toUnity(values)
         for k, name, value in self.sortedNamerator(values):
-            lineParts.append("{}={:g}".format(name, value))
+            part = "{}={:g}".format(name, value)
+            uv = unityValues[k]
+            if uv < 0.05:
+                part += "*"
+            elif uv > 0.95:
+                part += "**"
+            lineParts.append(part)
         text = " ".join(lineParts)
         return self.fill(text)
 
@@ -115,6 +125,14 @@ class ParameterManager(object):
         """
         return self.mins + self.scale(values)
 
+    def toUnity(self, values):
+        """
+        Translates the actual parameter I{values} into the standardized
+        range of 0-1 within the ranges specified in the bounds
+        supplied to my constructor.
+        """
+        return (values - self.mins) / self.scales
+    
     def passesConstraints(self, values):
         """
         Call with a 1-D array of parameter I{values} to check them against
