@@ -114,16 +114,14 @@ class ParameterManager(object):
             for k in self.sortedNameIndices:
                 yield k, self.names[k], values[k]
         
-    def scale(self, values, coeff=1.0):
-        return coeff * self.scales * values
-        
     def fromUnity(self, values):
         """
         Translates the normalized I{values} from the standardized range of
         0-1 into my range of actual parameter values within the ranges
         specified in the bounds supplied to my constructor.
         """
-        return self.mins + self.scale(values)
+        scaled = self.scales * values
+        return self.mins + scaled
 
     def toUnity(self, values):
         """
@@ -222,10 +220,12 @@ class Reporter(object):
 
     def addCallback(self, func, *args, **kw):
         """
-        Call this to register as a callback a function that accepts (1) a
-        1-D Numpy array of I{values} from a new best Individual, (2)
-        the value of my report I{counter}, and (3) the individual's
-        SSE, as well as any other arguments and keywords you provide.
+        Call this to register a new callback.
+
+        The supplied I{func} must accept as arguments (1) a 1-D Numpy
+        array of I{values} from a new best Individual, (2) the value
+        of my report I{counter}, and (3) the individual's SSE, as well
+        as any other arguments and keywords you provide.
 
         I will run all the callbacks whenever I report on an
         Individual with an SSE that is lower than any of the other
@@ -236,6 +236,13 @@ class Reporter(object):
         self.callbacks.append((func, args, kw))
 
     def isEquivSSE(self, iBetter, iWorse):
+        """
+        Returns C{True} if the SSE of individual I{iBetter} is not
+        significantly different than that of individual I{iWorse}.
+
+        What is "significant" is defined by my I{minDiff} attribute,
+        which defaults to 0.01, or a 1% difference required.
+        """
         if iBetter is None or iWorse is None:
             return False
         betterSSE = iBetter.SSE
@@ -248,10 +255,12 @@ class Reporter(object):
     def runCallbacks(self, i, iPrevBest=None):
         """
         Queues up a report for the supplied Individual I{i}, calling each
-        registered callbacks in turn. If any callback complains about
-        the report by returning a result (deferred or immediate) that
-        is not C{None}, processes the complaint and then gives the
-        individual a worst-possible SSE.
+        registered callbacks in turn.
+
+        If any callback complains about the report by returning a
+        result (deferred or immediate) that is not C{None}, processes
+        the complaint and then gives the individual a worst-possible
+        SSE.
 
         Default processing is to enter the debugger so the user can
         figure out what the callback was complaining about. But if my
@@ -382,6 +391,9 @@ class Reporter(object):
             self._syms_on_line = 0
 
     def _fileReport(self, i, iOther):
+        """
+        Called by L{__call__}.
+        """
         if iOther is None:
             if self.iBest is None:
                 # First, thus best
@@ -412,11 +424,12 @@ class Reporter(object):
     def __call__(self, i=None, iOther=None):
         """
         Files a report on the individual I{i}, perhaps vs. another
-        individual I{iOther}. Returns with the
-        ratio of how much better I{i} is than I{iOther}, or, if
-        I{iOther} isn't specified, how much B{worse} I{i} is than the
-        best individual reported thus far. (A "better" individual has
-        a lower SSE.)
+        individual I{iOther}.
+
+        Returns with the ratio of how much better I{i} is than
+        I{iOther}, or, if I{iOther} isn't specified, how much B{worse}
+        I{i} is than the best individual reported thus far. (A
+        "better" individual has a lower SSE.)
         """
         if i is None:
             if self.iBest:
@@ -455,7 +468,7 @@ class Population(object):
             self, func, names, bounds,
             constraints=[], popsize=None,
             debug=False, complaintCallback=None):
-        """"""
+        """Constructor"""
         def evalFunc(values):
             return defer.maybeDeferred(func, values)
 
@@ -477,6 +490,9 @@ class Population(object):
         self.counter = 0
         
     def __getitem__(self, k):
+        """
+        Sequence-like access to my individuals.
+        """
         return self.iList[k]
         
     def __setitem__(self, k, i):
@@ -495,26 +511,48 @@ class Population(object):
             self.kBest = k
         
     def __len__(self):
+        """
+        Sequence-like container of individuals: length.
+        """
         return self.Np
 
     def __iter__(self):
+        """
+        Sequence-like container of individuals: iteration.
+        """
         for i in self.iList:
             yield i
 
     def __contains__(self, i):
+        """
+        Sequence-like container of individuals: "in".
+        """
         return i in self.iList
 
     @property
     def iSorted(self):
+        """
+        Property: A list of my individuals, sorted by increasing
+        (worsening) SSE.
+        """
         if self._sortNeeded:
             self._iSorted = sorted(self.iList, key=lambda i: i.SSE)
             self._sortNeeded = False
         return self._iSorted
     @iSorted.deleter
     def iSorted(self):
+        """
+        Property: "Deleting" my sorted list of individuals forces
+        regeneration of the sorted list that will be returned next
+        time the I{iSorted} property is accessed.
+        """
         self._iSorted = sorted(self.iList, key=lambda i: i.SSE)
     
     def __repr__(self):
+        """
+        An informative string representation with a text table of my best
+        individuals.
+        """
         def field(x):
             return "{:>11.5g}".format(x)
 
@@ -553,6 +591,11 @@ class Population(object):
         i.update(values)
 
     def spawn(self, values, fromUnity=False):
+        """
+        Spawns a new L{Individual} with the supplied I{values}. If
+        I{fromUnity} is set C{True}, the values are converted from 0-1
+        range into their proper ranges.
+        """
         if fromUnity:
             values = self.pm.fromUnity(values)
         return Individual(self, values)
@@ -562,17 +605,20 @@ class Population(object):
         """
         Sets up my initial population using a Latin hypercube to
         initialize pseudorandom parameters with minimal clustering,
-        unless I{uniform} is set. With parameter constraints, this
-        doesn't work as well, because the initial values matrix must
-        be refreshed, perhaps many times. But it may still be better
-        than uniform initial population sampling.
+        unless I{uniform} is set.
+
+        With parameter constraints, this doesn't work as well, because
+        the initial values matrix must be refreshed, perhaps many
+        times. But it may still be better than uniform initial
+        population sampling.
 
         If I{blank} is set, the initial individuals are all given a
         placeholder infinite SSE instead of being evaluated.
 
-        #TODO: Load from filePath.
+        TODO: Load from I{filePath}.
 
-        Returns a C{Deferred} fires when the population has been set up.
+        Returns a C{Deferred} that fires when the population has been
+        set up.
         """
         def refreshIV():
             kIV[0] = 0
@@ -633,18 +679,25 @@ class Population(object):
         
     def addCallback(self, func, *args, **kw):
         """
+        Adds callable I{func} to my reporter's list of functions to call
+        each time there is a significantly better L{Individual}.
+
+        @see: L{Reporter.addCallback}.
         """
         self.reporter.addCallback(func, *args, **kw)
 
     def replacement(self, improvementRatio=None, sqs=None):
         """
-        Call with an integer I{improvementRatio} to record a replacement
-        occurring in this generation or iteration, or with the keyword
-        I{sqs} set to a float I{statusQuoScore} other than my
-        default. Otherwise, call with nothing to determine if the
-        replacement that occurred in the previous generation/iteration
-        were enough to warrant maintaining the status quo, and to
-        reset the record.
+        Call with an integer I{improvementRatio} in a loser's SSE vs. the
+        successful challenger's SSE to record the replacement of an
+        L{Individual} in this generation or iteration.
+        
+        Alternative calls: Set the keyword I{sqs} to a float
+        I{statusQuoScore} and that will replace my default value for
+        future evaluation of replacement individuals. Or call with
+        nothing to determine if the replacements that occurred in the
+        previous generation/iteration were enough to warrant
+        maintaining the status quo, and to reset the record.
 
         The status quo will be maintained if several small
         improvements are made, or fewer larger ones, with the required
@@ -655,6 +708,8 @@ class Population(object):
         even with no improvements for a given generation or iteration.
         
         Returns C{True} if the status quo should be maintained.
+
+        @see: L{report}, which calls this.
         """
         if sqs:
             self.statusQuoScore = sqs
@@ -688,9 +743,10 @@ class Population(object):
         """
         Provides a message via the log messenger about the supplied
         Individual, optionally with a comparison to another
-        Individual. If no second individual is supplied, the
-        comparison will be with the best individual thus far reported
-        on.
+        Individual.
+
+        If no second individual is supplied, the comparison will be
+        with the best individual thus far reported on.
         
         Does a call to L{replacement} if the new individual is better.
         """

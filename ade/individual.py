@@ -68,16 +68,30 @@ class Individual(object):
         return sub("<{}>", self.p.pm.prettyValues(self.values, prelude))
 
     @property
+    def params(self):
+        """
+        Property: A dict of my parameter values, keyed by name.
+        """
+        pd = {}
+        for k, value in enumerate(self):
+            name = self.p.pm.names[k]
+            pd[name] = value
+        return pd
+    
+    @property
     def SSE(self):
         """
-        My SSE value as a float. Infinite if no SSE computed yet or was
-        set to C{None}.
+        Property: My SSE value as a float. Infinite if no SSE computed yet
+        or was set to C{None}.
         """
         if self._SSE is None:
             return np.inf
         return float(self._SSE)
     @SSE.setter
     def SSE(self, x):
+        """
+        Property: Sets my SSE value.
+        """
         self._SSE = x
     
     def spawn(self, values):
@@ -155,6 +169,10 @@ class Individual(object):
         return self.spawn(self.values - other.values)
 
     def __add__(self, other):
+        """
+        Add the other C{Individual}'s values to mine and return a new
+        C{Individual} whose values are the sums.
+        """
         return self.spawn(self.values + other.values)
 
     def __mul__(self, F):
@@ -172,6 +190,8 @@ class Individual(object):
         del self.p.iSorted
     
     def update(self, values):
+        """
+        """
         if len(values) != self.p.Nd:
             raise ValueError(sub(
                 "Expected {:d} values, not {:d}", self.p.Nd, len(values)))
@@ -192,14 +212,6 @@ class Individual(object):
             return self
         return self.p.evalFunc(self.values).addCallback(done)
 
-    @property
-    def params(self):
-        pd = {}
-        for k, value in enumerate(self):
-            name = self.p.pm.names[k]
-            pd[name] = value
-        return pd
-    
     def save(self, filePath):
         """
         Saves my parameters to I{filePath} as a pickled dict.

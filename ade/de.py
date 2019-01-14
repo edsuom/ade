@@ -70,6 +70,7 @@ class FManager(object):
     minHighestVsLowest = 3
     
     def __init__(self, F, CR, Np, adaptive=False):
+        """Constructor"""
         self.criticalF = np.sqrt((1.0 - 0.5*CR) / Np)
         self.is_sequence = hasattr(F, '__iter__')
         self.is_adaptive = adaptive
@@ -185,23 +186,27 @@ class FManager(object):
                 
 class DifferentialEvolution(object):
     """
-    I perform asynchronous differential evolution, employing your
+    Asynchronous Differential Evolution: The foundational object.
+
+    I perform differential evolution asynchronously, employing your
     multiple CPU cores in a very cool efficient way that does not
     change anything about the actual operations done in the DE
     algorithm. The very same target selection, mutation, scaling, and
     recombination (crossover) will be done for a sequence of each
     target in the population, just as it is with a DE algorithm that
-    blocks during fitness evaluation. The magic lies in the use of
-    C{DeferredLock} instances for each index of the population
-    list. Because the number of population members is usually far
-    greater than the number of CPU cores available, almost all of the
-    time the asynchronous processing will find a target it can work on
-    without disturbing the operation sequence.
+    blocks during fitness evaluation.
+
+    My magic lies in the use of Twisted's C{DeferredLock}. There's one
+    for each index of the population list. Because the number of
+    population members is usually far greater than the number of CPU
+    cores available, almost all of the time the asynchronous
+    processing will find a target it can work on without disturbing
+    the operation sequence.
 
     Construct me with a L{population.Population} instance and any
     keywords that set my runtime configuration different than my
     default I{attributes}. The Population object will need to be
-    initialized with a population of L{individual.Individual} objects
+    initialized with a population of L{Individual} objects
     that can be evaluated according to the population object's
     evaluation function, which must return a fitness metric where
     lower values indicate better fitness.
@@ -223,6 +228,7 @@ class DifferentialEvolution(object):
     }
 
     def __init__(self, population, **kw):
+        """Constructor"""
         self.p = population
         msg(kw.pop('logHandle', True))
         self.p.reporter()
@@ -262,12 +268,13 @@ class DifferentialEvolution(object):
         """
         Challenges the target ("parent") individual at index I{kt} with a
         challenger (often referred to as a "trial" or "child")
-        individual produced from DE mutation and crossover. The trial
-        individual is formed from crossover between the target and a
-        donor individual, which is formed from the vector sum of a
-        base individual at index I{kb} and a scaled vector difference
-        between two randomly chosen other individuals that are
-        distinct from each other and both the target and base
+        individual produced from DE mutation and crossover.
+
+        The trial individual is formed from crossover between the
+        target and a donor individual, which is formed from the vector
+        sum of a base individual at index I{kb} and a scaled vector
+        difference between two randomly chosen other individuals that
+        are distinct from each other and both the target and base
         individuals::
 
           id = ib + F*(i0 - i1)         [1]
