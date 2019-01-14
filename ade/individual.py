@@ -52,6 +52,7 @@ class Individual(object):
     __slots__ = ['values', '_SSE', 'p']
 
     def __init__(self, p, values=None):
+        """Constructor"""
         self.p = p
         if values is None:
             self.values = np.empty(p.Nd)
@@ -59,12 +60,19 @@ class Individual(object):
         self.SSE = None
 
     def __repr__(self):
+        """
+        Informative string representation, with SSE and pretty-printed values.
+        """
         prelude = "" if self.SSE is None else sub(
             "SSE={:.4f}", float(self.SSE))
         return sub("<{}>", self.p.pm.prettyValues(self.values, prelude))
 
     @property
     def SSE(self):
+        """
+        My SSE value as a float. Infinite if no SSE computed yet or was
+        set to C{None}.
+        """
         if self._SSE is None:
             return np.inf
         return float(self._SSE)
@@ -73,27 +81,51 @@ class Individual(object):
         self._SSE = x
     
     def spawn(self, values):
+        """
+        Returns another instance of my class with the same population and
+        values.
+        """
         return Individual(self.p, values)
-
+    
     def copy(self):
+        """
+        Returns a complete copy of me, another instance of my class with
+        the same population, values, and SSE.
+        """
         i = Individual(self.p, list(self.values))
         i.SSE = self.SSE
         return i
 
     def __float__(self):
+        """
+        I can be evaluated as a float using my SSE.
+        """
         return self.SSE
     
     def __getitem__(self, k):
+        """
+        Sequence-like read access to values.
+        """
         return self.values[k]
 
     def __setitem__(self, k, value):
+        """
+        Sequence-like write access to values.
+        """
         self.values[k] = value
 
     def __iter__(self):
+        """
+        Sequence-like iteration over values.
+        """
         for value in self.values:
             yield value
 
     def __eq__(self, other):
+        """
+        I am equal to another C{Individual} if we have the same SSE and
+        values.
+        """
         return self.SSE == other.SSE and self.equals(other)
 
     def equals(self, other):
@@ -104,12 +136,22 @@ class Individual(object):
         return np.all(self.values == other)
 
     def __lt__(self, other):
+        """
+        My SSE less than other C{Individual} or float?
+        """
         return float(self) < float(other)
 
     def __gt__(self, other):
+        """
+        My SSE greater than other C{Individual} or float?
+        """
         return float(self) > float(other)
     
     def __sub__(self, other):
+        """
+        Subtract the other C{Individual}'s values from mine and return a
+        new C{Individual} whose values are the differences.
+        """
         return self.spawn(self.values - other.values)
 
     def __add__(self, other):
