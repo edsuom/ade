@@ -88,12 +88,18 @@ class FManager(object):
         self.limited = False
     
     def __repr__(self):
+        """
+        My string representation is just my I{F} value or range.
+        """
         if self.is_sequence:
             return sub("U({})", ", ".join([str(x) for x in self.F]))
         return str(self.F)
 
     @property
     def lowest(self):
+        """
+        Property: The lowest or sole value of I{F}.
+        """
         return self.F[0] if self.is_sequence else self.F
     @lowest.setter
     def lowest(self, value):
@@ -106,6 +112,9 @@ class FManager(object):
 
     @property
     def highest(self):
+        """
+        Property: The highest or sole value of I{F}.
+        """
         return self.F[1] if self.is_sequence else self.F
     @highest.setter
     def highest(self, value):
@@ -245,12 +254,23 @@ class DifferentialEvolution(object):
         self.stopRunning = False
 
     def shutdown(self):
+        """
+        Sets my I{stopRunning} flag C{True}, which lets my various loops
+        know that it's time to quit early.
+        """
         self.stopRunning = True
         if hasattr(self, 'triggerID'):
             reactor.removeSystemEventTrigger(self.triggerID)
             del self.triggerID
         
     def crossover(self, parent, mutant):
+        """
+        Crossover of I{parent} and I{mutant} individuals.
+
+        The probability of the mutant keeping any given value is
+        I{CR}, except for a randomly chosen one that it always gets to
+        keep.
+        """
         j = random.randint(0, self.p.Nd-1)
         for k in range(self.p.Nd):
             if k == j:
@@ -267,8 +287,11 @@ class DifferentialEvolution(object):
     def challenge(self, kt, kb):
         """
         Challenges the target ("parent") individual at index I{kt} with a
-        challenger (often referred to as a "trial" or "child")
-        individual produced from DE mutation and crossover.
+        challenger.
+
+        The challenger, often referred to as a "trial" or "child," is
+        an L{Individual} that was produced from DE mutation and
+        L{crossover}.
 
         The trial individual is formed from crossover between the
         target and a donor individual, which is formed from the vector
@@ -338,8 +361,13 @@ class DifferentialEvolution(object):
     @defer.inlineCallbacks
     def __call__(self):
         """
-        Call this to run differential evolution on a population of
-        individuals.
+        Here is what you call to run differential evolution on my
+        L{Population} I{p} of individuals.
+
+        You have to construct me with the population object, and you
+        have to run L{Population.setup} on it yourself. Make sure
+        that's been done and the resulting C{Deferred} has fired
+        before trying to call this.
 
         At the conclusion of each generation's evaluations, I consider
         the amount of overall improvement if I am running in adaptive

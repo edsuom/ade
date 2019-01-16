@@ -24,8 +24,7 @@
 
 
 """
-An Individual class for parameter combinations that occupy a
-Population and get evaluated.
+An L{Individual} class for parameter combinations to be evaluated.
 """
 
 import random, pickle
@@ -38,14 +37,17 @@ from util import sub
 
 class Individual(object):
     """
+    I act like a sequence of parameter values, but with other stuff
+    like an SSE value, too.
+    
     Construct me with a C{Population} object. You can set my values
     with a 1-D Numpy array of initial I{values}.
 
-    I act like a sequence of values. You can iterate my values in
-    sequence. You can access them (read/write) as items. You can even
-    replace the whole 1-D Numpy array of them at once with another
-    array of like dimensions, although the safest way to do that is
-    supplying a list or 1-D array to L{update}.
+    You can iterate my values in sequence. You can access them
+    (read/write) as items. You can even replace the whole 1-D Numpy
+    array of them at once with another array of like dimensions,
+    although the safest way to do that is supplying a list or 1-D
+    array to L{update}.
 
     @ivar values: A 1-D Numpy array of parameter values.
     """

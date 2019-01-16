@@ -24,7 +24,14 @@
 
 
 """
-A Population class and helpers.
+A L{Population} class and helpers.
+
+What you'll need to be concerned with is mostly constructing an
+instance, setting it up, and passing it to
+L{de.DifferentialEvolution}. The constructor requires an evaluation
+function, parameter names, and parameter bounds. You'll need to wait
+for the C{Deferred} that L{Population.setup} returns before
+proceeding.
 """
 
 import random
@@ -604,13 +611,15 @@ class Population(object):
     def setup(self, uniform=False, blank=False, filePath=None):
         """
         Sets up my initial population using a Latin hypercube to
-        initialize pseudorandom parameters with minimal clustering,
-        unless I{uniform} is set.
+        initialize pseudorandom parameter values with minimal clustering.
+        
+        Unless I{uniform} is set, that is. Then each parameter values
+        is just uniformly random without regard to the others.
 
-        With parameter constraints, this doesn't work as well, because
-        the initial values matrix must be refreshed, perhaps many
-        times. But it may still be better than uniform initial
-        population sampling.
+        With parameter constraints, the Latin hypercube doesn't work
+        that well. The initial values matrix must be refreshed,
+        perhaps many times. But it may still be better than uniform
+        initial population sampling.
 
         If I{blank} is set, the initial individuals are all given a
         placeholder infinite SSE instead of being evaluated.
@@ -754,12 +763,16 @@ class Population(object):
         if ratio: self.replacement(ratio)
 
     def waitForReports(self):
+        """
+        Returns a C{Deferred} that fires when all reporter callbacks have
+        finished.
+        """
         return self.reporter.waitForCallbacks()
             
     def push(self, i):
         """
-        Pushes the supplied individual into my population and kicks out
-        the worst individual there to make room.
+        Pushes the supplied L{Individual} I{i} onto my population and
+        kicks out the worst individual there to make room.
         """
         kWorst, self.kBest = [
             self.iList.index(self.iSorted[k]) for k in (-1, 0)]
@@ -781,7 +794,7 @@ class Population(object):
     def individuals(self, *indices):
         """
         Immediately returns a list of the individuals at the specified
-        indices.
+        integer index or indices.
         """
         if len(indices) == 1:
             return self.iList[indices[0]]
@@ -805,8 +818,15 @@ class Population(object):
         return defer.DeferredList(dList).addErrback(oops)
 
     def release(self, *indices):
+        """
+        Releases any active lock for individuals at the specified index or
+        indices.
+        """
         for k in indices:
             self.dLocks[k].release()
 
     def best(self):
+        """
+        Returns my best individual.
+        """
         return self.iSorted[0]
