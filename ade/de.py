@@ -24,7 +24,7 @@
 
 
 """
-The DifferentialEvolution class and helpers.
+L{DifferentialEvolution} and support staff.
 """
 
 import random
@@ -37,10 +37,6 @@ from twisted.internet import defer, task, reactor
 
 from population import Population
 from util import *
-
-
-class Result:
-    pass
 
 
 class FManager(object):
@@ -212,13 +208,18 @@ class DifferentialEvolution(object):
     processing will find a target it can work on without disturbing
     the operation sequence.
 
-    Construct me with a L{population.Population} instance and any
-    keywords that set my runtime configuration different than my
-    default I{attributes}. The Population object will need to be
-    initialized with a population of L{Individual} objects
-    that can be evaluated according to the population object's
-    evaluation function, which must return a fitness metric where
-    lower values indicate better fitness.
+    Construct me with a L{Population} instance and any keywords that
+    set my runtime configuration different than my default
+    I{attributes}. Before running my instance with L{__call__}, you
+    must initialize the population with L{Individual} objects that can
+    be evaluated according to the population object's evaluation
+    function.
+
+    That function must return a fitness metric where lower values
+    indicate better fitness, C{None} or C{inf} represents an invalid
+    or failing individual and thus worst-possible fitness, and a
+    negative number represents a fatal error that will terminate
+    operations.
 
     @keyword logHandle: An open handle for a log file, or C{True} to
         log output to STDOUT, or C{None} to suppress logging. Default
@@ -251,17 +252,17 @@ class DifferentialEvolution(object):
         self.fm = FManager(self.F, self.CR, self.p.Np, self.adaptive)
         self.triggerID = reactor.addSystemEventTrigger(
             'before', 'shutdown', self.shutdown)
-        self.stopRunning = False
+        self.running = True
 
     def shutdown(self):
         """
-        Sets my I{stopRunning} flag C{True}, which lets my various loops
-        know that it's time to quit early.
+        Clears my I{running} flag, which lets my various loops know that
+        it's time to quit early.
         """
-        self.stopRunning = True
-        if hasattr(self, 'triggerID'):
+        if self.running:
+            self.running = False
             reactor.removeSystemEventTrigger(self.triggerID)
-            del self.triggerID
+            self.p.abortSetup()
         
     def crossover(self, parent, mutant):
         """
@@ -283,6 +284,26 @@ class DifferentialEvolution(object):
                 # value discarded and the parent's used.
                 mutant[k] = parent[k]
 
+    def _abort(self):
+        """
+        Called by L{challenge} and L{__call__} to check if I should abort
+        my operations. Sends a brief message and returns C{True} if
+        so.
+
+        My public API calls for my I{running} attribute to be set
+        C{False} when I should abort my operations. After the first
+        call to this method when I{running} is C{True} or C{False},
+        I{running} will be set to C{None}. The only effect that has is
+        to prevent repeated display of the "Interrupted..." message.
+        """
+        if self.running is True:
+            return False
+        if self.running is False:
+            msg(-1, "Interrupted...")
+            self.running = None
+            return True
+        return False
+            
     @defer.inlineCallbacks
     def challenge(self, kt, kb):
         """
@@ -329,8 +350,8 @@ class DifferentialEvolution(object):
         """
         k0, k1 = self.p.sample(2, kt, kb)
         # Await legit values for all individuals used here
-        yield self.p.lock(kt, kb, k0, k1)
-        if not self.stopRunning:
+        if not self._abort():
+            yield self.p.lock(kt, kb, k0, k1)
             iTarget, iBase, i0, i1 = self.p.individuals(kt, kb, k0, k1)
             # All but the target can be released right away,
             # because we are only using their local values here
@@ -348,12 +369,15 @@ class DifferentialEvolution(object):
                 # Passes constraints!
                 # Now the hard part: Evaluate fitness of the challenger
                 yield iChallenger.evaluate()
-                if iChallenger < iTarget:
-                    # The challenger won the tournament, replace
-                    # the target
-                    self.p[kt] = iChallenger
-                if iChallenger:
+                if iChallenger and not self._abort():
+                    if iChallenger < iTarget:
+                        # The challenger won the tournament, replace
+                        # the target
+                        self.p[kt] = iChallenger
                     self.p.report(iChallenger, iTarget)
+                else:
+                    # Oops! Fatal error occurred!
+                    self.shutdown()
         # Now that the individual at the target index has been
         # determined, we can finally release the lock for that index
         self.p.release(kt)
@@ -392,21 +416,18 @@ class DifferentialEvolution(object):
             msg(-1, "Generation {:d}/{:d} {}",
                 kg+1, self.maxiter, F_info , '-')
             yield self.p.waitForReports()
+            if self._abort(): break
             dList = []
             iBest = self.p.best()
             for kt in range(self.p.Np):
-                if self.stopRunning:
-                    break
                 if self.randomBase or kt == self.p.kBest:
                     kb = self.p.sample(1, kt)
-                else:
-                    kb = self.p.kBest
+                else: kb = self.p.kBest
                 d = self.challenge(kt, kb).addErrback(oops)
                 dList.append(d)
             else:
                 yield defer.DeferredList(dList)
-            if self.stopRunning:
-                break
+            if self._abort(): break
             if self.p.replacement():
                 # There was enough overall improvement to warrant
                 # scaling F back up a bit
@@ -421,8 +442,7 @@ class DifferentialEvolution(object):
                     if self.dwellCount > self.dwellByGrave:
                         msg(-1, "Challengers failing too much, stopped")
                         break
-        else:
-            msg(-1, "Maximum number of iterations reached")
+        else: msg(-1, "Maximum number of iterations reached")
         # File report for best individual
         self.p.report()
         yield self.p.waitForReports()

@@ -495,6 +495,8 @@ class Population(object):
         self.statusQuoScore = self.targetFraction * self.Np
         self._sortNeeded = True
         self.counter = 0
+        self._keepRunning = True
+        self.iList = []
         
     def __getitem__(self, k):
         """
@@ -520,8 +522,11 @@ class Population(object):
     def __len__(self):
         """
         Sequence-like container of individuals: length.
+
+        My length will be equal to my I{Np} attribute unless setup
+        has not been completed.
         """
-        return self.Np
+        return len(self.iList)
 
     def __iter__(self):
         """
@@ -535,7 +540,7 @@ class Population(object):
         Sequence-like container of individuals: "in".
         """
         return i in self.iList
-
+    
     @property
     def iSorted(self):
         """
@@ -607,6 +612,12 @@ class Population(object):
             values = self.pm.fromUnity(values)
         return Individual(self, values)
 
+    def abortSetup(self):
+        """
+        Aborts my L{setup} operation if it's in progress.
+        """
+        self._keepRunning = False
+    
     @defer.inlineCallbacks
     def setup(self, uniform=False, blank=False, filePath=None):
         """
@@ -656,30 +667,35 @@ class Population(object):
         
         def evaluated(i):
             ds.release()
+            if not i:
+                self.abortSetup()
+                return
             if i.SSE is None or len(self.iList) >= self.Np:
                 return
             self.reporter(i)
             self.iList.append(i)
             self.dLocks.append(defer.DeferredLock())
-        
-        kIV = [None]*2
-        self.iList = []
-        self.dLocks = []
-        refreshIV()
-        msg(0, "Initializing {:d} population members", self.Np, '-'); msg()
-        ds = defer.DeferredSemaphore(10)
-        while True:
+
+        if self._keepRunning:
+            kIV = [None]*2
+            self.dLocks = []
+            refreshIV()
+            msg(0, "Initializing {:d} population members", self.Np, '-')
+            msg()
+            ds = defer.DeferredSemaphore(10)
+        while self._keepRunning:
             yield ds.acquire()
-            if len(self.iList) >= self.Np:
+            if not self._keepRunning or len(self.iList) >= self.Np:
                 break
             i = getIndividual()
             if blank:
                 i.SSE = np.inf
                 evaluated(i)
             else: i.evaluate().addCallbacks(evaluated, oops)
-        msg(0, repr(self))
-        self._sortNeeded = True
-        self.kBest = self.iList.index(self.iSorted[0])
+        if self._keepRunning:
+            msg(0, repr(self))
+            self._sortNeeded = True
+            self.kBest = self.iList.index(self.iSorted[0])
     
     def save(self, filePath):
         """
@@ -827,6 +843,7 @@ class Population(object):
 
     def best(self):
         """
-        Returns my best individual.
+        Returns my best individual, or C{None} if I have no individuals yet.
         """
-        return self.iSorted[0]
+        if self.iSorted:
+            return self.iSorted[0]

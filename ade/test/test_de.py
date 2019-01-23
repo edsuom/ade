@@ -22,6 +22,10 @@
 # express or implied. See the License for the specific language
 # governing permissions and limitations under the License.
 
+"""
+Unit tests for L{ade.de}.
+"""
+
 import time, os.path
 
 import numpy as np
@@ -137,8 +141,8 @@ class TestDifferentialEvolution(tb.TestCase):
             tb.ackley,
             [sub("x{:d}", k) for k in range(Nd)],
             [(-5, 5)]*Nd, popsize=Np/Nd)
-        yield self.p.setup()
         self.de = de.DifferentialEvolution(self.p, maxiter=35)
+        yield self.p.setup()
 
     @defer.inlineCallbacks
     def test_crossover(self):
@@ -188,3 +192,24 @@ class TestDifferentialEvolution(tb.TestCase):
         x = p.best()
         self.assertAlmostEqual(x[0], 0, 4)
         self.assertAlmostEqual(x[1], 0, 4)
+
+    @defer.inlineCallbacks
+    def test_abort_during_setup(self):
+        d = self.makeDE(20, 2).addCallback(lambda _: self.de())
+        self.de.shutdown()
+        yield d
+        self.assertLess(len(self.p), 20)
+        
+    @defer.inlineCallbacks
+    def test_abort_during_call(self):
+        def setupDone(null):
+            self.de()
+            return self.deferToDelay(0.1).addCallback(
+                lambda _: self.de.shutdown())
+
+        # TODO: Actually test that the full 35 generations don't get
+        # evolved, by capturing and examining STDOUT
+        d = self.makeDE(20, 2).addCallback(setupDone)
+        yield d
+        self.assertEqual(len(self.p), 20)
+        

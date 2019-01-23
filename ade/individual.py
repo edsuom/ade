@@ -40,7 +40,7 @@ class Individual(object):
     I act like a sequence of parameter values, but with other stuff
     like an SSE value, too.
     
-    Construct me with a C{Population} object. You can set my values
+    Construct me with a L{Population} object. You can set my values
     with a 1-D Numpy array of initial I{values}.
 
     You can iterate my values in sequence. You can access them
@@ -50,6 +50,8 @@ class Individual(object):
     array to L{update}.
 
     @ivar values: A 1-D Numpy array of parameter values.
+
+    @ivar p: The L{Population} I am part of.
     """
     __slots__ = ['values', '_SSE', 'p']
 
@@ -83,10 +85,11 @@ class Individual(object):
     @property
     def SSE(self):
         """
-        Property: My SSE value as a float. Infinite if no SSE computed yet
-        or was set to C{None}.
+        Property: My SSE value as a float. Infinite if no SSE computed
+        yet, a fatal error occurred during evaluation, or was set to
+        C{None}.
         """
-        if self._SSE is None:
+        if self._SSE is None or self._SSE < 0:
             return np.inf
         return float(self._SSE)
     @SSE.setter
@@ -114,7 +117,8 @@ class Individual(object):
 
     def __float__(self):
         """
-        I can be evaluated as a float using my SSE.
+        I can be evaluated as a float using my SSE. A negative SSE
+        translates to C{np.inf} because it indicates a fatal error.
         """
         return self.SSE
     
@@ -137,6 +141,14 @@ class Individual(object):
         for value in self.values:
             yield value
 
+    def __nonzero__(self):
+        """
+        I am C{True} if there were no fatal errors during my last
+        evaluation, as indicated by an evaluation SSE result of less
+        than zero.
+        """
+        return self._SSE is None or bool(self._SSE >= 0)
+    
     def __eq__(self, other):
         """
         I am equal to another C{Individual} if we have the same SSE and
@@ -145,6 +157,11 @@ class Individual(object):
         return self.SSE == other.SSE and self.equals(other)
 
     def equals(self, other):
+        """
+        Returns C{True} if my values equal the I{other} individual's
+        values, or the other values themselves if supplied as a
+        sequence or 1-D array.
+        """
         if hasattr(other, 'values'):
             other = other.values
         if not hasattr(other, 'shape'):
@@ -193,6 +210,11 @@ class Individual(object):
     
     def update(self, values):
         """
+        Updates my I{values} as an array form of the supplied list or
+        tuple.
+
+        Raises an exception if there's a different number of values
+        than my values length I{Nd}.
         """
         if len(values) != self.p.Nd:
             raise ValueError(sub(
@@ -204,9 +226,15 @@ class Individual(object):
     def evaluate(self):
         """
         Computes the sum of squared errors (SSE) from my evaluation
-        function using my current I{values}. Stores the result in my
-        I{SSE} attribute and returns a reference to me for
-        convenience.
+        function using my current I{values}.
+
+        Stores the result in my I{SSE} attribute and returns a
+        reference to me for convenience.
+
+        If the SSE value is less than zero, I{ade} will abort
+        operations. Use this feature to provide your evaluator with a
+        simple way to stop everything if something goes terribly
+        wrong.
         """
         def done(SSE):
             self.p.counter += 1

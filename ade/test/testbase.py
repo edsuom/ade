@@ -23,7 +23,7 @@
 # governing permissions and limitations under the License.
 
 """
-Unit testing for the I{ade} package by Edwin A. Suominen.
+Utility stuff used by L{ade} unit tests.
 """
 
 import os.path, inspect, re, atexit
@@ -287,14 +287,12 @@ class TestCase(MsgBase, unittest.TestCase):
         print "FAIL!!!!!!!\n{}\n{}".format('-'*40, failureObj.value)
         import pdb; pdb.set_trace()
 
-    def deferToDelay(self, x=None):
+    def deferToDelay(self, t):
         def delayOver(null):
             self.pendingCalls.pop(call, None)
             
-        if x is None:
-            x = self.unknownResponseWaitTime
         d = defer.Deferred().addCallbacks(delayOver, self.oops)
-        call = reactor.callLater(x, d.callback, None)
+        call = reactor.callLater(t, d.callback, None)
         self.pendingCalls[call] = d
         return d
         

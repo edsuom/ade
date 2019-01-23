@@ -22,6 +22,10 @@
 # express or implied. See the License for the specific language
 # governing permissions and limitations under the License.
 
+"""
+Unit tests for L{ade.individual}.
+"""
+
 import time, os.path
 
 import numpy as np
@@ -102,3 +106,12 @@ class TestIndividual(tb.TestCase):
         self.assertTrue(iSame is i)
         self.assertTrue(i.p.counter, 1)
 
+    @defer.inlineCallbacks
+    def test_nonzero(self):
+        i = self.spawn(np.zeros(2))
+        yield i.evaluate()
+        self.assertTrue(i)
+        i.SSE = np.inf
+        self.assertTrue(i)
+        i.SSE = -1
+        self.assertFalse(i)

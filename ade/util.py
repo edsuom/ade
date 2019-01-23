@@ -23,8 +23,7 @@
 # governing permissions and limitations under the License.
 
 """
-Utility stuff for the B{ade} package by Edwin A. Suominen:
-Asynchronous Differential Evolution.
+Utility stuff used by most modules of L{ade}.
 """
 
 import re, sys
@@ -38,6 +37,9 @@ def sub(proto, *args):
     return proto.format(*args)
 
 def oops(failureObj, log=None, keepGoing=False):
+    """
+    A handy errback.
+    """
     def text():
         if isinstance(failureObj, failure.Failure):
             info = failureObj.getTraceback()
@@ -59,6 +61,9 @@ def oops(failureObj, log=None, keepGoing=False):
 
 
 class Picklable(object):
+    """
+    Base class for things that can be pickled.
+    """
     def __getstate__(self):
         state = {}
         dirClass = dir(self.__class__)
@@ -99,6 +104,8 @@ class Bag(object):
 
 class Messenger(object):
     """
+    My module-level L{msg} instance writes messages to STDOUT or
+    another writable object.
     """
     N_dashes = 100
     

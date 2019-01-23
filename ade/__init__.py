@@ -24,6 +24,10 @@
 
 """
 B{A}synchronous B{D}ifferential B{E}volution.
+
+You really just need to be concerned with two things: Constructing and
+setting up a L{Population} object, and constructing and calling a
+L{DifferentialEvolution} object with it.
 """
 
 def extract_examples():
