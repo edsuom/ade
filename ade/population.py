@@ -290,7 +290,7 @@ class Reporter(object):
                         func, i.values, counter, i.SSE, *args, **kw)
                     d.addErrback(oops)
                     result = yield d
-                    if result is not None:
+                    if result is not None and i and self.p.keepRunning:
                         if self.complaintCallback:
                             yield defer.maybeDeferred(
                                 self.complaintCallback, i, result)
@@ -364,6 +364,9 @@ class Reporter(object):
         """
         if not iNumerator or not iDenominator:
             # This shouldn't happen
+            return 0
+        if not iNumerator.SSE or not iDenominator.SSE:
+            # Neither should this
             return 0
         if iNumerator < iDenominator or np.isnan(iDenominator.SSE):
             ratio = 0
@@ -495,7 +498,7 @@ class Population(object):
         self.statusQuoScore = self.targetFraction * self.Np
         self._sortNeeded = True
         self.counter = 0
-        self._keepRunning = True
+        self.keepRunning = True
         self.iList = []
         
     def __getitem__(self, k):
@@ -616,7 +619,7 @@ class Population(object):
         """
         Aborts my L{setup} operation if it's in progress.
         """
-        self._keepRunning = False
+        self.keepRunning = False
     
     @defer.inlineCallbacks
     def setup(self, uniform=False, blank=False, filePath=None):
@@ -676,23 +679,23 @@ class Population(object):
             self.iList.append(i)
             self.dLocks.append(defer.DeferredLock())
 
-        if self._keepRunning:
+        if self.keepRunning:
             kIV = [None]*2
             self.dLocks = []
             refreshIV()
             msg(0, "Initializing {:d} population members", self.Np, '-')
             msg()
             ds = defer.DeferredSemaphore(10)
-        while self._keepRunning:
+        while self.keepRunning:
             yield ds.acquire()
-            if not self._keepRunning or len(self.iList) >= self.Np:
+            if not self.keepRunning or len(self.iList) >= self.Np:
                 break
             i = getIndividual()
             if blank:
                 i.SSE = np.inf
                 evaluated(i)
             else: i.evaluate().addCallbacks(evaluated, oops)
-        if self._keepRunning:
+        if self.keepRunning:
             msg(0, repr(self))
             self._sortNeeded = True
             self.kBest = self.iList.index(self.iSorted[0])
