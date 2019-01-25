@@ -35,7 +35,7 @@ required = [
 
 
 ### Define setup options
-kw = {'version':'1.0.0',
+kw = {'version':'1.0.1',
       'license':'Apache License (2.0)',
       'platforms':'OS Independent',
 
@@ -53,7 +53,7 @@ kw = {'version':'1.0.0',
       'install_requires':required,
       'packages':['ade', 'ade.test'],
       'package_data':        {
-          'ade': ['examples/*'],
+          'ade': ['examples/*.py', 'examples/*.c'],
       },
       'entry_points':      {
           'console_scripts': [

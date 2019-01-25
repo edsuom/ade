@@ -1,6 +1,9 @@
 include NOTICE
 include LICENSE.txt
 
+exclude ade/examples/*.csv
+exclude ade/examples/*.bz2
+exclude ade/examples/*.log
 exclude ade/examples/goldstein-price
 exclude ade/examples/thermistor.png
 
