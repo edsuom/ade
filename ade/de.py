@@ -4,7 +4,7 @@
 # ade:
 # Asynchronous Differential Evolution.
 #
-# Copyright (C) 2018 by Edwin A. Suominen,
+# Copyright (C) 2018-19 by Edwin A. Suominen,
 # http://edsuom.com/ade
 #
 # See edsuom.com for API documentation as well as information about
@@ -221,9 +221,71 @@ class DifferentialEvolution(object):
     negative number represents a fatal error that will terminate
     operations.
 
+    @cvar attributes: Default values for attributes I{CR}, I{F},
+        I{maxiter}, I{randomBase}, I{uniform}, I{adaptive},
+        I{bitterEnd}, and I{dwellByGrave} that define how a
+        Differential Evolution run should be conducted. The attributes
+        are set by my constructor, and the defaults can be overridden
+        with constructor keywords. (That's why they're listed here as
+        keywords.)
+    @type attributes: dict
+
+    @ivar p: An instance of L{Population} supplied as my first
+        constructor argument.
+
+    @ivar fm: An instance of L{FManager}.
+
+    @ivar running: C{True} unless my L{shutdown} method has been called.
+
     @keyword logHandle: An open handle for a log file, or C{True} to
         log output to STDOUT, or C{None} to suppress logging. Default
         is STDOUT.
+
+    @keyword CR: The I{crossover probability} between parent (i.e.,
+        basis) and mutant (i.e., candidate, offspring).
+    @type CR: float
+
+    @keyword F: A scaler or two-element sequence defining the
+        I{differential weight}, or a range of possible weights from
+        which one is obtained as a uniform random variate.
+
+    @keyword maxiter: The maximum number of iterations (i.e.,
+        generations) to run. It can be useful to set this to something
+        realistic (e.g., 500 for big populations and lengthy
+        evaluations) so that you have a nice summary of the best
+        candidates when you come back and check results in an hour or
+        so.
+
+    @keyword randomBase: Set C{True} to use DE/rand/1/bin where a
+        random individual his chosen from the L{Population} instead of
+        the current best individual as the basis for mutants. this can
+        be useful if you think things are converging too fast to a
+        local minimum, although DE/BEST/1/bin is usually superior.
+
+    @keyword uniform: Set C{True} to initialize the population with
+        uniform random variate's as the parameters instead of a Latin
+        hypercube. Not usually recommended because you don't want to
+        start off with clustered parameters.
+
+    @keyword adaptive: Set C{True} to adapt the value (or values) of
+        I{F} in a way that tries to maintain the number of successful
+        challenges at a reasonable level. The adaptive algorithm
+        accounts not just for whether a challenge succeeded but also
+        how much better the challenger is than the individual it
+        replaced.
+
+    @keyword bitterEnd: Normally, I{ade} quits trying once there are
+        too few successful challenges and it appears that further
+        iterations won't accomplish much. Set this C{True} if you have
+        all the time in the world and wanted to keep going until
+        I{maxiter}.
+
+    @keyword dwellByGrave: The number of iterations that I{ade} hangs
+        around after it's decided that nothing more is being
+        accomplished. if you think there really is some progress being
+        with occasional marginally better replacements but don't want
+        to go until the I{bitterEnd}, feel free to increase this from
+        the default.
     """
     attributes = {
         'CR':           0.8,
@@ -233,7 +295,6 @@ class DifferentialEvolution(object):
         'uniform':      False,
         'adaptive':     True,
         'bitterEnd':    False,
-        'withPDF':      True,
         'dwellByGrave': 7,
     }
 
@@ -423,9 +484,14 @@ class DifferentialEvolution(object):
                 if self.randomBase or kt == self.p.kBest:
                     kb = self.p.sample(1, kt)
                 else: kb = self.p.kBest
+                if kb is None:
+                    # We must be shutting down, abort loop now
+                    self.running = False
+                    break
                 d = self.challenge(kt, kb).addErrback(oops)
                 dList.append(d)
             else:
+                # Only run if no abort
                 yield defer.DeferredList(dList)
             if self._abort(): break
             if self.p.replacement():

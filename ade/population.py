@@ -4,7 +4,7 @@
 # ade:
 # Asynchronous Differential Evolution.
 #
-# Copyright (C) 2018 by Edwin A. Suominen,
+# Copyright (C) 2018-19 by Edwin A. Suominen,
 # http://edsuom.com/ade
 #
 # See edsuom.com for API documentation as well as information about
@@ -459,19 +459,55 @@ class Population(object):
 
     The evaluation function must return the sum of squared errors
     (SSE) as a single float value.
+
+    @param func: A callable to which an L{Individual} can send its
+        parameter values and from which it receives a sum-of-squared
+        error float value as a result. The callable must accept a
+        single 1-D Numpy array as its sole argument.
+
+    @param names: A list of parameter names.
+
+    @param bounds: A list of 2-tuples, one for each parameter
+        name. The first element of each tuple is the lower bound of a
+        parameter in the second the upper bound.
+
+    @keyword constraints: A list of callables that enforce any
+        constraints on your parameter values. See
+        L{ParameterManager.passesConstraints}.
+
+    @keyword popsize: The number of individuals per parameter in the
+        population, if not the default.
+
+    @keyword debug: Set C{True} to show individuals getting
+        replaced.
+
+    @keyword complaintCallback: A callable that my L{Reporter} calls
+        with an individual and the non-None result of a complaining
+        reporter callback. See L{Reporter.runCallbacks}.
+
+    @ivar popsize: The number of individuals per parameter. The
+        population size will scale with the number of parameters, up
+        until I{Np_max} is reached. Default is 10 individuals per
+        parameter.
+
+    @ivar Np_min: Minimum population size, i.e., my total number of
+        individuals. Default is 20.
+
+    @ivar Np_max: Maximum population size. Default is 500, which is
+        really pretty big.
+
+    @ivar targetFraction: The target score of improvements in each
+        iteration in order for I{ade}'s adaptive algorithm to not
+        change the current differential weight. See L{FManager} for
+        details.
+
+    @ivar debug: Set C{True} to show individuals getting
+        replaced. (Results in a very messy log or console display.)
     """
-    # Default population size per parameter
     popsize = 10
-    # Population is never smaller than this, no matter how few
-    # parameters or requested size per parameter
     Np_min = 20
-    # Population is never bigger than this, no matter how many
-    # parameters or requested size per parameter
     Np_max = 500
-    # Target score of improvements in each generation/iteration
     targetFraction = 4.0 / 100
-    # Set True to log replacement of best individual (results in a
-    # very messy log)
     debug = False
     
     def __init__(
@@ -702,8 +738,13 @@ class Population(object):
     
     def save(self, filePath):
         """
-        TODO
+        (Not implemented yet.)
+        
+        This will save my individuals to a data file at I{filePath} in
+        a way that can repopulate a new instance of me with those same
+        individuals and without any evaluations being required.
         """
+        raise NotImplementedError("TODO...")
         
     def addCallback(self, func, *args, **kw):
         """
@@ -716,9 +757,11 @@ class Population(object):
 
     def replacement(self, improvementRatio=None, sqs=None):
         """
+        Records the replacement of an L{Individual} in this generation or
+        iteration.
+
         Call with an integer I{improvementRatio} in a loser's SSE vs. the
-        successful challenger's SSE to record the replacement of an
-        L{Individual} in this generation or iteration.
+        successful challenger's SSE.
         
         Alternative calls: Set the keyword I{sqs} to a float
         I{statusQuoScore} and that will replace my default value for

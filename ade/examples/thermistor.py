@@ -4,7 +4,7 @@
 # ade:
 # Asynchronous Differential Evolution.
 #
-# Copyright (C) 2018 by Edwin A. Suominen,
+# Copyright (C) 2018-19 by Edwin A. Suominen,
 # http://edsuom.com/ade
 #
 # See edsuom.com for API documentation as well as information about

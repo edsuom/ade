@@ -4,7 +4,7 @@
 # ade:
 # Asynchronous Differential Evolution.
 #
-# Copyright (C) 2018 by Edwin A. Suominen,
+# Copyright (C) 2018-19 by Edwin A. Suominen,
 # http://edsuom.com/ade
 #
 # See edsuom.com for API documentation as well as information about
@@ -30,11 +30,12 @@ NAME = "ade"
 from setuptools import setup
 
 ### Define requirements
-required = ['Twisted', 'numpy', 'scipy', 'matplotlib', 'pydoe', 'AsynQueue']
+required = [
+    'Twisted', 'numpy', 'scipy', 'matplotlib', 'pydoe', 'AsynQueue>=0.9.5']
 
 
 ### Define setup options
-kw = {'version':'0.8.3',
+kw = {'version':'1.0.0',
       'license':'Apache License (2.0)',
       'platforms':'OS Independent',
 
@@ -69,7 +70,7 @@ kw['keywords'] = [
 
 
 kw['classifiers'] = [
-    'Development Status :: 4 - Beta',
+    'Development Status :: 5 - Production/Stable',
 
     'Intended Audience :: Developers',
     'Intended Audience :: Science/Research',
@@ -80,9 +81,14 @@ kw['classifiers'] = [
     'Framework :: Twisted',
 
     'Topic :: Software Development :: Libraries :: Python Modules',
+    'Topic :: Scientific/Engineering :: Mathematics',
+    'Topic :: Scientific/Engineering :: Artificial Intelligence',
 ]
 
-
+# You get 77 characters. Use them wisely.
+#----------------------------------------------------------------------------
+#        10        20        30        40        50        60        70
+#2345678901234567890123456789012345678901234567890123456789012345678901234567
 kw['description'] = " ".join("""
 Asynchronous Differential Evolution, with efficient multiprocessing.
 """.split("\n"))
@@ -93,8 +99,8 @@ asynchronously. With a multiprocess evaluation function running on a
 multicore CPU or cluster, *ade* can get the DE processing done several
 times faster than standard single-threaded DE. It does this without
 departing in any way from the numeric operations performed by the
-classic Storn and Price algorithm with either a randomly chosen
-candidate or the best available candidate.
+classic Storn and Price algorithm. You can use either a randomly
+chosen candidate or the best available candidate.
 
 You get a substantial multiprocessing speed-up and the
 well-understood, time-tested behavior of the classic DE/rand/1/bin or
