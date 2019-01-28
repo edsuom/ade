@@ -53,11 +53,15 @@ from util import *
 
 class ParameterManager(object):
     """
-    I manager the digital DNA parameters of the evolving species. I
-    can pretty-print values with their parameter names, check if
+    I manage the digital DNA parameters of the evolving species.
+
+    I can pretty-print values with their parameter names, check if
     values pass constraints, limit values to their bounds, scale
     unity-range values to their appropriate ranges, and let you
     iterate over sorted parameter names.
+
+    @ivar mins: Lower bound of each parameter.
+    @ivar maxs: Lower bound of each parameter.
     """
     maxLineLength = 100
     dashes = "-"*maxLineLength
@@ -107,12 +111,12 @@ class ParameterManager(object):
 
     def sortedNamerator(self, values=None):
         """
-        Generates tuples of sorted names with (1) the index in a
-        I{values} list of parameters where each named parameter
-        appears, and (2) the name itself.
+        Generates tuples of sorted names.
 
-        If such a list of I{values} is supplied, each tuple also
-        includes (3) the value for that name.
+        Each tuple contains (1) the index in a I{values} list of
+        parameters where each named parameter appears, and (2) the
+        name itself. If such a list of I{values} is supplied, each
+        tuple also includes (3) the value for that name.
         """
         if values is None:
             for k in self.sortedNameIndices:
@@ -123,23 +127,30 @@ class ParameterManager(object):
         
     def fromUnity(self, values):
         """
-        Translates the normalized I{values} from the standardized range of
-        0-1 into my range of actual parameter values within the ranges
-        specified in the bounds supplied to my constructor.
+        Translates normalized into actual values.
+        
+        Converts the supplied normalized I{values} from the
+        standardized range of 0-1 into my range of actual parameter
+        values within the ranges specified in the bounds supplied to
+        my constructor.
         """
         scaled = self.scales * values
         return self.mins + scaled
 
     def toUnity(self, values):
         """
-        Translates the actual parameter I{values} into the standardized
-        range of 0-1 within the ranges specified in the bounds
-        supplied to my constructor.
+        Translates actual into normalized values.
+        
+        Converts the supplied actual parameter I{values} into the
+        standardized range of 0-1 within the ranges specified in the
+        bounds supplied to my constructor.
         """
         return (values - self.mins) / self.scales
     
     def passesConstraints(self, values):
         """
+        Checks if I{values} pass all my constraints.
+        
         Call with a 1-D array of parameter I{values} to check them against
         all of the constraints. Each callable in my I{constraints}
         list must return C{True} if it found the parameters (supplied
@@ -179,30 +190,12 @@ class Reporter(object):
     """
     I report on the SSE of individuals in an evolving population.
 
-    Call an instance of me with an Individual to report on its SSE
-    compared to the best one I've reported on thus far. A single
-    numeric digit 1-9 will be logged indicating how much worse (higher
-    SSE) the new individual is than the best one, or an "X" if the new
-    individual becomes the best one. The integer ratio will be
-    returned, or 0 if if the new individual became best.
+    Construct an instance of me with a L{Population}. Then you can
+    call the instance (as many times as you like) with an
+    L{Individual} to report on its SSE compared to the best one I've
+    reported on thus far.
 
-    Call my instance with two Individuals to report on the SSE of the
-    first one compared to the second. A single numeric digit 1-9 will
-    be logged indicating how much B{better} (lower SSE) the first
-    individual is than the second one, or an "X" if the first
-    individual is actually worse. The integer ratio will be returned,
-    or 0 if the first individual was worse.
-
-    If you set the keyword I{ratioBetterThanBest} to C{True} in the
-    call with just a single Individual, the ratio will be how much
-    I{better} it is than the best one, and the symbol "!" will be
-    logged if it was actually worse. This is useful for non-greedy
-    algorithms like simulated annealing, where a worse individual is
-    sometimes accepted.
-
-    In either case, whenever the first- or only-supplied Individual is
-    better than the best one I reported on thus far, and thus becomes
-    the new best one, I will run any callbacks registered with me.
+    @see: L{__call__}.
 
     @keyword complaintCallback: Set to a callable that accepts an
         C{Individual} instance and the result of a callback function
@@ -386,10 +379,12 @@ class Reporter(object):
     def progressChar(self, sym=None):
         """
         Logs the supplied ASCII character I{sym} to the current
-        console/log line. If the number of symbols logged to the
-        current line reaches my line-length limit, a is inserted. To
-        reset the count of symbols logged to the current line, call
-        this method with no symbol provided.
+        console/log line.
+
+        If the number of symbols logged to the current line reaches my
+        line-length limit, a is inserted. To reset the count of
+        symbols logged to the current line, call this method with no
+        symbol provided.
         """
         if sym is None:
             self._syms_on_line = 0
@@ -436,10 +431,28 @@ class Reporter(object):
         Files a report on the individual I{i}, perhaps vs. another
         individual I{iOther}.
 
-        Returns with the ratio of how much better I{i} is than
-        I{iOther}, or, if I{iOther} isn't specified, how much B{worse}
-        I{i} is than the best individual reported thus far. (A
-        "better" individual has a lower SSE.)
+        Logs (to STDOUT or a logfile) a single numeric digit 1-9
+        indicating how much worse (higher SSE) the new individual is
+        than the best one, or an "X" if the new individual becomes the
+        best one. The integer ratio will be returned, or 0 if if the
+        new individual became best.
+    
+        Call with two individuals to report on the SSE of the first
+        one compared to the second. A single numeric digit 1-9 will be
+        logged indicating how much B{better} (lower SSE) the first
+        individual is than the second one, or an "X" if the first
+        individual is actually worse. The integer ratio will be
+        returned, or 0 if the first individual was worse.
+    
+        In either case, whenever the first- or only-supplied
+        Individual is better than the best one I reported on thus far,
+        and thus becomes the new best one, I will run any callbacks
+        registered with me.
+
+        @return: The ratio of how much better I{i} is than I{iOther},
+            or, if I{iOther} isn't specified, how much B{worse} I{i}
+            is than the best individual reported thus far. (A "better"
+            individual has a lower SSE.)
         """
         if i is None:
             if self.iBest:
@@ -452,6 +465,9 @@ class Reporter(object):
 
 class Population(object):
     """
+    I contain a population of parameter-combination L{Individual}
+    objects.
+    
     Construct me with a callable evaluation I{func} that accepts a 1-D
     Numpy array of parameter values, a sequence of I{names} for the
     parameters, and a sequence of I{bounds} containing 2-tuples that

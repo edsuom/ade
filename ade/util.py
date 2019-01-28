@@ -30,34 +30,31 @@ import re, sys
 
 from twisted.python import failure
 
+
 def sub(proto, *args):
     """
     This really should be a built-in function.
     """
     return proto.format(*args)
 
-def oops(failureObj, log=None, keepGoing=False):
+def oops(failureObj):
     """
-    A handy errback.
+    A handy universal errback.
+
+    Prints the failure's error message to STDOUT and then stops
+    everything so you can figure out what went wrong.
     """
-    def text():
-        if isinstance(failureObj, failure.Failure):
-            info = failureObj.getTraceback()
-        else: info = str(failureObj)
-        return sub("Failure:\n{}\n{}", '-'*40, info)
-    if log is None:
-        print(text())
-    elif isinstance(failureObj, failure.Failure):
-        log.failure(sub("Failure:\n{}\n", '-'*40), failureObj)
-    else:
-        log.failure(text())
-    if not keepGoing:
-        import pdb, traceback, sys, os
-        from twisted.internet import reactor
-        type, value, tb = sys.exc_info()
-        pdb.post_mortem(tb)
+    if isinstance(failureObj, failure.Failure):
+        info = failureObj.getTraceback()
+    else: info = str(failureObj)
+    print(sub("Failure:\n{}\n{}", '-'*40, info))
+    import pdb, traceback, sys, os
+    from twisted.internet import reactor
+    type, value, tb = sys.exc_info()
+    pdb.post_mortem(tb)
+    if reactor.running:
         reactor.stop()
-        os._exit(1)
+    os._exit(1)
 
 
 class Picklable(object):
@@ -104,8 +101,22 @@ class Bag(object):
 
 class Messenger(object):
     """
-    My module-level L{msg} instance writes messages to STDOUT or
+    My module-level C{msg} instance writes messages to STDOUT or
     another writable object.
+
+    Call it with C{True} as the first or only argument to log to
+    STDOUT, or with an open file handle to log to that. Call with
+    C{False} or C{None} as the first or only argument to stop logging.
+
+    Call it with a string formatting prototype and the appropriate
+    number of formatting arguments to log a line of text. (Of course,
+    you can just supply the text with no formatting codes instead.)
+
+    You can precede the text or text proto/args with C{-1} to insert a
+    blank line before the text. Similarly, you can follow it with
+    C{-1} to append a blank line after the text. Or, you can follow it
+    with a single hyphen character ("-") to follow the text with a row
+    of hyphens as a separator.
     """
     N_dashes = 100
     

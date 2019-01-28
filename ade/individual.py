@@ -25,6 +25,10 @@
 
 """
 An L{Individual} class for parameter combinations to be evaluated.
+
+You won't need to construct individuals directly. Just let
+L{Population} set up a population full of them, and have
+L{DifferentialEvolution} create challengers as it does its thing.
 """
 
 import random, pickle
@@ -52,11 +56,14 @@ class Individual(object):
     @ivar values: A 1-D Numpy array of parameter values.
 
     @ivar p: The L{Population} I am part of.
+
+    @keyword values: Set to a sequence of initial parameter values if
+        you're not going to set them with a call to L{update}.
     """
     __slots__ = ['values', '_SSE', 'p']
 
     def __init__(self, p, values=None):
-        """Constructor"""
+        """Individual(p, values=None)"""
         self.p = p
         if values is None:
             self.values = np.empty(p.Nd)

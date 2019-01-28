@@ -44,19 +44,22 @@ class FManager(object):
     I manage the mutation coefficient I{F} for adaptive differential
     evolution.
 
-    If I{adaptive} is set C{True}, adaptive mode is used. My attribute
-    I{scale} is the amount to scale F down by with each call to
-    L{down}. A single F value will shrink slower than the lower end of
-    a uniform random variate range.
-
+    L{Population} constructs an instance of me with an initial value
+    (or range of values) for I{F}, the crossover probability I{CR},
+    and the population size I{Np}.
+    
     If you want the lower bound of F to be the critical value for my
     I{CR} and I{Np}, set it to zero, like this: C{(0, 1)}. I will not
-    run in adaptive mode in that case, ignoring whatever you set
-    I{is_adaptive} to.
+    run in adaptive mode in that case, ignoring the keyword setting.
 
-    My I{limited} attribute gets set C{True} when a call to L{down}
-    failed to reduce F anymore, and gets reset to C{False} if and when
-    L{up} gets called thereafter.
+    @ivar limited: Gets set C{True} when a call to L{down} failed to
+        reduce F anymore, and gets reset to C{False} if and when L{up}
+        gets called thereafter.
+    
+    @keyword adaptive: Set C{True} to use adaptive mode. My attribute
+        I{scale} is the amount to scale F down by with each call to
+        L{down}. A single F value will shrink slower than the lower
+        end of a uniform random variate range.
     """
     scaleLowest = 0.89
     scaleHighest = 0.87
@@ -66,7 +69,7 @@ class FManager(object):
     minHighestVsLowest = 3
     
     def __init__(self, F, CR, Np, adaptive=False):
-        """Constructor"""
+        """FManager(F, CR, Np, adaptive=False)"""
         self.criticalF = np.sqrt((1.0 - 0.5*CR) / Np)
         self.is_sequence = hasattr(F, '__iter__')
         self.is_adaptive = adaptive
@@ -94,11 +97,14 @@ class FManager(object):
     @property
     def lowest(self):
         """
-        Property: The lowest or sole value of I{F}.
+        Property: The lower bound or sole value of I{F}.
         """
         return self.F[0] if self.is_sequence else self.F
     @lowest.setter
     def lowest(self, value):
+        """
+        Property setter for the lower bound or sole value of I{F}.
+        """
         if value > self.origLowest:
             value = self.origLowest
         if self.is_sequence:
@@ -109,11 +115,14 @@ class FManager(object):
     @property
     def highest(self):
         """
-        Property: The highest or sole value of I{F}.
+        Property: The upper bound or sole value of I{F}.
         """
         return self.F[1] if self.is_sequence else self.F
     @highest.setter
     def highest(self, value):
+        """
+        Property setter for the upper bound or sole value of I{F}.
+        """
         if value > self.origHighest:
             value = self.origHighest
         if self.is_sequence:
@@ -299,7 +308,7 @@ class DifferentialEvolution(object):
     }
 
     def __init__(self, population, **kw):
-        """Constructor"""
+        """DifferentialEvolution(population, **kw)"""
         self.p = population
         msg(kw.pop('logHandle', True))
         self.p.reporter()
@@ -369,7 +378,7 @@ class DifferentialEvolution(object):
     def challenge(self, kt, kb):
         """
         Challenges the target ("parent") individual at index I{kt} with a
-        challenger.
+        challenger at index I{kb}.
 
         The challenger, often referred to as a "trial" or "child," is
         an L{Individual} that was produced from DE mutation and
