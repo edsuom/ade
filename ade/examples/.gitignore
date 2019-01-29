@@ -1,7 +1,7 @@
 # Stuff to have git ignore in ade examples directory
 
 # From thermistor.py example
-tempdump.log.bz2
+tempdump.*
 
 # Compiled executables
 goldstein-price

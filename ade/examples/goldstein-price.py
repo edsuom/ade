@@ -27,14 +27,19 @@ Example script for the I{ade} package: goldstein-price.py
 
 Runs as many subordinate python processes as there are CPU cores to
 solve the Goldstein-Price test function using asynchronous
-differential evolution.
+differential evolution. This will happen very fast on a modern
+multicore CPU!
 
-This will happen very fast on a modern multicore CPU!
-
-You need to compile the C code first by running the following command:
+You need to compile the U{C code<http://edsuom.com/ade/ade.examples.goldstein-price.c>} first by
+running the following command:
 
 C{gcc -Wall -o goldstein-price goldstein-price.c}
 
+It's worth looking through the API docs for the objects listed below
+(and of course the
+U{Python<http://edsuom.com/ade/ade.examples.goldstein-price.py>} and
+U{C<http://edsuom.com/ade/ade.examples.goldstein-price.c>} source) to
+familiarize yourself with a clear and simple usage of I{ade}.
 """
 
 import os, time
@@ -51,8 +56,9 @@ from ade.de import DifferentialEvolution
 
 class ExecProtocol(protocol.ProcessProtocol):
     """
-    Process protocol for communicating with a process running the
-    goldstein-price executable you compiled, via STDIO.
+    I am a U{Twisted<http://twistedmatrix.com>} process protocol for
+    communicating with a process running an executable you've
+    compiled, via STDIO.
     """
     def __init__(self):
         self.running = None
@@ -97,6 +103,10 @@ class ExecProtocol(protocol.ProcessProtocol):
     def outReceived(self, data):
         """
         Processes a line of response data from the executable.
+
+        If the line isn't blank and someone is waiting for it by
+        having acquired my C{DeferredLock}, writes the data to my
+        I{response} attribute and releases the lock.
         """
         data = data.replace('\r', '').strip('\n')
         if not data or not self.lock.locked:
@@ -122,6 +132,9 @@ class Runner(object):
             'before', 'shutdown', self.shutdown)
 
     def shutdown(self):
+        """
+        Shuts down my executable.
+        """
         if self.triggerID is None:
             return
         triggerID = self.triggerID
@@ -130,14 +143,21 @@ class Runner(object):
         reactor.removeSystemEventTrigger(triggerID)
 
     def __call__(self, *args):
+        """
+        Sends the args to my executable via STDIN, returning a C{Deferred}
+        that fires with the result when it arrives via STDOUT.
+        """
         return self.ep.cmd(*args).addErrback(oops)
 
 
 class MultiRunner(object):
     """
-    I manage a pool of Runners.
+    I manage a pool of L{Runner} instances.
     """
     def __init__(self, execPath, N=None):
+        """
+        C{MultiRunner}(execPath, N=None)
+        """
         if N is None:
             import multiprocessing as mp
             N = mp.cpu_count()
@@ -147,6 +167,10 @@ class MultiRunner(object):
             self.dq.put(r)
 
     def shutdown(self):
+        """
+        Shuts down each L{Runner}, returning a C{Deferred} that fires when
+        they've all stopped.
+        """
         dList = []
         for k in range(self.dq.size):
             d = self.dq.get().addCallback(lambda r: r.shutdown())
@@ -154,6 +178,11 @@ class MultiRunner(object):
         return defer.DeferredList(dList)
             
     def __call__(self, values):
+        """
+        Call my instance with a 2-sequence of I{values} and I will call
+        the next free L{Runner} in my pool with it. Returns a
+        C{Deferred} that fires with the result when it arrives.
+        """
         def done(r):
             result = r(*values)
             self.dq.put(r)
@@ -162,20 +191,38 @@ class MultiRunner(object):
 
 
 class Solver(object):
-    # Number of parallel processes to run (leave it at None to
-    # have the number set to however many CPU cores you have)
+    """
+    I solve a compiled test equation using asynchronous differential
+    evolution.
+
+    @cvar N: The number of parallel processes to run. Leave it at
+        C{None}, the default, to have the number set to however many
+        CPU cores you have.
+    """
     N = None
     
     def __init__(self):
+        """
+        C{Solver}()
+        """
         self.mr = MultiRunner(self.execPath, self.N)
         self.p = Population(self.mr, self.names, self.bounds, popsize=20)
         self.p.reporter.minDiff = 0.0001
     
     def report(self, values, counter, SSE):
+        """
+        Prints a one-line message about a new best candidate's values and
+        SSE.
+        """
         msg(0, self.p.pm.prettyValues(values, "SSE={:.5f} with", SSE), 0)
         
     @defer.inlineCallbacks
     def __call__(self):
+        """
+        Call my instance to set up a L{Population} full of L{Individual}s,
+        establish a reporting callback, and run asynchronous
+        L{DifferentialEvolution}.
+        """
         t0 = time.time()
         yield self.p.setup()
         self.p.addCallback(self.report)
@@ -188,16 +235,29 @@ class Solver(object):
 
 
 class GoldSteinPrice_Solver(Solver):
+    """
+    I solve the Goldstein-Price test equation.
+
+    You need to compile the U{C
+    code<http://edsuom.com/ade/ade.examples.goldstein-price.c>} first
+    by running the following command:
+
+    C{gcc -Wall -o goldstein-price goldstein-price.c}
+    """
     execPath = "./goldstein-price"
     names = ["x", "y"]
     bounds = [(-2, +2), (-2, +2)]
     
     
 def main():
+    """
+    Called when this module is run as a script.
+    """
     msg(True)
     r = GoldSteinPrice_Solver()
     reactor.callWhenRunning(r)
     reactor.run()
+
 
 if __name__ == '__main__':
     main()

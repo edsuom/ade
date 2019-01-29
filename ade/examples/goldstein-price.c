@@ -23,6 +23,7 @@
 
 
 float gp(float x, float y) {
+  // The Goldstein-Price function
   float z, result;
   z = x + y + 1;
   z *= z;
@@ -39,6 +40,8 @@ float gp(float x, float y) {
 
 
 int main() {
+  // Runs the Goldstein-Price function for each pair of float values
+  // received via STDIN, until there is an overflowing result
   float x, y, result;
 
   while (1) {

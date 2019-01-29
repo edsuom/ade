@@ -24,14 +24,17 @@
 
 
 """
-Example script for the I{ade} package: thermistor.py
+Example script for the I{ade} package: thermistor2.py
 
-Reads a three-item-per-line CSV file containing temperatures (as read
-by a YoctoTemp, in degrees C) inside an outdoor equipment shed, and
-the voltage at inputs 1 and 2 of a YoctoVolt with thermistors
-connecting to 23V. Then uses asynchronous differential evolution to
-efficiently find a nonlinear best-fit curve, with digital filtering to
-match thermal time constants.
+Reads an eight-item-per-line CSV file. Each line contains: (B{1}) the
+time in seconds from some arbitrary starting time, (B{2}) the
+temperature in degrees C, as read by a trusted temperature sensor, and
+(B{3-8}) the resistances of six thermistors, measured at the known
+temperature.
+
+Then it uses asynchronous differential evolution to efficiently find a
+nonlinear best-fit curve, with digital filtering to match thermal time
+constants using the model implemented by L{Evaluator.curve}.
 """
 
 import os.path, bz2, time
@@ -51,20 +54,22 @@ from ade.population import Population
 from ade.de import DifferentialEvolution
 
 
-# For providing some limited info about unhandled Deferred failures
-from twisted.logger import globalLogPublisher
-from twisted.logger._levels import LogLevel
-def analyze(event):
-    if event.get("log_level") == LogLevel.critical:
-        print sub("\nERROR: {}\n", event)
-        #reactor.stop()
-globalLogPublisher.addObserver(analyze)
-
-
 class Data(Picklable):
     """
-    Run L{setup} on my instance to load (possibly downloading and
-    decompressing first) the CSV file.
+    Run L{setup} on my instance to decompress and load the CSV
+    file.
+
+    The CSV file isn't included in the I{ade} package and will
+    automatically be downloaded from U{edsuom.com}. Here's the privacy
+    policy for my site (it's short, as all good privacy policies
+    should be)::
+
+        Privacy policy: I don’t sniff out, track, or share anything
+        identifying individual visitors to this site. There are no
+        cookies or anything in place to let me see where you go on the
+        Internetthat’s creepy. All I get (like anyone else with a web
+        server), is plain vanilla server logs with “referral” info
+        about which web page sent you to this one.
 
     @ivar t: A 1-D Numpy vector containing the number of seconds
         elapsed from the first reading.
@@ -74,7 +79,11 @@ class Data(Picklable):
         readings
 
     @ivar weights: A 1-D array of weights for each row in that array.
-    
+
+    @cvar csvPath: Path to the bzip2-compressed CSV file.
+
+    @cvar csvURL: URL to download the compressed CSV file if it
+        doesn't exist.
     """
     csvPath = "tempdump.csv.bz2"
     csvURL = "http://edsuom.com/ade-tempdump.csv.bz2"
@@ -89,8 +98,8 @@ class Data(Picklable):
     @defer.inlineCallbacks
     def setup(self):
         """
-        "Returns" a (deferred) that fires when setup is done and my I{t},
-        I{X}, and I{weights} ivars are ready.
+        Calling this gets you a C{Deferred} that fires when setup is done
+        and my I{t}, I{X}, and I{weights} ivars are ready.
         """
         if not os.path.exists(self.csvPath):
             print "Downloading tempdump.csv.bz2 data file from edsuom.com...",
@@ -142,7 +151,7 @@ class Data(Picklable):
         
     def plot(self):
         """
-        Just plot my data with annotations.
+        Plots my data with annotations.
         """
         I_below = self.cutoffWeights()
         I_above = self.cutoffWeights(above=True)
@@ -163,9 +172,12 @@ class Data(Picklable):
 
 class Evaluator(Picklable):
     """
-    Construct an instance of me, run the L{setup} method and wait for
-    the C{Deferred} it returns to fire, and then call the instance a
-    bunch of times with parameter values for a curve to get (deferred)
+    I evaluate thermistor curve fitness.
+    
+    Construct an instance of me, run the L{setup} method, and wait (in
+    non-blocking Twisted-friendly fashion) for the C{Deferred} it
+    returns to fire. Then call the instance a bunch of times with
+    parameter values for a L{curve} to get a (deferred)
     sum-of-squared-error fitness of the curve to the thermistor data.
     """
     T_kelvin_offset = +273.15 # deg C
@@ -227,14 +239,17 @@ class Evaluator(Picklable):
     
     def curve(self, R, *params):
         """
-        Given a 1-D vector of thermistor resistances followed by arguments
-        defining curve parameters, returns a 1-D vector of
-        temperatures (degrees C) for those resistances.
+        Given a 1-D vector of resistances measured for one thermistor,
+        followed by arguments defining curve parameters, returns a 1-D
+        vector of temperatures (degrees C) for those resistances.
 
-        T = 1 / (A*b + B*b*ln(R) + C*c*ln(R)^3 + D*d*R) - 273.15
+        The model implements this equation:
 
-        where R is in Ohms and T is in degrees C.
-        
+        M{T = 1 / (A*a + B*b*ln(R) + C*c*ln(R)^3 + D*d*R) - 273.15}
+
+        where I{R} is in Ohms and I{T} is in degrees C. Uppercase
+        coefficients are for all thermistors and lowercase are for
+        just the thermistor in question.
         """
         lnR = np.log(R)
         a, b, c, d, e, f = [params[k]*params[k+6] for k in range(6)]
@@ -242,6 +257,9 @@ class Evaluator(Picklable):
         return T_kelvin - self.T_kelvin_offset
 
     def __call__(self, values):
+        """
+        
+        """
         SSE = 0
         T = self.X[:,0]
         for k in range(1, 7):
@@ -256,15 +274,20 @@ class Evaluator(Picklable):
 class Runner(object):
     """
     I run everything to fit a curve to thermistor data using
-    asynchronous differential evolution. Construct an instance of me
-    with an instance of L{Args} that has parsed command-line options,
-    then have the Twisted reactor call the instance when it
-    starts. Then start the reactor and watch the fun.
+    asynchronous differential evolution.
+
+    Construct an instance of me with an instance of L{Args} that has
+    parsed command-line options, then have the Twisted reactor call
+    the instance when it starts. Then start the reactor and watch the
+    fun.
     """
     plotFilePath = "thermistor2.png"
     N_curve_plot = 200
     
     def __init__(self, args):
+        """
+        C{Runner}(args)
+        """
         self.args = args
         self.ev = Evaluator()
         N = args.N if args.N else ProcessQueue.cores()-1
@@ -387,6 +410,9 @@ args('-l', '--local-queue', "Use the local ThreadQueue, no subprocesses")
 
 
 def main():
+    """
+    Called when this module is run as a script.
+    """
     if args.h:
         return
     r = Runner(args)

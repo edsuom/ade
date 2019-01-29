@@ -34,10 +34,11 @@ def extract_examples():
     """
     Call via the I{ade-examples} entry point to extract example files
     to a subdirectory I{ade-examples} of your home directory, creating
-    the subdirectory if necessary. It will not overwrite existing
-    files, so feel free to modify the examples. Delete a modified
-    example file (or the whole subdirectory) and run this again to
-    restore the default file.
+    the subdirectory if necessary.
+
+    It will not overwrite existing files, so feel free to modify the
+    examples. Delete a modified example file (or the whole
+    subdirectory) and run this again to restore the default file.
     """
     pkg_dir = ('ade', 'examples')
     from ade.util import msg; msg(True)
