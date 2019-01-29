@@ -220,14 +220,14 @@ class DifferentialEvolution(object):
     Construct me with a L{Population} instance and any keywords that
     set my runtime configuration different than my default
     I{attributes}. Before running my instance with L{__call__}, you
-    must initialize the population with L{Individual} objects that can
-    be evaluated according to the population object's evaluation
-    function.
+    must call the L{Population.setup} method. That initializes it with
+    a population of L{Individual} objects that can be evaluated
+    according to the population object's evaluation function.
 
-    That function must return a fitness metric where lower values
-    indicate better fitness, C{None} or C{inf} represents an invalid
-    or failing individual and thus worst-possible fitness, and a
-    negative number represents a fatal error that will terminate
+    The evaluation function must return a fitness metric where lower
+    values indicate better fitness, C{None} or C{inf} represents an
+    invalid or failing individual and thus worst-possible fitness, and
+    a negative number represents a fatal error that will terminate
     operations.
 
     @cvar attributes: Default values for attributes I{CR}, I{F},
