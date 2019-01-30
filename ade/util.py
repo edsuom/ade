@@ -26,16 +26,20 @@
 Utility stuff used by most modules of L{ade}.
 """
 
-import re, sys
+import os, sys, re
 
 from twisted.python import failure
+from twisted.internet import reactor
 
 
 def sub(proto, *args):
     """
     This really should be a built-in function.
     """
-    return proto.format(*args)
+    try:
+        return proto.format(*args)
+    except:
+        raise ValueError("Proto '{}' couldn't apply args {}", proto, args)
 
 def oops(failureObj):
     """
@@ -48,10 +52,6 @@ def oops(failureObj):
         info = failureObj.getTraceback()
     else: info = str(failureObj)
     print(sub("Failure:\n{}\n{}", '-'*40, info))
-    import pdb, traceback, sys, os
-    from twisted.internet import reactor
-    type, value, tb = sys.exc_info()
-    pdb.post_mortem(tb)
     if reactor.running:
         reactor.stop()
     os._exit(1)
@@ -123,6 +123,7 @@ class Messenger(object):
     def __init__(self):
         self.fh = None
         self.newlineNeeded = False
+        self._lineWritten = False
 
     def __nonzero__(self):
         return self.fh is not None
@@ -137,6 +138,7 @@ class Messenger(object):
     def writeLine(self, line):
         if not self.fh:
             return
+        self._lineWritten = True
         if self.newlineNeeded:
             self.fh.write("\n")
             self.newlineNeeded = False
@@ -166,6 +168,11 @@ class Messenger(object):
             self.writeLine("\n"*arg)
             return
         return _fhSet(None)
+
+    def lineWritten(self):
+        yes = self._lineWritten
+        self._lineWritten = False
+        return yes
     
     def __call__(self, *args, **kw):
         args = list(args)

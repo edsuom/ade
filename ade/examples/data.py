@@ -90,18 +90,15 @@ class Data(Picklable):
         """
         if self.basename is None:
             raise AttributeError("No CSV file defined")
-        self.csvPath = sub("{}.csv.bz2", self.basename)
-        if not os.path.exists(self.csvPath):
-            if url is None:
-                print(sub(
-                    "No CSV file '{}' exists in this directory, "+\
-                    "and no download URL was provided!", self.csvPath))
-            print(sub("Downloading {} data file from edsuom.com..."))
-            yield client.downloadPage(self.csvURL, self.csvPath)
+        csvPath = sub("{}.csv.bz2", self.basename)
+        if not os.path.exists(csvPath):
+            url = sub(self.urlProto, csvPath)
+            print(sub("Downloading {} data file from edsuom.com...", csvPath))
+            yield client.downloadPage(url, csvPath)
             print("\tDone")
         value_lists = []; T_counts = {}
         print("Decompressing and parsing tempdump.csv.bz2...")
-        with bz2.BZ2File(self.csvPath, 'r') as bh:
+        with bz2.BZ2File(csvPath, 'r') as bh:
             while True:
                 line = bh.readline().strip()
                 if not line:
@@ -147,7 +144,7 @@ class Data(Picklable):
             I_below = []
             I_above = np.arange(self.X.shape[0])
         else:
-            I_below = np.flatnonzero(self.weights < self.weightCutoff))
+            I_below = np.flatnonzero(self.weights < self.weightCutoff)
             I_above = np.flatnonzero(self.weights >= self.weightCutoff)
         T = self.X[I_above, 0]
         T_cutoff = self.X[I_below, 0]

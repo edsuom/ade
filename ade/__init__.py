@@ -40,6 +40,7 @@ def extract_examples():
     examples. Delete a modified example file (or the whole
     subdirectory) and run this again to restore the default file.
     """
+    import re
     pkg_dir = ('ade', 'examples')
     from ade.util import msg; msg(True)
     import os, os.path, shutil, pkg_resources
@@ -52,8 +53,9 @@ def extract_examples():
     else:
         os.mkdir(eDir)
         msg("Subdirectory created")
+    reFile = re.compile(r'[a-z].+\.(py|c|txt)$')
     for fileName in pkg_resources.resource_listdir(*pkg_dir):
-        if fileName.startswith('.'):
+        if not reFile.match(fileName):
             continue
         ePath = os.path.join(eDir, fileName)
         if os.path.exists(ePath):

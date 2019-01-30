@@ -114,15 +114,15 @@ class Evaluator(Picklable):
     T_kelvin_offset = +273.15 # deg C
     prefixes = "ABCDEF"
     prefix_bounds = {
-        'A':   (5E-4, 6E-3),
-        'B':   (5E-5, 5E-4),
-        'C':   (5E-8, 3E-6),
-        'D':   (-1E-8, +1E-8),
-        'E':   (-1E-13, +1E-13),
+        'A':   (3E-4, 1E-3),
+        'B':   (3E-5, 1E-4),
+        'C':   (3E-8, 1.5E-7),
+        'D':   (-1E-9, +1E-9),
+        'E':   (-1E-14, +1E-14),
         'F':   (-1E-18, +1E-18),
     }
     for prefix in prefixes.lower():
-        prefix_bounds[prefix] = (0.4, 3.0)
+        prefix_bounds[prefix] = (0.1, 10.0)
 
     def setup(self):
         """
@@ -214,6 +214,10 @@ class Runner(object):
     """
     plotFilePath = "thermistor2.png"
     N_curve_plot = 200
+    # Set lower because real improvements are made even with low
+    # improvement scores. I think that behavior has something to do
+    # with all the independent parameters for six thermistors.
+    targetFraction = 0.02
     
     def __init__(self, args):
         """
@@ -297,7 +301,8 @@ class Runner(object):
         names_bounds = yield self.ev.setup().addErrback(oops)
         self.p = Population(
             self.evaluate,
-            names_bounds[0], names_bounds[1], popsize=args.p)
+            names_bounds[0], names_bounds[1],
+            popsize=args.p, targetFraction=self.targetFraction)
         yield self.p.setup().addErrback(oops)
         self.p.addCallback(self.report)
         F = [float(x) for x in args.F.split(',')]

@@ -254,8 +254,8 @@ class Reporter(object):
 
     def runCallbacks(self, i, iPrevBest=None):
         """
-        Queues up a report for the supplied Individual I{i}, calling each
-        registered callbacks in turn.
+        Queues up a report for the supplied L{Individual} I{i}, calling
+        each of my registered callbacks in turn.
 
         If any callback complains about the report by returning a
         result (deferred or immediate) that is not C{None}, processes
@@ -267,11 +267,16 @@ class Reporter(object):
         I{complaintCallback} is set to a callable (must accept the
         individual and the complainer's returned result as its two
         args), that will be called instead of the debugger.
+
+        @keyword iPrevBest: Set to the previous best individual to
+            allow for it to be restored to its rightful place if a
+            callback complains about I{i}.
         """
         @defer.inlineCallbacks
         def runUntilFree():
             counter = self.p.counter
             self.cbrInProgress = True
+            msg.lineWritten()
             iPrev = None
             while self.cbrScheduled:
                 i = self.cbrScheduled.pop()
@@ -288,15 +293,17 @@ class Reporter(object):
                             yield defer.maybeDeferred(
                                 self.complaintCallback, i, result)
                         else:
-                            print "\n\nCallback function complained about"
-                            print i, "\n"
+                            text = sub(
+                                "\n\n" +\
+                                "Callback function complained about {}\n", i)
+                            print(text)
                             import pdb; pdb.set_trace()
                         # Modify the individual in-place to never again be
                         # winner of a challenge or basis for new individuals
                         i.blacklist()
                         if iPrevBest and iPrevBest < self.iBest:
                             self.iBest = iPrevBest
-            self.progressChar()
+            if msg.lineWritten(): self.progressChar()
             self.cbrInProgress = False
 
         self.cbrScheduled(i)
@@ -335,7 +342,7 @@ class Reporter(object):
         # know a full evaluation has been done
         if self.iBest is None or i < self.iBest:
             if self.p.debug:
-                print "\n", self.iBest, "\n\t--->\n", i, "\n"
+                msg(0, "{}\n\t--->\n{}\n", self.iBest, i)
             iPrevBest = self.iBest
             self.iBest = i
             if self.iLastReported and self.isEquivSSE(i, self.iLastReported):
@@ -343,17 +350,27 @@ class Reporter(object):
             self.iLastReported = i
             self.runCallbacks(i, iPrevBest)
             return
-        print "Well, shit. New best wasn't actually best. Fix this!\n"
+        print("Well, shit. New best wasn't actually best. Fix this!\n")
         import pdb; pdb.set_trace()
         
     def msgRatio(self, iNumerator, iDenominator, sym_lt="X"):
         """
-        Returns 0 if numerator or denominator is C{None}, if numerator SSE
-        is less than denominator SSE, if denominator SSE is C{None},
-        or if numerator and denominator SSE are equivalent.
+        Returns 0 if I{iNumerator} or I{iDenominator} is C{None},
+        numerator SSE < denominator SSE, denominator SSE is C{None},
+        or numerator and denominator SSE are equivalent.
+
+        "Equivalent" means a call to L{isEquivSSE} determines that the
+        two individuals have SSEs with a fractional difference less
+        than my I{minDiff} attribute (default 1%).
 
         Otherwise returns the rounded integer ratio of numerator SSE
         divided by denominator SSE.
+
+        For example, if I{iDenominator} has an SSE of 100.0, returns 1
+        if I{iNumerator} has an SSE between 101.1 and 149.9. If
+        I{iNumerator} has an SSE of 100.9, it is considered equivalent
+        to I{iDenominator} and 0 will be returned. If its SSE is
+        between 150.0 and 249.9, the return value is 2.
         """
         if not iNumerator or not iDenominator:
             # This shouldn't happen
@@ -387,17 +404,24 @@ class Reporter(object):
         symbol provided.
         """
         if sym is None:
+            if self._syms_on_line: msg("")
             self._syms_on_line = 0
             return
         msg.writeChar(sym)
         self._syms_on_line += 1
         if self._syms_on_line > self.pm.maxLineLength-1:
-            msg("")
             self._syms_on_line = 0
+            msg("")
 
     def _fileReport(self, i, iOther):
         """
-        Called by L{__call__}.
+        Called by L{__call__}. Calls L{msgRatio} with I{iOther} vs I{i} to
+        get the ratio of how much better I{i} is than I{other}, if not
+        C{None}.
+
+        If I{other} is C{None} and I{i} is worst than my best
+        L{Individual}, calls L{msgRatio} with I{i} vs. the best
+        individual to get the ratio of how much worse I{i} is than it.
         """
         if iOther is None:
             if self.iBest is None:
@@ -449,10 +473,12 @@ class Reporter(object):
         and thus becomes the new best one, I will run any callbacks
         registered with me.
 
-        @return: The ratio of how much better I{i} is than I{iOther},
-            or, if I{iOther} isn't specified, how much B{worse} I{i}
-            is than the best individual reported thus far. (A "better"
-            individual has a lower SSE.)
+        Returns the ratio of how much better I{i} is than I{iOther},
+        or, if I{iOther} isn't specified, how much B{worse} I{i} is
+        than the best individual reported thus far. (A "better"
+        individual has a lower SSE.)
+
+        @see: L{_fileReport}.
         """
         if i is None:
             if self.iBest:
@@ -468,54 +494,56 @@ class Population(object):
     I contain a population of parameter-combination L{Individual}
     objects.
     
-    Construct me with a callable evaluation I{func} that accepts a 1-D
-    Numpy array of parameter values, a sequence of I{names} for the
-    parameters, and a sequence of I{bounds} containing 2-tuples that
-    each define the lower and upper limits of the values.
+    Construct me with a callable evaluation I{func}, a sequence of
+    parameter I{names}, and a sequence of I{bounds} containing
+    2-tuples that each define the lower and upper limits of the
+    values:
 
-    The evaluation function must return the sum of squared errors
-    (SSE) as a single float value.
+        - I{func}: A callable to which an L{Individual} can send its
+          parameter values and from which it receives a sum-of-squared
+          error float value as a result. The callable must accept a
+          single 1-D Numpy array as its sole argument and return the
+          sum of squared errors (SSE) as a single float value.
 
-    @param func: A callable to which an L{Individual} can send its
-        parameter values and from which it receives a sum-of-squared
-        error float value as a result. The callable must accept a
-        single 1-D Numpy array as its sole argument.
+        - I{names}: A sequence of parameter names.
 
-    @param names: A list of parameter names.
-
-    @param bounds: A list of 2-tuples, one for each parameter
-        name. The first element of each tuple is the lower bound of a
-        parameter in the second the upper bound.
+        - I{bounds}: A list of 2-tuples, one for each parameter
+          name. The first element of each tuple is the lower bound of
+          a parameter in the second the upper bound.
 
     @keyword constraints: A list of callables that enforce any
         constraints on your parameter values. See
         L{ParameterManager.passesConstraints}.
-
+    
     @keyword popsize: The number of individuals per parameter in the
         population, if not the default.
 
-    @keyword debug: Set C{True} to show individuals getting
-        replaced.
+    @keyword debug: Set C{True} to override my default I{debug}
+        setting and ensure that I show individuals getting replaced.
 
     @keyword complaintCallback: A callable that my L{Reporter} calls
         with an individual and the non-None result of a complaining
         reporter callback. See L{Reporter.runCallbacks}.
 
+    @targetFraction: Set this to a (small) float to override my
+        default target for the total score of improvements in each
+        iteration.
+
     @ivar popsize: The number of individuals per parameter. The
         population size will scale with the number of parameters, up
         until I{Np_max} is reached. Default is 10 individuals per
         parameter.
-
+    
     @ivar Np_min: Minimum population size, i.e., my total number of
         individuals. Default is 20.
 
     @ivar Np_max: Maximum population size. Default is 500, which is
         really pretty big.
 
-    @ivar targetFraction: The target score of improvements in each
-        iteration in order for I{ade}'s adaptive algorithm to not
-        change the current differential weight. See L{FManager} for
-        details.
+    @ivar targetFraction: The desired total score of improvements in
+        each iteration in order for I{ade}'s adaptive algorithm to not
+        change the current differential weight. See L{replcement} and
+        L{FManager} for details. The default is 4%, which works out to
 
     @ivar debug: Set C{True} to show individuals getting
         replaced. (Results in a very messy log or console display.)
@@ -523,14 +551,17 @@ class Population(object):
     popsize = 10
     Np_min = 20
     Np_max = 500
-    targetFraction = 4.0 / 100
+    targetFraction = 0.04
     debug = False
     
     def __init__(
             self, func, names, bounds,
             constraints=[], popsize=None,
-            debug=False, complaintCallback=None):
-        """Constructor"""
+            debug=False, complaintCallback=None, targetFraction=None):
+        """
+        C{Population}(func, names, bounds, constraints=[], popsize=None,
+        debug=False, complaintCallback=None)
+        """
         def evalFunc(values):
             return defer.maybeDeferred(func, values)
 
@@ -538,7 +569,8 @@ class Population(object):
             raise ValueError(sub("Object '{}' is not callable", func))
         self.evalFunc = func # evalFunc
         self.Nd = len(bounds)
-        self.debug = debug
+        if debug: self.debug = True
+        if targetFraction: self.targetFraction = targetFraction
         self.pm = ParameterManager(names, bounds, constraints)
         self.reporter = Reporter(self, complaintCallback)
         if popsize: self.popsize = popsize
@@ -736,7 +768,6 @@ class Population(object):
             self.dLocks = []
             refreshIV()
             msg(0, "Initializing {:d} population members", self.Np, '-')
-            msg()
             ds = defer.DeferredSemaphore(10)
         while self.keepRunning:
             yield ds.acquire()
@@ -771,37 +802,91 @@ class Population(object):
         """
         self.reporter.addCallback(func, *args, **kw)
 
-    def replacement(self, improvementRatio=None, sqs=None):
+    def replacement(self, rir=None, sqs=None):
         """
         Records the replacement of an L{Individual} in this generation or
         iteration.
 
-        Call with an integer I{improvementRatio} in a loser's SSE vs. the
-        successful challenger's SSE.
+        Call with an integer B{r}ounded B{i}mprovement B{r}atio in a
+        loser's SSE vs. the successful challenger's SSE, unless you
+        are calling to inquire about whether the status quo I{F}
+        value(s) should be maintained or to set my I{statusQuoteScore}
+        with the I{sqs} keyword.
         
-        Alternative calls: Set the keyword I{sqs} to a float
-        I{statusQuoScore} and that will replace my default value for
-        future evaluation of replacement individuals. Or call with
-        nothing to determine if the replacements that occurred in the
-        previous generation/iteration were enough to warrant
-        maintaining the status quo, and to reset the record.
+        Three types of calls
+        ====================
 
-        The status quo will be maintained if several small
-        improvements are made, or fewer larger ones, with the required
-        number and/or size increasing for a larger population. For
-        small populations where even a single improvement would be
-        significant, the probability of status quo maintenance
-        increases with smaller population and will sometimes happen
-        even with no improvements for a given generation or iteration.
+            The rounded improvement ratio I{rir} indicates how much
+            better the challenger is than the individual it
+            replaced. I use that ratio to adjust a running score for
+            the current iteration to inform the status quo inquiry
+            that will occur when the iteration is done, unless I'm not
+            running in adaptive mode.
+            
+            You can set my target I{statusQuoScore} by setting I{sqs}
+            to a (small) float value. That will replace my default
+            value for future evaluation of replacement individuals.
+    
+            Finally, a status quo inquiry is a call with no keywords
+            set. I will determine if the replacements that occurred
+            in the previous generation/iteration were enough to
+            warrant maintaining the status quo, and then reset the
+            record. You will receive a result of C{True} if the status
+            quote should be maintained.
+
+            The status quo should be maintained if several small
+            improvements are made, or fewer larger ones, with the
+            required number and/or size increasing for a larger
+            population. For small populations where even a single
+            improvement would be significant, the probability of
+            status quo maintenance increases with smaller population
+            and will sometimes happen even with no improvements for a
+            given generation or iteration.
+
+        Improvement Ratios
+        ==================
+
+            An I{rir} of 1 indicates that the successful challenger
+            was better (i.e., lower) and not considered equivalent to
+            that of the individual it replaced, and that its SSE was
+            no better than 1.5x as good (2/3 as high) as the replaced
+            individual's SSE. An I{rir} of 2 indicates that the
+            challenger had an SSE between 1.5x and 2.5x better than
+            (2/5 to 2/3 as high as) the individual it replaced.
+
+            I don't give much weight to an I{rir} of 1. The
+            improvement is pretty modest and could be as little as 1%
+            (assuming C{Reporter.minDiff}=0.01, the default). An
+            I{rir} of 2 gets five times as much weight as that.
+
+            An I{rir} of 3 also gets disproportionately more weight,
+            nearly twice as much as I{rir}=2. Beyond that, though, the
+            weight scales in a nearly linear fashion. For example, an
+            I{rir} of 9 adds just a little more than three times to
+            the score (3.67x) as I{rir}=3 does.
+
+            Here's a practical example, with a population of 100
+            individuals: If you see 10 "1" characters on the screen
+            for one iteration with other 90 being "X," your
+            improvement ratio score for that iteration will be
+            2.5. But if you see just one non-X individual with a "8"
+            character, the score will be 7.25. That one amazing
+            success story counts far more in a sea of failures than a
+            bunch of marginal improvements, which is kind of how
+            evolution works in real life. (See the literature around
+            "hopeful monsters.")
         
-        Returns C{True} if the status quo should be maintained.
-
+        @keyword rir: A rounded improvement ratio obtained from a call
+            to L{msgRatio}, where the numerator is the SSE of the
+            individual that was replaced and the denominator is the
+            SSE of its successful challenger.
+        
         @see: L{report}, which calls this.
         """
         if sqs:
             self.statusQuoScore = sqs
             return
-        if improvementRatio is None:
+        if rir is None:
             # Inquiry call, initialize score to zero
             score = self.replacementScore
             self.replacementScore = 0
@@ -820,11 +905,11 @@ class Population(object):
             # No replacements were made at all, so of course no status quo
             return False
         # An adjustment call
-        if improvementRatio and self.replacementScore is not None:
+        if rir and self.replacementScore is not None:
             # 1 has only 0.25 weight
             # 2 has 1.25, or 5x as much as 1
             # 3 has 2.25, or nearly 2x as much as 2
-            self.replacementScore += (improvementRatio - 0.75)
+            self.replacementScore += (rir - 0.75)
 
     def report(self, iNew=None, iOld=None):
         """
@@ -835,7 +920,9 @@ class Population(object):
         If no second individual is supplied, the comparison will be
         with the best individual thus far reported on.
         
-        Does a call to L{replacement} if the new individual is better.
+        Gets the ratio from a call to my L{Reporter} instance, and
+        does a call to L{replacement} with it if the new individual is
+        better.
         """
         ratio = self.reporter(iNew, iOld)
         if ratio: self.replacement(ratio)
