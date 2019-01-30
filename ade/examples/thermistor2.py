@@ -24,26 +24,26 @@
 
 
 """
-Example script for the I{ade} package: thermistor2.py
+Example script I{thermistor2.py}: Identifying coefficients for the
+resistance versus temperature model of six thermistors.
 
-Reads an eight-item-per-line CSV file. Each line contains: (B{1}) the
-time in seconds from some arbitrary starting time, (B{2}) the
-temperature in degrees C, as read by a trusted temperature sensor, and
-(B{3-8}) the resistances of six thermistors, measured at the known
-temperature.
+This example reads an eight-item-per-line CSV file. Each line
+contains: (B{1}) the time in seconds from some arbitrary starting
+time, (B{2}) the temperature in degrees C, as read by a trusted
+temperature sensor, and (B{3-8}) the resistances of six thermistors,
+measured at the known temperature.
 
 Then it uses asynchronous differential evolution to efficiently find a
 nonlinear best-fit curve, with digital filtering to match thermal time
 constants using the model implemented by L{Evaluator.curve}.
 """
 
-import os.path, bz2, time
+import time
 
 import numpy as np
 from scipy import signal
 
 from twisted.internet import reactor, defer
-from twisted.web import client
 
 from asynqueue import ThreadQueue
 from asynqueue.process import ProcessQueue
@@ -53,11 +53,13 @@ from ade.util import *
 from ade.population import Population
 from ade.de import DifferentialEvolution
 
+from data import Data
 
-class Data(Picklable):
+
+class TemperatureData(Data):
     """
-    Run L{setup} on my instance to decompress and load the CSV
-    file.
+    Run L{setup} on my instance to decompress and load the
+    tempdump.csv.bz2 CSV file.
 
     The CSV file isn't included in the I{ade} package and will
     automatically be downloaded from U{edsuom.com}. Here's the privacy
@@ -71,69 +73,23 @@ class Data(Picklable):
         server), is plain vanilla server logs with “referral” info
         about which web page sent you to this one.
 
-    @ivar t: A 1-D Numpy vector containing the number of seconds
-        elapsed from the first reading.
-
-    @ivar X: A 2-D Numpy array with the first column temperature
-        readings and the following columns thermistor resistance
-        readings
-
     @ivar weights: A 1-D array of weights for each row in that array.
 
-    @cvar csvPath: Path to the bzip2-compressed CSV file.
-
-    @cvar csvURL: URL to download the compressed CSV file if it
-        doesn't exist.
+    @see: The L{Data} base class.
     """
-    csvPath = "tempdump.csv.bz2"
-    csvURL = "http://edsuom.com/ade-tempdump.csv.bz2"
-    firstColumn = 1
+    basename = "tempdump"
     ranges = [(0, 213), (442, 2920), (3302, 6000), (6550, 7000),
               (7200, 8210), (8280, 8345), (8380, None)]
 
     dTdt_halfWeight = 0.05 / 10
     dTdt_power = 3
-    weightCutoff = 0.2
     
-    @defer.inlineCallbacks
-    def setup(self):
+    def setWeights(self):
         """
-        Calling this gets you a C{Deferred} that fires when setup is done
-        and my I{t}, I{X}, and I{weights} ivars are ready.
+        Call this to set my I{weights} attribute to a 1-D Numpy array to
+        weights that are larger for colder temperature readings, since
+        there are fewer of them.
         """
-        if not os.path.exists(self.csvPath):
-            print "Downloading tempdump.csv.bz2 data file from edsuom.com...",
-            yield client.downloadPage(self.csvURL, self.csvPath)
-            print "Done"
-        value_lists = []; T_counts = {}
-        print "Decompressing and parsing tempdump.csv.bz2...",
-        with bz2.BZ2File(self.csvPath, 'r') as bh:
-            while True:
-                line = bh.readline().strip()
-                if not line:
-                    if value_lists:
-                        break
-                    else: continue
-                if line.startswith('#'):
-                    continue
-                value_list = [float(x.strip()) for x in line.split(',')]
-                value_lists.append(value_list)
-        print "Done"
-        print "Doing array conversions...",
-        value_lists.sort(None, lambda x: x[0])
-        t_list = []
-        t0 = value_lists[0][0]
-        selected_value_lists = []
-        for k, value_list in enumerate(value_lists):
-            for k0, k1 in self.ranges:
-                if k >= k0 and (k1 is None or k < k1):
-                    t_list.append(value_list[0] - t0)
-                    selected_value_lists.append(value_list[1:])
-                    break
-        print sub(
-            "Read {:d} of {:d} data points", len(selected_value_lists), k+1)
-        self.t = np.array(t_list)
-        self.X = np.array(selected_value_lists)
         T_filt = signal.lfilter([1, 1], [2], self.X[:,0])
         dTdt = np.diff(T_filt) / np.diff(self.t)
         weights = np.power(
@@ -143,31 +99,6 @@ class Data(Picklable):
         # Hack to weight cold readings more, since fewer of them.
         self.weights = np.where(self.X[:,0] < 4.0, 10*self.weights, self.weights)
         self.weights = np.where(self.X[:,0] < -5.0, 3*self.weights, self.weights)
-        print "Done"
-    
-    def cutoffWeights(self, above=False):
-        comparator = np.greater if above else np.less
-        return np.flatnonzero(comparator(self.weights, self.weightCutoff))
-        
-    def plot(self):
-        """
-        Plots my data with annotations.
-        """
-        I_below = self.cutoffWeights()
-        I_above = self.cutoffWeights(above=True)
-        T = self.X[I_above, 0]
-        T_cutoff = self.X[I_below, 0]
-        pp = Plotter(3, 2, width=12, height=10)
-        pp.add_marker('.')
-        pp.add_plotKeyword('markersize', 1)
-        with pp as p:
-            for k in range(6):
-                R = self.X[I_above, k+1]
-                p.set_title(sub("Thermistor #{:d}", k+1))
-                ax = p(R, T)
-                R = self.X[I_below, k+1]
-                ax.plot(R, T_cutoff, 'r.', markersize=1)
-        pp.show()
 
 
 class Evaluator(Picklable):
@@ -221,7 +152,7 @@ class Evaluator(Picklable):
                 self.indices[name] = len(bounds)
                 bounds.append(self.prefix_bounds[prefix])
         # The data
-        data = Data()
+        data = TemperatureData()
         return data.setup().addCallbacks(done, oops)
 
     def prefix2name(self, prefix, k):

@@ -391,7 +391,7 @@ class Reporter(object):
             return
         msg.writeChar(sym)
         self._syms_on_line += 1
-        if self._syms_on_line == self.pm.maxLineLength-1:
+        if self._syms_on_line > self.pm.maxLineLength-1:
             msg("")
             self._syms_on_line = 0
 
@@ -621,7 +621,7 @@ class Population(object):
         individuals.
         """
         def field(x):
-            return "{:>11.5g}".format(x)
+            return sub("{:>11.5g}", x)
 
         def addRow():
             lineParts = ["{:>11s}".format(columns[0]), '|']
@@ -635,7 +635,7 @@ class Population(object):
         lines = [
             sub("Population: Top {:d} of {:d} individuals", N_top, self.Np)]
         lines.append("")
-        columns = ["SSE"] + [sub("{:>11.5f}", i.SSE) for i in iTops]
+        columns = ["SSE"] + [field(i.SSE) for i in iTops]
         addRow()
         lines.append(self.pm.dashes)
         X = np.empty([self.Nd, N_top])
