@@ -525,8 +525,8 @@ class Population(object):
         with an individual and the non-None result of a complaining
         reporter callback. See L{Reporter.runCallbacks}.
 
-    @targetFraction: Set this to a (small) float to override my
-        default target for the total score of improvements in each
+    @keyword targetFraction: Set this to a (small) float to override
+        my default target for the total score of improvements in each
         iteration.
 
     @ivar popsize: The number of individuals per parameter. The
@@ -542,7 +542,7 @@ class Population(object):
 
     @ivar targetFraction: The desired total score of improvements in
         each iteration in order for I{ade}'s adaptive algorithm to not
-        change the current differential weight. See L{replcement} and
+        change the current differential weight. See L{replacement} and
         L{FManager} for details. The default is 4%, which works out to
 
     @ivar debug: Set C{True} to show individuals getting
@@ -570,7 +570,10 @@ class Population(object):
         self.evalFunc = func # evalFunc
         self.Nd = len(bounds)
         if debug: self.debug = True
-        if targetFraction: self.targetFraction = targetFraction
+        if targetFraction:
+            self.targetFraction = targetFraction
+            msg("WARNING: Non-default target improvement score of {:f}",
+                targetFraction)
         self.pm = ParameterManager(names, bounds, constraints)
         self.reporter = Reporter(self, complaintCallback)
         if popsize: self.popsize = popsize
@@ -767,7 +770,8 @@ class Population(object):
             kIV = [None]*2
             self.dLocks = []
             refreshIV()
-            msg(0, "Initializing {:d} population members", self.Np, '-')
+            msg(0, "Initializing {:d} population members having {:d} parameters",
+                self.Np, self.Nd, '-')
             ds = defer.DeferredSemaphore(10)
         while self.keepRunning:
             yield ds.acquire()
@@ -867,14 +871,13 @@ class Population(object):
 
             Here's a practical example, with a population of 100
             individuals: If you see 10 "1" characters on the screen
-            for one iteration with other 90 being "X," your
-            improvement ratio score for that iteration will be
-            2.5. But if you see just one non-X individual with a "8"
-            character, the score will be 7.25. That one amazing
-            success story counts far more in a sea of failures than a
-            bunch of marginal improvements, which is kind of how
-            evolution works in real life. (See the literature around
-            "hopeful monsters.")
+            for one iteration with other 90 being "X," your ratio
+            score for that iteration will be 2.5. But if you see just
+            one non-X individual with a "8" character, the score will
+            be 7.25. That one amazing success story counts far more in
+            a sea of failures than a bunch of marginal improvements,
+            which is kind of how evolution works in real life. (See
+            the literature around "hopeful monsters.")
         
         @keyword rir: A rounded improvement ratio obtained from a call
             to L{msgRatio}, where the numerator is the SSE of the

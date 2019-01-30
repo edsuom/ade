@@ -112,6 +112,7 @@ class Evaluator(Picklable):
     sum-of-squared-error fitness of the curve to the thermistor data.
     """
     T_kelvin_offset = +273.15 # deg C
+    driftPenalty = 10000
     prefixes = "ABCDEF"
     prefix_bounds = {
         'A':   (3E-4, 1E-3),
@@ -199,6 +200,11 @@ class Evaluator(Picklable):
             T_curve = self.curve(R, *params)
             squaredResiduals = self.weights * np.square(T_curve - T)
             SSE += np.sum(squaredResiduals)
+        # Apply drift penalty
+        scalingCoeffs = values[6:]
+        drift = np.sum(np.log(scalingCoeffs))
+        SSE += self.driftPenalty * drift**2
+        # Done
         return SSE
 
         
@@ -214,10 +220,10 @@ class Runner(object):
     """
     plotFilePath = "thermistor2.png"
     N_curve_plot = 200
-    # Set lower because real improvements are made even with low
+    # Set much lower because real improvements are made even with low
     # improvement scores. I think that behavior has something to do
     # with all the independent parameters for six thermistors.
-    targetFraction = 0.02
+    targetFraction = 0.005
     
     def __init__(self, args):
         """
@@ -335,7 +341,7 @@ args = Args(
 )
 args('-m', '--maxiter', 500, "Maximum number of DE generations to run")
 args('-p', '--popsize', 15, "Population: # individuals per unknown parameter")
-args('-C', '--CR', 0.5, "DE Crossover rate CR")
+args('-C', '--CR', 0.3, "DE Crossover rate CR")
 args('-F', '--F', "0.5,1.0", "DE mutation scaling F: two values for range")
 args('-b', '--bitter-end', "Keep working to the end even with little progress")
 args('-r', '--random-base', "Use DE/rand/1 instead of DE/best/1")
