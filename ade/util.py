@@ -144,18 +144,22 @@ class Messenger(object):
         if not self.fh:
             return
         self._lineWritten = True
-        if self.newlineNeeded:
-            self.fh.write("\n")
-            self.newlineNeeded = False
-        self.fh.write(line + "\n")
-        self.fh.flush()
+        try:
+            if self.newlineNeeded:
+                self.fh.write("\n")
+                self.newlineNeeded = False
+            self.fh.write(line + "\n")
+            self.fh.flush()
+        except: self.fhSet(None)
 
     def writeChar(self, x):
         if not self.fh:
             return
-        self.fh.write(x)
-        self.fh.flush()
-        self.newlineNeeded = True
+        try:
+            self.fh.write(x)
+            self.fh.flush()
+            self.newlineNeeded = True
+        except: self.fhSet(None)
         
     def fhSet(self, arg):
         def _fhSet(fh):

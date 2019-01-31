@@ -97,8 +97,11 @@ class TemperatureData(Data):
             self.dTdt_power)
         self.weights = np.pad(weights, (1, 0), 'constant')
         # Hack to weight cold readings more, since fewer of them.
-        self.weights = np.where(self.X[:,0] < 4.0, 10*self.weights, self.weights)
-        self.weights = np.where(self.X[:,0] < -5.0, 3*self.weights, self.weights)
+        self.weights = np.where(
+            self.X[:,0] < 4.0, 10*self.weights, self.weights)
+        # Even more so for really cold readings
+        self.weights = np.where(
+            self.X[:,0] < -5.0, 3*self.weights, self.weights)
 
 
 class Evaluator(Picklable):
@@ -113,17 +116,19 @@ class Evaluator(Picklable):
     """
     T_kelvin_offset = +273.15 # deg C
     driftPenalty = 0.05
-    prefixes = "ABCDEF"
+    prefixes = "ABCD"
     prefix_bounds = {
-        'A':   (7E-4,     1.2E-3),
-        'B':   (1E-4,     3.0E-4),
-        'C':   (1E-7,     3.0E-7),
-        'D':   (2E-10,    1.0E-9),
-        'E':   (-1E-14,   -2E-15),
-        'F':   (2E-19,    1.5E-18),
+        # Common to all thermistors
+        'A':   (5E-4,     2E-3),
+        'B':   (1E-4,     3E-4),
+        'C':   (1E-8,     4E-8),
+        'D':   (1E-8,     1E-7),
+        # Per-thermistor relative variation
+        'a':   (0.7,      1.2),
+        'b':   (0.7,      1.2),
+        'c':   (0.1,      10.0),
+        'd':   (0.1,      10.0),
     }
-    for prefix in prefixes.lower():
-        prefix_bounds[prefix] = (0.2, 5.0)
 
     def setup(self):
         """
@@ -178,15 +183,15 @@ class Evaluator(Picklable):
 
         The model implements this equation:
 
-        M{T = 1 / (A*a + B*b*ln(R) + C*c*ln(R)^3 + D*d*R) - 273.15}
+        M{T = 1 / (A*b + B*b*ln(R) + C*c*ln(R)^2 + D*d*ln(R)^3 - 273.15}
 
         where I{R} is in Ohms and I{T} is in degrees C. Uppercase
         coefficients are for all thermistors and lowercase are for
         just the thermistor in question.
         """
         lnR = np.log(R)
-        a, b, c, d, e, f = [args[k]*args[k+6] for k in range(6)]
-        T_kelvin = 1.0 / (a + b*lnR + c*(lnR**3) + d*R + e*R**2 + f*R**3)
+        a, b, c, d = [args[k]*args[k+4] for k in range(4)]
+        T_kelvin = 1.0 / (a + b*lnR + c*(lnR**2) + d*(lnR**3))
         return T_kelvin - self.T_kelvin_offset
 
     def __call__(self, values):
@@ -293,7 +298,7 @@ class Runner(object):
         
     def evaluate(self, values):
         values = list(values)
-        if self.q: return self.q.call(self.ev, values).addErrback(oops)
+        if self.q: return self.q.call(self.ev, values)
     
     @defer.inlineCallbacks
     def __call__(self):
@@ -335,9 +340,9 @@ args = Args(
     OS may have something that works, too.)
     """
 )
-args('-m', '--maxiter', 500, "Maximum number of DE generations to run")
-args('-p', '--popsize', 15, "Population: # individuals per unknown parameter")
-args('-C', '--CR', 0.3, "DE Crossover rate CR")
+args('-m', '--maxiter', 2000, "Maximum number of DE generations to run")
+args('-p', '--popsize', 10, "Population: # individuals per unknown parameter")
+args('-C', '--CR', 0.6, "DE Crossover rate CR")
 args('-F', '--F', "0.5,1.0", "DE mutation scaling F: two values for range")
 args('-b', '--bitter-end', "Keep working to the end even with little progress")
 args('-r', '--random-base', "Use DE/rand/1 instead of DE/best/1")

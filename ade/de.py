@@ -333,6 +333,7 @@ class DifferentialEvolution(object):
         L{Population} object I{p} to shut it down ASAP.
         """
         if self.running:
+            msg(0, "Shutting down DE...")
             self.running = False
             self.p.abort()
             reactor.removeSystemEventTrigger(self.triggerID)
@@ -482,7 +483,7 @@ class DifferentialEvolution(object):
                 else: kb = self.p.kBest
                 if kb is None:
                     # We must be shutting down, abort loop now
-                    self.running = False
+                    self.shutdown()
                     break
                 d = self.challenge(kt, kb)#.addErrback(oops)
                 dList.append(d)
