@@ -56,16 +56,6 @@ from ade.de import DifferentialEvolution
 from data import Data
 
 
-# For providing some limited info about unhandled Deferred failures
-from twisted.logger import globalLogPublisher
-from twisted.logger._levels import LogLevel
-def analyze(event):
-    if event.get("log_level") == LogLevel.critical:
-        print sub("\nERROR: {}\n", event)
-        #reactor.stop()
-globalLogPublisher.addObserver(analyze)
-
-
 class TemperatureData(Data):
     """
     Run L{setup} on my instance to decompress and load the
@@ -325,7 +315,6 @@ class Runner(object):
             bitterEnd=args.b
         )
         yield de()
-        print "DE DONE"
         yield self.shutdown()
         msg(0, "Final population:\n{}", self.p)
         msg(0, "Elapsed time: {:.2f} seconds", time.time()-t0, 0)

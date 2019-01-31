@@ -308,7 +308,7 @@ class DifferentialEvolution(object):
     }
 
     def __init__(self, population, **kw):
-        """DifferentialEvolution(population, **kw)"""
+        """C{DifferentialEvolution(population, **kw)}"""
         self.p = population
         msg(kw.pop('logHandle', True))
         self.p.reporter()
@@ -332,7 +332,6 @@ class DifferentialEvolution(object):
         loops know that it's time to quit early. Calls L{abort} on my
         L{Population} object I{p} to shut it down ASAP.
         """
-        print "\nDE-SD", self.running, "\n"
         if self.running:
             self.running = False
             self.p.abort()
@@ -404,9 +403,7 @@ class DifferentialEvolution(object):
         """
         k0, k1 = self.p.sample(2, kt, kb)
         # Await legit values for all individuals used here
-        print "CH-1", kt
         yield self.p.lock(kt, kb, k0, k1)
-        print "CH-2", kt, self.running
         if not self.running:
             # We might have had locks acquired since the call to shutdown()
             self.p.release()
@@ -441,7 +438,6 @@ class DifferentialEvolution(object):
             # determined, we can finally release the lock for that
             # index
             self.p.release(kt)
-        print "CH-3", kt, self.running
     
     @defer.inlineCallbacks
     def __call__(self):
@@ -476,9 +472,7 @@ class DifferentialEvolution(object):
             F_info = sub(" F={}", self.fm)
             msg(-1, "Generation {:d}/{:d} {}",
                 kg+1, self.maxiter, F_info , '-')
-            print "\nDE-1", self.running
             yield self.p.waitForReports()
-            print "DE-2", self.running
             if not self.running: break
             dList = []
             iBest = self.p.best()
@@ -494,9 +488,7 @@ class DifferentialEvolution(object):
                 dList.append(d)
             else:
                 # Only run if no abort
-                print "DE-3", kt, self.running
                 yield defer.DeferredList(dList)
-            print "DE-4", self.running
             if not self.running: break
             if self.p.replacement():
                 # There was enough overall improvement to warrant
@@ -513,7 +505,6 @@ class DifferentialEvolution(object):
                         msg(-1, "Challengers failing too much, stopped")
                         break
         else: msg(-1, "Maximum number of iterations reached")
-        print "DE-5", self.running
         # File report for best individual
         if self.running:
             self.p.report()

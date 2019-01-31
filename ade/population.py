@@ -222,7 +222,6 @@ class Reporter(object):
         """
         Tells me not to wait for any pending or future callbacks to run.
         """
-        print "R-ABORT"
         self.p.abort(ignoreReporter=True)
         self.dt.quitWaiting()
     
@@ -568,6 +567,9 @@ class Population(object):
     @ivar debug: Set C{True} to show individuals getting
         replaced. (Results in a very messy log or console display.)
 
+    @ivar spew: Set C{True} to show locks getting acquired and release
+        (hardcore debugging only). Set via source or subclass.
+    
     @ivar running: Indicates my run status: C{None} after
         instantiation but before L{setup}, C{True} after setup, and
         C{False} if I{ade} is aborting.
@@ -578,6 +580,7 @@ class Population(object):
     N_maxParallel = 10
     targetFraction = 0.04
     debug = False
+    spew = False
     
     def __init__(
             self, func, names, bounds,
@@ -733,7 +736,6 @@ class Population(object):
         """
         Aborts my operations ASAP.
         """
-        print "ABORT"
         self.running = False
         if not ignoreReporter:
             self.reporter.abort()
@@ -1018,7 +1020,9 @@ class Population(object):
         Release the locks (as soon as possible) by calling L{release}
         with the indices that are locked.
         """
-        print "\nLOCK", indices
+        if self.spew:
+            # NOT PYTHON 3 COMPATIBLE!
+            print "\nLOCK", indices
         dList = []
         for k in indices:
             if indices.count(k) > 1:
@@ -1035,28 +1039,29 @@ class Population(object):
         If no indices are supplied, releases all active locks. (This
         is for aborting only.)
         """
+        def spew():
+            # NOT PYTHON 3 COMPATIBLE!
+            print "\nRELEASING",
+            for k in indices:
+                dLock = self.dLocks[k]
+                if dLock.locked:
+                    print self.dLocks.index(dLock),
+            stillLocked = ", ".join(
+                    [str(k) for k, x in enumerate(self.dLocks) \
+                     if x.locked and k not in indices])
+            if not stillLocked:
+                stillLocked = "--"
+            print sub("\nStill locked: {}", stillLocked)
+        
         def tryRelease(dLock):
             if dLock.locked:
                 dLock.release()
 
         if not indices:
             indices = range(len(self.dLocks))
-        # DEBUG
-        # -----------------------------------------------
-        print "\nRELEASING",
+        if self.spew: spew()
         for k in indices:
-            dLock = self.dLocks[k]
-            if dLock.locked:
-                print self.dLocks.index(dLock),
-        stillLocked = ", ".join(
-                [str(k) for k, x in enumerate(self.dLocks) \
-                 if x.locked and k not in indices])
-        if not stillLocked:
-            stillLocked = "--"
-        print sub("\nStill locked: {}", stillLocked)
-        # -----------------------------------------------
-        for k in indices:
-                tryRelease(self.dLocks[k])
+            tryRelease(self.dLocks[k])
 
     def best(self):
         """
