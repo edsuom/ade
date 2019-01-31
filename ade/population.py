@@ -223,6 +223,7 @@ class Reporter(object):
         Tells me not to wait for any pending or future callbacks to run.
         """
         print "R-ABORT"
+        self.p.abort(ignoreReporter=True)
         self.dt.quitWaiting()
     
     def addCallback(self, func, *args, **kw):
@@ -279,6 +280,14 @@ class Reporter(object):
             allow for it to be restored to its rightful place if a
             callback complains about I{i}.
         """
+        def failed(failureObj, func):
+            # TODO: Provide a complete func(*args, **kw).
+            callback = repr(func)
+            info = failureObj.getTraceback()
+            msg(0, "FATAL ERROR in report callback {}:\n{}\n{}\n",
+                callback, info, '-'*40)
+            return CallbackFailureToken()
+        
         @defer.inlineCallbacks
         def runUntilFree():
             counter = self.p.counter
@@ -294,8 +303,11 @@ class Reporter(object):
                     if not self.p.running: break
                     d = defer.maybeDeferred(
                         func, i.values, counter, i.SSE, *args, **kw)
-                    d.addErrback(oops)
+                    d.addErrback(failed, func)
                     result = yield d
+                    if isinstance(result, CallbackFailureToken):
+                        self.abort()
+                        break
                     if result is not None and i and self.p.running:
                         if self.complaintCallback:
                             yield defer.maybeDeferred(
@@ -717,17 +729,17 @@ class Population(object):
             values = self.pm.fromUnity(values)
         return Individual(self, values)
 
-    def abort(self):
+    def abort(self, ignoreReporter=False):
         """
         Aborts my operations ASAP.
         """
         print "ABORT"
         self.running = False
-        self.reporter.abort()
+        if not ignoreReporter:
+            self.reporter.abort()
         # This next little line may run a bunch of stuff that was
         # waiting for locks
         self.release()
-
     
     @defer.inlineCallbacks
     def setup(self, uniform=False, blank=False, filePath=None):
@@ -782,6 +794,8 @@ class Population(object):
         def evaluated(i):
             ds.release()
             if not i:
+                #import pdb; pdb.set_trace()
+                msg(0, "Bogus evaluation, aborting")
                 self.abort()
                 return
             if i.SSE is None or len(self.iList) >= self.Np:
