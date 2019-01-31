@@ -31,36 +31,40 @@ from setuptools import setup
 
 ### Define requirements
 required = [
-    'Twisted', 'numpy', 'scipy', 'matplotlib', 'pydoe', 'AsynQueue>=0.9.5']
+    'Twisted', 'numpy', 'scipy', 'matplotlib', 'pydoe',
+    # Other EAS projects
+    'AsynQueue>=0.9.5'
+]
 
 
 ### Define setup options
-kw = {'version':'1.0.1',
-      'license':'Apache License (2.0)',
-      'platforms':'OS Independent',
+kw = {'version': '1.1.0',
+      'license': 'Apache License (2.0)',
+      'platforms': 'OS Independent',
 
-      'url':"http://edsuom.com/{}.html".format(NAME),
-      'project_urls':      {
-          'GitHub':     "https://github.com/edsuom/{}".format(NAME),
-          'API':        "http://edsuom.com/{}/{}.html".format(
+      'url': "http://edsuom.com/{}.html".format(NAME),
+      'project_urls': {
+          'GitHub': "https://github.com/edsuom/{}".format(NAME),
+          'API': "http://edsuom.com/{}/{}.html".format(
               NAME, NAME.lower()),
           },
-      'author':"Edwin A. Suominen",
-      'author_email':"foss@edsuom.com",
-      'maintainer':'Edwin A. Suominen',
-      'maintainer_email':"foss@edsuom.com",
+      'author': "Edwin A. Suominen",
+      'author_email': "foss@edsuom.com",
+      'maintainer': 'Edwin A. Suominen',
+      'maintainer_email': "foss@edsuom.com",
       
-      'install_requires':required,
-      'packages':['ade', 'ade.test'],
-      'package_data':        {
-          'ade': ['examples/*.py', 'examples/*.c'],
+      'install_requires': required,
+      'packages': ['ade', 'ade.test', 'ade.scripts', 'ade.examples'],
+      'package_data': {
+          'ade.examples': ['*.c'],
       },
-      'entry_points':      {
+      'entry_points': {
           'console_scripts': [
-              'ade-examples = ade:extract_examples',
+              'ade-examples = ade.scripts.examples:extract',
+              "lgg = ade.scripts.lgg:main",
           ],
       },
-      'zip_safe':True,
+      'zip_safe': True,
 }
 
 kw['keywords'] = [

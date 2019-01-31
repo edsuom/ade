@@ -120,9 +120,9 @@ class Evaluator(Picklable):
     prefix_bounds = {
         # Common to all thermistors
         'A':   (5E-4,     2E-3),
-        'B':   (1E-4,     3E-4),
-        'C':   (1E-8,     4E-8),
-        'D':   (1E-8,     1E-7),
+        'B':   (1.5E-4,   5E-4),
+        'C':   (1E-8,     3E-8),
+        'D':   (8E-9,     2.5E-8),
         # Per-thermistor relative variation
         'a':   (0.7,      1.2),
         'b':   (0.7,      1.2),
