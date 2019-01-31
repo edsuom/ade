@@ -112,18 +112,18 @@ class Evaluator(Picklable):
     sum-of-squared-error fitness of the curve to the thermistor data.
     """
     T_kelvin_offset = +273.15 # deg C
-    driftPenalty = 10000
+    driftPenalty = 0.05
     prefixes = "ABCDEF"
     prefix_bounds = {
-        'A':   (3E-4, 1E-3),
-        'B':   (3E-5, 1E-4),
-        'C':   (3E-8, 1.5E-7),
-        'D':   (-1E-9, +1E-9),
-        'E':   (-1E-14, +1E-14),
-        'F':   (-1E-18, +1E-18),
+        'A':   (7E-4,     1.2E-3),
+        'B':   (1E-4,     3.0E-4),
+        'C':   (1E-7,     3.0E-7),
+        'D':   (2E-10,    1.0E-9),
+        'E':   (-1E-14,   -2E-15),
+        'F':   (2E-19,    1.5E-18),
     }
     for prefix in prefixes.lower():
-        prefix_bounds[prefix] = (0.1, 10.0)
+        prefix_bounds[prefix] = (0.2, 5.0)
 
     def setup(self):
         """
@@ -159,17 +159,18 @@ class Evaluator(Picklable):
     def prefix2name(self, prefix, k):
         return sub("{}{:d}", prefix, k)
     
-    def values2params(self, values, k):
+    def values2args(self, values, k):
         """
-        Returns a list of parameter values to use in a call to L{curve}
-        for the specified Yocto-MaxThermistor input I{k} (1-6).
+        Returns a subset list of parameter values to use as args in a call
+        to L{curve} for the specified Yocto-MaxThermistor input I{k}
+        (1-6).
         """
         names = [x for x in self.prefixes]
         for prefix in [x.lower() for x in names]:
             names.append(self.prefix2name(prefix, k))
         return [values[self.indices[x]] for x in names]
     
-    def curve(self, R, *params):
+    def curve(self, R, *args):
         """
         Given a 1-D vector of resistances measured for one thermistor,
         followed by arguments defining curve parameters, returns a 1-D
@@ -184,26 +185,35 @@ class Evaluator(Picklable):
         just the thermistor in question.
         """
         lnR = np.log(R)
-        a, b, c, d, e, f = [params[k]*params[k+6] for k in range(6)]
+        a, b, c, d, e, f = [args[k]*args[k+6] for k in range(6)]
         T_kelvin = 1.0 / (a + b*lnR + c*(lnR**3) + d*R + e*R**2 + f*R**3)
         return T_kelvin - self.T_kelvin_offset
 
     def __call__(self, values):
         """
-        
+        Evaluation function for the parameter I{values}.
+
+        Applies a penalty if the geometric mean of the scaling factors
+        (values after the first six, lowercase param names) deviates
+        from 1.0, to counteract genetic drift.
         """
         SSE = 0
         T = self.X[:,0]
         for k in range(1, 7):
             R = self.X[:,k]
-            params = self.values2params(values, k)
-            T_curve = self.curve(R, *params)
+            args = self.values2args(values, k)
+            T_curve = self.curve(R, *args)
             squaredResiduals = self.weights * np.square(T_curve - T)
             SSE += np.sum(squaredResiduals)
         # Apply drift penalty
-        scalingCoeffs = values[6:]
-        drift = np.sum(np.log(scalingCoeffs))
-        SSE += self.driftPenalty * drift**2
+        values = np.array(values)
+        for prefix in self.prefixes:
+            # Add a penalty for drift of each parameter separately
+            K = [self.indices[x]
+                 for x in self.indices if x.startswith(prefix.lower())]
+            ratios = values[K]
+            drift = np.sum(np.log(ratios))
+            SSE *= 1 + self.driftPenalty * drift**2
         # Done
         return SSE
 
@@ -284,7 +294,7 @@ class Runner(object):
                     # Plot current best-fit curve, with a bit of extrapolation
                     R = np.linspace(R.min()-10, R.max()+10, self.N_curve_plot)
                     T_curve = self.ev.curve(
-                        R, *self.ev.values2params(values, k))
+                        R, *self.ev.values2args(values, k))
                     ax.plot(R, T_curve, 'r-')
             self.pt.set_title(", ".join(self.titleParts))
             self.pt.show()
@@ -292,12 +302,14 @@ class Runner(object):
             self.pt = Plotter(
                 3, 2, filePath=self.plotFilePath, width=15, height=10)
             self.pt.set_grid(); self.pt.add_marker(',')
-        return self.qLocal.call(self.ev, values).addCallbacks(gotSSE, oops)
+        if self.qLocal is not None:
+            return self.qLocal.call(self.ev, values).addCallbacks(gotSSE, oops)
         
     def evaluate(self, values):
         values = list(values)
         q = self.qLocal if self.q is None else self.q
-        return q.call(self.ev, values).addErrback(oops)
+        if q is not None:
+            return q.call(self.ev, values).addErrback(oops)
     
     @defer.inlineCallbacks
     def __call__(self):

@@ -29,7 +29,6 @@ Utility stuff used by most modules of L{ade}.
 import os, sys, re
 
 from twisted.python import failure
-from twisted.internet import reactor
 
 
 def sub(proto, *args):
@@ -52,8 +51,6 @@ def oops(failureObj):
         info = failureObj.getTraceback()
     else: info = str(failureObj)
     print(sub("Failure:\n{}\n{}", '-'*40, info))
-    if reactor.running:
-        reactor.stop()
     os._exit(1)
 
 

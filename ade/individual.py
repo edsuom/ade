@@ -238,16 +238,19 @@ class Individual(object):
         Stores the result in my I{SSE} attribute and returns a
         reference to me for convenience.
 
-        If the SSE value is less than zero, I{ade} will abort
-        operations. Use this feature to provide your evaluator with a
-        simple way to stop everything if something goes terribly
-        wrong.
+        If the SSE value is less than zero, or results in a Twisted
+        failure, I{ade} will abort operations. Use this feature to
+        provide your evaluator with a simple way to stop everything if
+        something goes terribly wrong.
         """
         def done(SSE):
             self.p.counter += 1
             self.SSE = SSE
             return self
-        return self.p.evalFunc(self.values).addCallback(done)
+        def failed(failureObj):
+            self.SSE = -1
+            return self
+        return self.p.evalFunc(self.values).addCallbacks(done, failed)
 
     def save(self, filePath):
         """
