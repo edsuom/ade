@@ -153,8 +153,13 @@ class Individual(object):
         I am C{True} if there were no fatal errors during my last
         evaluation, as indicated by an evaluation SSE result of less
         than zero.
+
+        I will evaluate as C{True} even if my SSE is C{None},
+        infinite, or C{NaN}, so long as it is not negative.
         """
-        return self._SSE is None or bool(self._SSE >= 0)
+        if self._SSE is None or np.isnan(self._SSE) or self._SSE >= 0:
+            return True
+        return False
     
     def __eq__(self, other):
         """

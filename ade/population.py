@@ -218,6 +218,12 @@ class Reporter(object):
         self._syms_on_line = 0
         self.q = NullQueue(returnFailure=True)
 
+    def abort(self):
+        """
+        Tells me not to wait for any pending or future callbacks to run.
+        """
+        self.dt.quitWaiting()
+    
     def addCallback(self, func, *args, **kw):
         """
         Call this to register a new callback.
@@ -556,6 +562,7 @@ class Population(object):
     popsize = 10
     Np_min = 20
     Np_max = 500
+    N_maxParallel = 10
     targetFraction = 0.04
     debug = False
     
@@ -711,7 +718,10 @@ class Population(object):
         """
         Aborts my operations ASAP.
         """
+        print "ABORT"
         self.running = False
+        self.reporter.abort()
+        self.release()
     
     @defer.inlineCallbacks
     def setup(self, uniform=False, blank=False, filePath=None):
@@ -766,7 +776,7 @@ class Population(object):
         def evaluated(i):
             ds.release()
             if not i:
-                self.abortSetup()
+                self.abort()
                 return
             if i.SSE is None or len(self.iList) >= self.Np:
                 return
@@ -780,7 +790,7 @@ class Population(object):
             refreshIV()
             msg(0, "Initializing {:d} population members having {:d} parameters",
                 self.Np, self.Nd, '-')
-            ds = defer.DeferredSemaphore(10)
+            ds = defer.DeferredSemaphore(self.N_maxParallel)
         while running():
             yield ds.acquire()
             if not running() or len(self.iList) >= self.Np:
@@ -944,6 +954,8 @@ class Population(object):
         Returns a C{Deferred} that fires when all reporter callbacks have
         finished.
         """
+        if not self.running:
+            return defer.succeed(None)
         return self.reporter.waitForCallbacks()
             
     def push(self, i):
@@ -986,6 +998,7 @@ class Population(object):
         Release the locks (as soon as possible) by calling L{release}
         with the indices that are locked.
         """
+        print "\nLOCK", indices
         dList = []
         for k in indices:
             if indices.count(k) > 1:
@@ -1002,13 +1015,21 @@ class Population(object):
         If no indices are supplied, releases all active locks. (This
         is for aborting only.)
         """
-        print "RELEASE", indices
+        def tryRelease(dLock):
+            if dLock.locked:
+                print "RELEASING", self.dLocks.index(dLock) \
+                    if dLock in self.dLocks else '--'
+                dLock.release()
+            
+        print sub(
+            "RELEASE, leaving {:d}", len(
+                [x for x in self.dLocks if x.locked]) - len(indices))
         if indices:
             for k in indices:
-                self.dLocks[k].release()
+                tryRelease(self.dLocks[k])
             return
-        for dLock in self.dLocks.values():
-            if dLock.locked: dLock.release()
+        for dLock in self.dLocks:
+            tryRelease(dLock)
 
     def best(self):
         """

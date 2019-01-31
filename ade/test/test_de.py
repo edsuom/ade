@@ -213,3 +213,38 @@ class TestDifferentialEvolution(tb.TestCase):
         yield d
         self.assertEqual(len(self.p), 20)
         
+
+class Test_Abort(tb.TestCase):
+    def setUp(self):
+        self.p = Population(self.fifthSecond, ["x"], [(-5, 5)])
+        # Override Np_min
+        #self.p.Np = 5
+        self.de = de.DifferentialEvolution(self.p, maxiter=35)
+        return self.p.setup()
+
+    def fifthSecond(self, x):
+        return self.deferToDelay(0.2).addCallback(lambda _: 1.23)
+
+    @defer.inlineCallbacks
+    def test_abort_challenge_beforehand(self):
+        self.de.shutdown()
+        t0 = time.time()
+        yield self.de.challenge(1, 2)
+        self.assertLess(time.time()-t0, 0.01)
+    
+    @defer.inlineCallbacks
+    def test_abort_challenge_midway(self):
+        t0 = time.time()
+        d = self.de.challenge(1, 2)
+        self.deferToDelay(0.05).addCallback(lambda _: self.de.shutdown())
+        yield d
+        self.assertWithinFivePercent(time.time()-t0, 0.2)
+
+    @defer.inlineCallbacks
+    def test_abort_call(self):
+        t0 = time.time()
+        d = self.de()
+        t = 0.1 + 0.3*np.random.random()
+        self.deferToDelay(t).addCallback(lambda _: self.de.shutdown())
+        yield d
+        self.assertLess(time.time()-t0, t+0.2)

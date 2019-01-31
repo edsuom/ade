@@ -40,6 +40,9 @@ from ade.individual import Individual
 
 from ade.test import testbase as tb
 
+#import twisted.internet.base
+#twisted.internet.base.DelayedCall.debug = True
+
 
 class TestConstraintChecking(tb.TestCase):
     def setUp(self):
@@ -114,6 +117,7 @@ class TestReporter(tb.TestCase):
         self.p = tb.MockPopulation(tb.ackley, ['x', 'y'], [(0,1)]*2, popsize=1)
         self.r = population.Reporter(self.p, self.processComplaint)
         self.r.addCallback(self.cbImmediate, 3.14, bar=9.87)
+        return self.p.setup()
 
     def cbImmediate(self, values, counter, SSE, foo, bar=None):
         self.calls.append(['cbi', values, counter, SSE, foo, bar])
@@ -400,3 +404,30 @@ class TestPopulation(tb.TestCase):
         self.p.release(4, 5)
         yield d
         self.assertEqual(stuff, [1, 2, 3])
+
+
+class TestPopulation_Abort(tb.TestCase):
+    # Hell if I know why
+    magic_coeff = 1.28
+    
+    def setUp(self):
+        self.p = population.Population(
+            self.tenthSecond, ["x"], [(-5, 5)], popsize=100)
+
+    def tenthSecond(self, x):
+        return self.deferToDelay(0.1).addCallback(lambda _: 1.23)
+
+    @defer.inlineCallbacks
+    def test_setup_no_abort(self):
+        t0 = time.time()
+        yield self.p.setup()
+        self.assertWithinFivePercent(
+            time.time()-t0, self.magic_coeff*0.1*self.p.N_maxParallel)
+    
+    @defer.inlineCallbacks
+    def test_abort_during_setup(self):
+        t0 = time.time()
+        d = self.p.setup()
+        self.deferToDelay(0.5).addCallback(lambda _: self.p.abort())
+        yield d
+        self.assertWithinFivePercent(time.time()-t0, self.magic_coeff*0.5)

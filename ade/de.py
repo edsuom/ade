@@ -326,13 +326,16 @@ class DifferentialEvolution(object):
 
     def shutdown(self):
         """
-        Clears my I{running} flag, which lets my various loops know that
-        it's time to quit early.
+        Call this to shut me down gracefully. Repeated calls are ignored.
+        
+        Sets my I{running} flag C{False}, which lets all my various
+        loops know that it's time to quit early. Calls L{abort} on my
+        L{Population} object I{p} to shut it down ASAP.
         """
         print "\nDE-SD", self.running, "\n"
         if self.running:
             self.running = False
-            self.p.running = False
+            self.p.abort()
             reactor.removeSystemEventTrigger(self.triggerID)
         
     def crossover(self, parent, mutant):
@@ -355,26 +358,6 @@ class DifferentialEvolution(object):
                 # value discarded and the parent's used.
                 mutant[k] = parent[k]
 
-    def _abort(self):
-        """
-        Called by L{challenge} and L{__call__} to check if I should abort
-        my operations. Sends a brief message and returns C{True} if
-        so.
-
-        My public API calls for my I{running} attribute to be set
-        C{False} when I should abort my operations. After the first
-        call to this method when I{running} is C{True} or C{False},
-        I{running} will be set to C{None}. The only effect that has is
-        to prevent repeated display of the "Interrupted..." message.
-        """
-        if self.running is True:
-            return False
-        if self.running is False:
-            msg(-1, "Interrupted...")
-            self.running = None
-            return True
-        return False
-            
     @defer.inlineCallbacks
     def challenge(self, kt, kb):
         """
@@ -421,10 +404,10 @@ class DifferentialEvolution(object):
         """
         k0, k1 = self.p.sample(2, kt, kb)
         # Await legit values for all individuals used here
+        print "CH-1", kt
         yield self.p.lock(kt, kb, k0, k1)
-        if self._abort():
-            # Aborting, release all the locks so other challenge calls can
-            # abort, too.
+        print "CH-2", kt, self.running
+        if not self.running:
             self.p.release()
         else:
             iTarget, iBase, i0, i1 = self.p.individuals(kt, kb, k0, k1)
@@ -444,7 +427,7 @@ class DifferentialEvolution(object):
                 # Passes constraints!
                 # Now the hard part: Evaluate fitness of the challenger
                 yield iChallenger.evaluate()
-                if iChallenger and not self._abort():
+                if iChallenger and self.running:
                     if iChallenger < iTarget:
                         # The challenger won the tournament, replace
                         # the target
@@ -491,10 +474,10 @@ class DifferentialEvolution(object):
             F_info = sub(" F={}", self.fm)
             msg(-1, "Generation {:d}/{:d} {}",
                 kg+1, self.maxiter, F_info , '-')
-            print "DE-1"
+            print "\nDE-1", self.running
             yield self.p.waitForReports()
-            print "DE-2", self._abort()
-            if self._abort(): break
+            print "DE-2", self.running
+            if not self.running: break
             dList = []
             iBest = self.p.best()
             for kt in range(self.p.Np):
@@ -505,13 +488,14 @@ class DifferentialEvolution(object):
                     # We must be shutting down, abort loop now
                     self.running = False
                     break
-                d = self.challenge(kt, kb).addErrback(oops)
+                d = self.challenge(kt, kb)#.addErrback(oops)
                 dList.append(d)
             else:
                 # Only run if no abort
+                print "DE-3", kt, self.running
                 yield defer.DeferredList(dList)
-            print "DE-3"
-            if self._abort(): break
+            print "DE-4", self.running
+            if not self.running: break
             if self.p.replacement():
                 # There was enough overall improvement to warrant
                 # scaling F back up a bit
@@ -527,8 +511,9 @@ class DifferentialEvolution(object):
                         msg(-1, "Challengers failing too much, stopped")
                         break
         else: msg(-1, "Maximum number of iterations reached")
+        print "DE-5", self.running
         # File report for best individual
-        if not self._abort():
+        if self.running:
             self.p.report()
             yield self.p.waitForReports()
             defer.returnValue(self.p)

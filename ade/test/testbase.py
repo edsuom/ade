@@ -34,10 +34,13 @@ import numpy as np
 from twisted.internet import reactor, defer, task, threads
 from twisted.trial import unittest
 
+from asynqueue.util import DeferredTracker
+
 from ade.util import sub, msg, oops
 
 
 VERBOSE = False
+
 
 class Bogus:
     pass
@@ -141,7 +144,9 @@ class MockIndividual(object):
         return MockIndividual(self.values + other.values)
 
     def __nonzero__(self):
-        return bool(self.SSE)
+        if self.SSE is None or np.isnan(self.SSE) or self.SSE >= 0:
+            return True
+        return False
     
     def __eq__(self, other):
         return self.SSE == other.SSE
@@ -221,7 +226,11 @@ class MockPopulation(object):
             raise ValueError(sub("Object '{}' is not callable", func))
         self.evalFunc = evalFunc
         self.counter = 0
+        self.running = None
 
+    def abort(self):
+        self.running = False
+        
     @property
     def kBest(self):
         return np.argmin([i.SSE for i in self.iList])
@@ -245,6 +254,7 @@ class MockPopulation(object):
             i = MockIndividual(self, xy)
             yield i.evaluate()
             self.iList.append(i)
+        self.running = True
 
     def replacement(self, *args, **kw):
         return True
@@ -269,19 +279,16 @@ class TestCase(MsgBase, unittest.TestCase):
         if getattr(self, 'verbose', False) or globals().get('VERBOSE', False):
             msg(True)
         self.pendingCalls = {}
-        self.triggerID = reactor.addSystemEventTrigger(
-            'before', 'shutdown', self.shutdown)
         super(TestCase, self).__init__(*args, **kw)
 
-    def shutdown(self):
+    def tearDown(self):
         msg(None)
-        if hasattr(self, 'triggerID'):
-            reactor.removeSystemEventTrigger(self.triggerID)
-            del self.triggerID
-        for call in self.pendingCalls:
+        while self.pendingCalls:
+            call = self.pendingCalls.keys()[0]
             if call.active():
                 self.pendingCalls[call].callback(None)
                 call.cancel()
+        msg(None)
         
     def oops(self, failureObj):
         print "FAIL!!!!!!!\n{}\n{}".format('-'*40, failureObj.value)
@@ -383,3 +390,8 @@ class TestCase(MsgBase, unittest.TestCase):
         ratio = x / xExpected
         msg = sub("{} not within 1% of {}", x, xExpected)
         self.assertAlmostEqual(ratio, 1, 2, msg)
+
+    def assertWithinFivePercent(self, x, xExpected):
+        ratio = x / xExpected
+        msg = sub("{} not within 5% of {}", x, xExpected)
+        self.assertAlmostEqual(0.2*ratio, 0.2, 2, msg)
