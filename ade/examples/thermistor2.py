@@ -237,7 +237,7 @@ class Runner(object):
     
     def __init__(self, args):
         """
-        C{Runner}(args)
+        C{Runner(args)}
         """
         self.args = args
         self.ev = Evaluator()
@@ -256,6 +256,7 @@ class Runner(object):
             yield self.qLocal.shutdown()
             msg("Local ThreadQueue is shut down")
             self.qLocal = None
+        msg("Goodbye")
     
     def plot(self, X, Y, p, xName):
         p.set_xlabel(xName)
@@ -305,6 +306,7 @@ class Runner(object):
         values = list(values)
         q = self.qLocal if self.q is None else self.q
         if q: return q.call(self.ev, values).addErrback(oops)
+        #return self.ev(values)
     
     @defer.inlineCallbacks
     def __call__(self):

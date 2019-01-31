@@ -408,6 +408,7 @@ class DifferentialEvolution(object):
         yield self.p.lock(kt, kb, k0, k1)
         print "CH-2", kt, self.running
         if not self.running:
+            # We might have had locks acquired since the call to shutdown()
             self.p.release()
         else:
             iTarget, iBase, i0, i1 = self.p.individuals(kt, kb, k0, k1)
@@ -440,6 +441,7 @@ class DifferentialEvolution(object):
             # determined, we can finally release the lock for that
             # index
             self.p.release(kt)
+        print "CH-3", kt, self.running
     
     @defer.inlineCallbacks
     def __call__(self):

@@ -222,6 +222,7 @@ class Reporter(object):
         """
         Tells me not to wait for any pending or future callbacks to run.
         """
+        print "R-ABORT"
         self.dt.quitWaiting()
     
     def addCallback(self, func, *args, **kw):
@@ -571,15 +572,17 @@ class Population(object):
             constraints=[], popsize=None,
             debug=False, complaintCallback=None, targetFraction=None):
         """
-        C{Population}(func, names, bounds, constraints=[], popsize=None,
-        debug=False, complaintCallback=None)
+        C{Population(func, names, bounds, constraints=[], popsize=None,
+        debug=False, complaintCallback=None)}
         """
         def evalFunc(values):
+            if self.running is False:
+                return defer.succeed(-1)
             return defer.maybeDeferred(func, values)
 
         if not callable(func):
             raise ValueError(sub("Object '{}' is not callable", func))
-        self.evalFunc = func # evalFunc
+        self.evalFunc = evalFunc
         self.Nd = len(bounds)
         if debug: self.debug = True
         if targetFraction:
@@ -721,7 +724,10 @@ class Population(object):
         print "ABORT"
         self.running = False
         self.reporter.abort()
+        # This next little line may run a bunch of stuff that was
+        # waiting for locks
         self.release()
+
     
     @defer.inlineCallbacks
     def setup(self, uniform=False, blank=False, filePath=None):
@@ -1017,19 +1023,26 @@ class Population(object):
         """
         def tryRelease(dLock):
             if dLock.locked:
-                print "RELEASING", self.dLocks.index(dLock) \
-                    if dLock in self.dLocks else '--'
                 dLock.release()
-            
-        print sub(
-            "RELEASE, leaving {:d}", len(
-                [x for x in self.dLocks if x.locked]) - len(indices))
-        if indices:
-            for k in indices:
+
+        if not indices:
+            indices = range(len(self.dLocks))
+        # DEBUG
+        # -----------------------------------------------
+        print "\nRELEASING",
+        for k in indices:
+            dLock = self.dLocks[k]
+            if dLock.locked:
+                print self.dLocks.index(dLock),
+        stillLocked = ", ".join(
+                [str(k) for k, x in enumerate(self.dLocks) \
+                 if x.locked and k not in indices])
+        if not stillLocked:
+            stillLocked = "--"
+        print sub("\nStill locked: {}", stillLocked)
+        # -----------------------------------------------
+        for k in indices:
                 tryRelease(self.dLocks[k])
-            return
-        for dLock in self.dLocks:
-            tryRelease(dLock)
 
     def best(self):
         """
