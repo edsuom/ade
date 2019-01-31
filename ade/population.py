@@ -718,7 +718,6 @@ class Population(object):
         """
         Aborts my operations ASAP.
         """
-        print "ABORT"
         self.running = False
         self.reporter.abort()
         self.release()
@@ -998,7 +997,6 @@ class Population(object):
         Release the locks (as soon as possible) by calling L{release}
         with the indices that are locked.
         """
-        print "\nLOCK", indices
         dList = []
         for k in indices:
             if indices.count(k) > 1:
@@ -1017,13 +1015,8 @@ class Population(object):
         """
         def tryRelease(dLock):
             if dLock.locked:
-                print "RELEASING", self.dLocks.index(dLock) \
-                    if dLock in self.dLocks else '--'
                 dLock.release()
             
-        print sub(
-            "RELEASE, leaving {:d}", len(
-                [x for x in self.dLocks if x.locked]) - len(indices))
         if indices:
             for k in indices:
                 tryRelease(self.dLocks[k])

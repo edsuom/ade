@@ -217,8 +217,6 @@ class TestDifferentialEvolution(tb.TestCase):
 class Test_Abort(tb.TestCase):
     def setUp(self):
         self.p = Population(self.fifthSecond, ["x"], [(-5, 5)])
-        # Override Np_min
-        #self.p.Np = 5
         self.de = de.DifferentialEvolution(self.p, maxiter=35)
         return self.p.setup()
 
