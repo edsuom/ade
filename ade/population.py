@@ -222,6 +222,7 @@ class Reporter(object):
         """
         Tells me not to wait for any pending or future callbacks to run.
         """
+        self.p.abort(ignoreReporter=True)
         self.dt.quitWaiting()
     
     def addCallback(self, func, *args, **kw):
@@ -278,6 +279,14 @@ class Reporter(object):
             allow for it to be restored to its rightful place if a
             callback complains about I{i}.
         """
+        def failed(failureObj, func):
+            # TODO: Provide a complete func(*args, **kw).
+            callback = repr(func)
+            info = failureObj.getTraceback()
+            msg(0, "FATAL ERROR in report callback {}:\n{}\n{}\n",
+                callback, info, '-'*40)
+            return CallbackFailureToken()
+        
         @defer.inlineCallbacks
         def runUntilFree():
             counter = self.p.counter
@@ -293,8 +302,11 @@ class Reporter(object):
                     if not self.p.running: break
                     d = defer.maybeDeferred(
                         func, i.values, counter, i.SSE, *args, **kw)
-                    d.addErrback(oops)
+                    d.addErrback(failed, func)
                     result = yield d
+                    if isinstance(result, CallbackFailureToken):
+                        self.abort()
+                        break
                     if result is not None and i and self.p.running:
                         if self.complaintCallback:
                             yield defer.maybeDeferred(
@@ -555,6 +567,9 @@ class Population(object):
     @ivar debug: Set C{True} to show individuals getting
         replaced. (Results in a very messy log or console display.)
 
+    @ivar spew: Set C{True} to show locks getting acquired and release
+        (hardcore debugging only). Set via source or subclass.
+    
     @ivar running: Indicates my run status: C{None} after
         instantiation but before L{setup}, C{True} after setup, and
         C{False} if I{ade} is aborting.
@@ -565,21 +580,24 @@ class Population(object):
     N_maxParallel = 10
     targetFraction = 0.04
     debug = False
+    spew = False
     
     def __init__(
             self, func, names, bounds,
             constraints=[], popsize=None,
             debug=False, complaintCallback=None, targetFraction=None):
         """
-        C{Population}(func, names, bounds, constraints=[], popsize=None,
-        debug=False, complaintCallback=None)
+        C{Population(func, names, bounds, constraints=[], popsize=None,
+        debug=False, complaintCallback=None)}
         """
         def evalFunc(values):
+            if self.running is False:
+                return defer.succeed(-1)
             return defer.maybeDeferred(func, values)
 
         if not callable(func):
             raise ValueError(sub("Object '{}' is not callable", func))
-        self.evalFunc = func # evalFunc
+        self.evalFunc = evalFunc
         self.Nd = len(bounds)
         if debug: self.debug = True
         if targetFraction:
@@ -714,12 +732,15 @@ class Population(object):
             values = self.pm.fromUnity(values)
         return Individual(self, values)
 
-    def abort(self):
+    def abort(self, ignoreReporter=False):
         """
         Aborts my operations ASAP.
         """
         self.running = False
-        self.reporter.abort()
+        if not ignoreReporter:
+            self.reporter.abort()
+        # This next little line may run a bunch of stuff that was
+        # waiting for locks
         self.release()
     
     @defer.inlineCallbacks
@@ -775,6 +796,8 @@ class Population(object):
         def evaluated(i):
             ds.release()
             if not i:
+                #import pdb; pdb.set_trace()
+                msg(0, "Bogus evaluation, aborting")
                 self.abort()
                 return
             if i.SSE is None or len(self.iList) >= self.Np:
@@ -997,6 +1020,9 @@ class Population(object):
         Release the locks (as soon as possible) by calling L{release}
         with the indices that are locked.
         """
+        if self.spew:
+            # NOT PYTHON 3 COMPATIBLE!
+            print "\nLOCK", indices
         dList = []
         for k in indices:
             if indices.count(k) > 1:
@@ -1013,16 +1039,29 @@ class Population(object):
         If no indices are supplied, releases all active locks. (This
         is for aborting only.)
         """
+        def spew():
+            # NOT PYTHON 3 COMPATIBLE!
+            print "\nRELEASING",
+            for k in indices:
+                dLock = self.dLocks[k]
+                if dLock.locked:
+                    print self.dLocks.index(dLock),
+            stillLocked = ", ".join(
+                    [str(k) for k, x in enumerate(self.dLocks) \
+                     if x.locked and k not in indices])
+            if not stillLocked:
+                stillLocked = "--"
+            print sub("\nStill locked: {}", stillLocked)
+        
         def tryRelease(dLock):
             if dLock.locked:
                 dLock.release()
-            
-        if indices:
-            for k in indices:
-                tryRelease(self.dLocks[k])
-            return
-        for dLock in self.dLocks:
-            tryRelease(dLock)
+
+        if not indices:
+            indices = range(len(self.dLocks))
+        if self.spew: spew()
+        for k in indices:
+            tryRelease(self.dLocks[k])
 
     def best(self):
         """

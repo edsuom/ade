@@ -36,7 +36,7 @@ import random, pickle
 import numpy as np
 from twisted.internet import defer, task
 
-from util import sub
+from util import sub, msg
 
 
 class Individual(object):
@@ -253,6 +253,8 @@ class Individual(object):
             self.SSE = SSE
             return self
         def failed(failureObj):
+            info = failureObj.getTraceback()
+            msg(0, "FATAL ERROR in evaluation:\n{}\n{}\n", '-'*40, info)
             self.SSE = -1
             return self
         return self.p.evalFunc(self.values).addCallbacks(done, failed)

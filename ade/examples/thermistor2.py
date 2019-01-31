@@ -237,25 +237,22 @@ class Runner(object):
     
     def __init__(self, args):
         """
-        C{Runner}(args)
+        C{Runner(args)}
         """
         self.args = args
         self.ev = Evaluator()
         N = args.N if args.N else ProcessQueue.cores()-1
-        self.q = None if args.l else ProcessQueue(N, returnFailure=True)
-        self.qLocal = ThreadQueue(raw=True)
+        self.q = ThreadQueue(
+            raw=True) if args.l else ProcessQueue(N, returnFailure=True)
 
     @defer.inlineCallbacks
     def shutdown(self):
         msg("Shutting down...")
         if self.q is not None:
             yield self.q.shutdown()
-            msg("ProcessQueue is shut down")
+            msg("Task Queue is shut down")
             self.q = None
-        if self.qLocal is not None:
-            yield self.qLocal.shutdown()
-            msg("Local ThreadQueue is shut down")
-            self.qLocal = None
+        msg("Goodbye")
     
     def plot(self, X, Y, p, xName):
         p.set_xlabel(xName)
@@ -269,42 +266,34 @@ class Runner(object):
         self.titleParts.append(sub(*args))
 
     def report(self, values, counter, SSE):
-        def gotSSE(SSE2):
-            SSE_avg = 0.5*(SSE+SSE2)
-            SSE_diff = 100*np.abs(SSE2-SSE)/SSE
-            SSE_info = sub(
-                "SSE={:g} (computed twice with {:.2f}% difference)",
-                SSE_avg, SSE_diff)
-            msg(0, self.p.pm.prettyValues(values, SSE_info+", with"), 0)
-            T = self.ev.X[:,0]
-            self.titlePart()
-            self.titlePart("Temp vs Voltage")
-            self.titlePart(SSE_info)
-            self.titlePart("k={:d}", counter)
-            with self.pt as p:
-                for k in range(1, 7):
-                    xName = sub("R{:d}", k)
-                    R = self.ev.X[:,k]
-                    # Scatter plot of temp and resistance readings
-                    ax = self.plot(R, T, p, xName)
-                    # Plot current best-fit curve, with a bit of extrapolation
-                    R = np.linspace(R.min()-10, R.max()+10, self.N_curve_plot)
-                    T_curve = self.ev.curve(
-                        R, *self.ev.values2args(values, k))
-                    ax.plot(R, T_curve, 'r-')
-            self.pt.set_title(", ".join(self.titleParts))
-            self.pt.show()
         if not hasattr(self, 'pt'):
             self.pt = Plotter(
                 3, 2, filePath=self.plotFilePath, width=15, height=10)
             self.pt.set_grid(); self.pt.add_marker(',')
-        if self.qLocal is not None:
-            return self.qLocal.call(self.ev, values).addCallbacks(gotSSE, oops)
+        SSE_info = sub("SSE={:g}", SSE)
+        msg(0, self.p.pm.prettyValues(values, SSE_info+", with"), 0)
+        T = self.ev.X[:,0]
+        self.titlePart()
+        self.titlePart("Temp vs Voltage")
+        self.titlePart(SSE_info)
+        self.titlePart("k={:d}", counter)
+        with self.pt as p:
+            for k in range(1, 7):
+                xName = sub("R{:d}", k)
+                R = self.ev.X[:,k]
+                # Scatter plot of temp and resistance readings
+                ax = self.plot(R, T, p, xName)
+                # Plot current best-fit curve, with a bit of extrapolation
+                R = np.linspace(R.min()-10, R.max()+10, self.N_curve_plot)
+                T_curve = self.ev.curve(
+                    R, *self.ev.values2args(values, k))
+                ax.plot(R, T_curve, 'r-')
+        self.pt.set_title(", ".join(self.titleParts))
+        self.pt.show()
         
     def evaluate(self, values):
         values = list(values)
-        q = self.qLocal if self.q is None else self.q
-        if q: return q.call(self.ev, values).addErrback(oops)
+        if self.q: return self.q.call(self.ev, values).addErrback(oops)
     
     @defer.inlineCallbacks
     def __call__(self):
@@ -326,7 +315,6 @@ class Runner(object):
             bitterEnd=args.b
         )
         yield de()
-        print "DE DONE"
         yield self.shutdown()
         msg(0, "Final population:\n{}", self.p)
         msg(0, "Elapsed time: {:.2f} seconds", time.time()-t0, 0)

@@ -50,10 +50,16 @@ def oops(failureObj):
     if isinstance(failureObj, failure.Failure):
         info = failureObj.getTraceback()
     else: info = str(failureObj)
-    sys.__stdout__.write(sub("Failure:\n{}\n{}\n", '-'*40, info))
-    sys.__stdout__.flush()
-    import pdb; pdb.set_trace()
+    print(sub("Failure:\n{}\n{}\n", '-'*40, info))
+    #import pdb; pdb.set_trace()
     #os._exit(1)
+
+
+class CallbackFailureToken:
+    """
+    An errback can return one of these to indicate that a reporting
+    callback had a fatal error.
+    """
 
 
 class Picklable(object):

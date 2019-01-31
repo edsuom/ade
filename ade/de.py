@@ -308,7 +308,7 @@ class DifferentialEvolution(object):
     }
 
     def __init__(self, population, **kw):
-        """DifferentialEvolution(population, **kw)"""
+        """C{DifferentialEvolution(population, **kw)}"""
         self.p = population
         msg(kw.pop('logHandle', True))
         self.p.reporter()
@@ -405,6 +405,7 @@ class DifferentialEvolution(object):
         # Await legit values for all individuals used here
         yield self.p.lock(kt, kb, k0, k1)
         if not self.running:
+            # We might have had locks acquired since the call to shutdown()
             self.p.release()
         else:
             iTarget, iBase, i0, i1 = self.p.individuals(kt, kb, k0, k1)
