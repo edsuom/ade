@@ -278,17 +278,18 @@ class Reporter(object):
             self.cbrInProgress = True
             msg.lineWritten()
             iPrev = None
-            while self.cbrScheduled:
+            while self.p.running and self.cbrScheduled:
                 i = self.cbrScheduled.pop()
                 if iPrev and i == iPrev:
                     continue
                 iPrev = i
                 for func, args, kw in self.callbacks:
+                    if not self.p.running: break
                     d = defer.maybeDeferred(
                         func, i.values, counter, i.SSE, *args, **kw)
                     d.addErrback(oops)
                     result = yield d
-                    if result is not None and i and self.p.keepRunning:
+                    if result is not None and i and self.p.running:
                         if self.complaintCallback:
                             yield defer.maybeDeferred(
                                 self.complaintCallback, i, result)
@@ -547,6 +548,10 @@ class Population(object):
 
     @ivar debug: Set C{True} to show individuals getting
         replaced. (Results in a very messy log or console display.)
+
+    @ivar running: Indicates my run status: C{None} after
+        instantiation but before L{setup}, C{True} after setup, and
+        C{False} if I{ade} is aborting.
     """
     popsize = 10
     Np_min = 20
@@ -585,8 +590,8 @@ class Population(object):
         self.statusQuoScore = self.targetFraction * self.Np
         self._sortNeeded = True
         self.counter = 0
-        self.keepRunning = True
         self.iList = []
+        self.running = None
         
     def __getitem__(self, k):
         """
@@ -702,11 +707,11 @@ class Population(object):
             values = self.pm.fromUnity(values)
         return Individual(self, values)
 
-    def abortSetup(self):
+    def abort(self):
         """
-        Aborts my L{setup} operation if it's in progress.
+        Aborts my operations ASAP.
         """
-        self.keepRunning = False
+        self.running = False
     
     @defer.inlineCallbacks
     def setup(self, uniform=False, blank=False, filePath=None):
@@ -727,9 +732,12 @@ class Population(object):
 
         TODO: Load from I{filePath}.
 
-        Returns a C{Deferred} that fires when the population has been
-        set up.
+        Sets my I{running} flag C{True} and returns a C{Deferred} that
+        fires when the population has been set up.
         """
+        def running():
+            return self.running is not False
+        
         def refreshIV():
             kIV[0] = 0
             IV = np.random.uniform(size=(self.Np, self.Nd)) \
@@ -766,26 +774,27 @@ class Population(object):
             self.iList.append(i)
             self.dLocks.append(defer.DeferredLock())
 
-        if self.keepRunning:
+        if running():
             kIV = [None]*2
             self.dLocks = []
             refreshIV()
             msg(0, "Initializing {:d} population members having {:d} parameters",
                 self.Np, self.Nd, '-')
             ds = defer.DeferredSemaphore(10)
-        while self.keepRunning:
+        while running():
             yield ds.acquire()
-            if not self.keepRunning or len(self.iList) >= self.Np:
+            if not running() or len(self.iList) >= self.Np:
                 break
             i = getIndividual()
             if blank:
                 i.SSE = np.inf
                 evaluated(i)
             else: i.evaluate().addCallbacks(evaluated, oops)
-        if self.keepRunning:
+        if running():
             msg(0, repr(self))
             self._sortNeeded = True
             self.kBest = self.iList.index(self.iSorted[0])
+        self.running = True
     
     def save(self, filePath):
         """
@@ -989,9 +998,17 @@ class Population(object):
         """
         Releases any active lock for individuals at the specified index or
         indices.
+
+        If no indices are supplied, releases all active locks. (This
+        is for aborting only.)
         """
-        for k in indices:
-            self.dLocks[k].release()
+        print "RELEASE", indices
+        if indices:
+            for k in indices:
+                self.dLocks[k].release()
+            return
+        for dLock in self.dLocks.values():
+            if dLock.locked: dLock.release()
 
     def best(self):
         """

@@ -50,8 +50,10 @@ def oops(failureObj):
     if isinstance(failureObj, failure.Failure):
         info = failureObj.getTraceback()
     else: info = str(failureObj)
-    print(sub("Failure:\n{}\n{}", '-'*40, info))
-    os._exit(1)
+    sys.__stdout__.write(sub("Failure:\n{}\n{}\n", '-'*40, info))
+    sys.__stdout__.flush()
+    import pdb; pdb.set_trace()
+    #os._exit(1)
 
 
 class Picklable(object):

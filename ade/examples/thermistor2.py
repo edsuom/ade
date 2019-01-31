@@ -244,14 +244,10 @@ class Runner(object):
         N = args.N if args.N else ProcessQueue.cores()-1
         self.q = None if args.l else ProcessQueue(N, returnFailure=True)
         self.qLocal = ThreadQueue(raw=True)
-        self.triggerID = reactor.addSystemEventTrigger(
-            'before', 'shutdown', self.shutdown)
 
     @defer.inlineCallbacks
     def shutdown(self):
-        if hasattr(self, 'triggerID'):
-            reactor.removeSystemEventTrigger(self.triggerID)
-            del self.triggerID
+        msg("Shutting down...")
         if self.q is not None:
             yield self.q.shutdown()
             msg("ProcessQueue is shut down")
@@ -308,8 +304,7 @@ class Runner(object):
     def evaluate(self, values):
         values = list(values)
         q = self.qLocal if self.q is None else self.q
-        if q is not None:
-            return q.call(self.ev, values).addErrback(oops)
+        if q: return q.call(self.ev, values).addErrback(oops)
     
     @defer.inlineCallbacks
     def __call__(self):
@@ -331,6 +326,7 @@ class Runner(object):
             bitterEnd=args.b
         )
         yield de()
+        print "DE DONE"
         yield self.shutdown()
         msg(0, "Final population:\n{}", self.p)
         msg(0, "Elapsed time: {:.2f} seconds", time.time()-t0, 0)
