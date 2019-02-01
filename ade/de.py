@@ -25,6 +25,10 @@
 
 """
 L{DifferentialEvolution} and support staff.
+
+When an instance of C{DifferentialEvolution} is run on the command
+line in a console, pressing the Enter key will cause it to run its
+L{shutdown} method and quit running.
 """
 
 import random
@@ -243,7 +247,11 @@ class DifferentialEvolution(object):
     values indicate better fitness, C{None} or C{inf} represents an
     invalid or failing individual and thus worst-possible fitness, and
     a negative number represents a fatal error that will terminate
-    operations.
+    operations. It must except either a 1-D Numpy array of parameter
+    values or, if I am shutting down, a C{None} object.
+
+    When running in a console Python application, my L{shutdown}
+    method gets called when the Enter key is pressed.
 
     @cvar attributes: Default values for attributes I{CR}, I{F},
         I{maxiter}, I{randomBase}, I{uniform}, I{adaptive},
@@ -347,13 +355,15 @@ class DifferentialEvolution(object):
 
     def shutdown(self):
         """
-        Call this to shut me down gracefully. Repeated calls are ignored.
+        Call this to shut me down gracefully.
+
+        Repeated calls are ignored. Gets called when the Enter key is
+        pressed.
         
         Sets my I{running} flag C{False}, which lets all my various
         loops know that it's time to quit early. Calls L{abort} on my
         L{Population} object I{p} to shut it down ASAP.
         """
-        # WTF??? Never gets called on ^C!
         if self.running:
             msg(0, "Shutting down DE...")
             self.running = False
@@ -525,12 +535,13 @@ class DifferentialEvolution(object):
                 if not self.bitterEnd and self.fm.limited:
                     self.dwellCount += 1
                     if self.dwellCount > self.dwellByGrave:
-                        msg(-1, "Challengers failing too much, stopped")
+                        msg(-1, "Challengers failing too much, stopped.")
                         break
-        else: msg(-1, "Maximum number of iterations reached")
+        else: msg(-1, "Maximum number of iterations reached.")
         # File report for best individual
         if self.running:
             self.p.report()
             yield self.p.waitForReports()
             defer.returnValue(self.p)
+        else: msg("DifferentialEvolution object stopped.")
         msg(None)

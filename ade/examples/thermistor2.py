@@ -129,12 +129,24 @@ class TemperatureData(Data):
 
 class Reporter(object):
     """
-    
+    An instance of me is called each time a combination of parameters
+    is found that's better than any of the others thus far.
+
+    Prints the sum-of-squared error and parameter values to the
+    console and updates a plot image (PNG) at I{plotFilePath}.
+
+    @cvar plotFilePath: The file name in the current directory of a
+        PNG file to write an update with a Matplotlib plot image of
+        the actual vs. modeled temperature versus thermistor
+        resistance curves.
     """
-    N_curve_plot = 200
     plotFilePath = "thermistor2.png"
+    N_curve_plot = 200
 
     def __init__(self, evaluator, population):
+        """
+        C{Reporter(evaluator, population)}
+        """
         self.ev = evaluator
         self.prettyValues = population.pm.prettyValues
         self.pt = Plotter(
@@ -143,9 +155,6 @@ class Reporter(object):
         self.pt.add_marker(',')
     
     def __call__(self, values, counter, SSE):
-        """
-        Reports...
-        """
         def titlePart(*args):
             titleParts.append(sub(*args))
 
@@ -170,7 +179,7 @@ class Reporter(object):
                 ax.plot(R, T_curve, 'r-')
         self.pt.set_title(", ".join(titleParts))
         self.pt.show()
-        
+
 
 class Evaluator(Picklable):
     """
@@ -213,9 +222,7 @@ class Evaluator(Picklable):
                 setattr(self, name, getattr(data, name))
             return names, bounds
 
-        names = []
-        bounds = []
-        self.indices = {}
+        names = []; bounds = []; self.indices = {}
         prefixes = sorted(self.prefix_bounds.keys())
         for k in range(7):
             for prefix in prefixes:
@@ -232,6 +239,10 @@ class Evaluator(Picklable):
         return data.setup().addCallbacks(done, oops)
     
     def prefix2name(self, prefix, k):
+        """
+        Returns the name of a parameter for the I{k}'th thermistor, having
+        a common I{prefix} with the other thermistors.
+        """
         return sub("{}{:d}", prefix, k)
     
     def values2args(self, values, k):
@@ -303,11 +314,13 @@ class Runner(object):
     parsed command-line options, then have the Twisted reactor call
     the instance when it starts. Then start the reactor and watch the
     fun.
+
+    @keyword targetFraction: Normally 4%, but set much lower in this
+        example (0.5%) because real improvements seem to be made in
+        this example even with low improvement scores. I think that
+        behavior has something to do with all the independent
+        parameters for six thermistors.
     """
-    # Set much lower because real improvements seem to be made in this
-    # example even with low improvement scores. I think that behavior
-    # has something to do with all the independent parameters for six
-    # thermistors.
     targetFraction = 0.005
     
     def __init__(self, args):
@@ -323,14 +336,26 @@ class Runner(object):
 
     @defer.inlineCallbacks
     def shutdown(self):
-        msg("Shutting down...")
+        """
+        Call this to shut me down when I'm done. Shuts down my
+        C{ProcessQueue}, which can take a moment.
+
+        Repeated calls have no effect.
+        """
         if self.q is not None:
+            msg("Shutting down...")
             yield self.q.shutdown()
             msg("Task Queue is shut down")
             self.q = None
-        msg("Goodbye")
+            msg("Goodbye")
         
     def evaluate(self, values):
+        """
+        The function that gets called with each combination of parameters
+        to be evaluated for fitness.
+        """
+        if values is None:
+            return self.shutdown()
         values = list(values)
         if self.q: return self.q.call(self.ev, values)
     
@@ -374,6 +399,8 @@ args = Args(
     pfinder.png. You can see the plots, automatically updated, with
     the Linux command "qiv -Te thermistor.png". (Possibly that other
     OS may have something that works, too.)
+
+    Press the Enter key to quit early.
     """
 )
 args('-m', '--maxiter', 2000, "Maximum number of DE generations to run")
