@@ -33,7 +33,9 @@ from copy import copy
 import numpy as np
 from pyDOE import lhs
 from scipy import stats
-from twisted.internet import defer, task, reactor
+
+from twisted.protocols import basic
+from twisted.internet import defer, task, reactor, stdio
 
 from population import Population
 from util import *
@@ -197,7 +199,20 @@ class FManager(object):
         if lowest < self.origLowest:
             self.lowest = scaleUp(lowest, self.scales[0], self.origLowest)
 
-                
+
+class Keyboard(basic.LineReceiver):
+    """
+    Receives STDIN. Pressing the enter key which will cause I{ade} to
+    quit.
+    """
+    def __init__(self, de):
+        self.de = de
+        self.setRawMode()
+        
+    def rawDataReceived(self, data):
+        self.de.shutdown()
+
+            
 class DifferentialEvolution(object):
     """
     Asynchronous Differential Evolution: The foundational object.
@@ -314,6 +329,9 @@ class DifferentialEvolution(object):
         # handle is None), otherwise to STDOUT
         fh = kw['logHandle'] if 'logHandle' in kw else True
         msg(fh)
+        # Receive keystrokes
+        stdio.StandardIO(Keyboard(self))
+        # Report on initial population
         self.p.reporter()
         for name in self.attributes:
             value = kw.get(name, getattr(self, name, None))
@@ -336,7 +354,6 @@ class DifferentialEvolution(object):
         L{Population} object I{p} to shut it down ASAP.
         """
         # WTF??? Never gets called on ^C!
-        import pdb; pdb.set_trace()
         if self.running:
             msg(0, "Shutting down DE...")
             self.running = False

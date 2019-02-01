@@ -126,6 +126,50 @@ class TemperatureData(Data):
                 ax.plot(R, T_cutoff, 'r.', markersize=1)
         pp.show()
 
+
+class Reporter(object):
+    """
+    
+    """
+    N_curve_plot = 200
+    plotFilePath = "thermistor2.png"
+
+    def __init__(self, evaluator, population):
+        self.ev = evaluator
+        self.prettyValues = population.pm.prettyValues
+        self.pt = Plotter(
+            3, 2, filePath=self.plotFilePath, width=15, height=10)
+        self.pt.set_grid()
+        self.pt.add_marker(',')
+    
+    def __call__(self, values, counter, SSE):
+        """
+        Reports...
+        """
+        def titlePart(*args):
+            titleParts.append(sub(*args))
+
+        SSE_info = sub("SSE={:g}", SSE)
+        msg(0, self.prettyValues(values, SSE_info+", with"), 0)
+        T = self.ev.X[:,0]
+        titleParts = []
+        titlePart("Temp vs Voltage")
+        titlePart(SSE_info)
+        titlePart("k={:d}", counter)
+        with self.pt as p:
+            for k in range(1, 7):
+                p.set_title("Thermistor #{:d}", k)
+                xName = sub("R{:d}", k)
+                R = self.ev.X[:,k]
+                # Scatter plot of temp and resistance readings
+                p.set_xlabel(xName)
+                ax = p(R, T)
+                # Plot current best-fit curve, with a bit of extrapolation
+                R = np.linspace(R.min()-10, R.max()+10, self.N_curve_plot)
+                T_curve = self.ev.curve(R, *self.ev.values2args(values, k))
+                ax.plot(R, T_curve, 'r-')
+        self.pt.set_title(", ".join(titleParts))
+        self.pt.show()
         
 
 class Evaluator(Picklable):
@@ -249,39 +293,6 @@ class Evaluator(Picklable):
         # Done
         return SSE
 
-    def report(self, values, counter, SSE, prettyValues):
-        """
-        Reports...
-        """
-        def titlePart(*args):
-            titleParts.append(sub(*args))
-
-        if not hasattr(self, 'pt'):
-            self.pt = Plotter(
-                3, 2, filePath=self.plotFilePath, width=15, height=10)
-            self.pt.set_grid(); self.pt.add_marker(',')
-        SSE_info = sub("SSE={:g}", SSE)
-        msg(0, prettyValues(values, SSE_info+", with"), 0)
-        T = self.X[:,0]
-        titleParts = []
-        titlePart("Temp vs Voltage")
-        titlePart(SSE_info)
-        titlePart("k={:d}", counter)
-        with self.pt as p:
-            for k in range(1, 7):
-                p.set_title("Thermistor #{:d}", k)
-                xName = sub("R{:d}", k)
-                R = self.ev.X[:,k]
-                # Scatter plot of temp and resistance readings
-                p.set_xlabel(xName)
-                ax = p(R, T)
-                # Plot current best-fit curve, with a bit of extrapolation
-                R = np.linspace(R.min()-10, R.max()+10, self.N_curve_plot)
-                T_curve = self.curve(R, *self.values2args(values, k))
-                ax.plot(R, T_curve, 'r-')
-        self.pt.set_title(", ".join(titleParts))
-        self.pt.show()
-
         
 class Runner(object):
     """
@@ -293,8 +304,6 @@ class Runner(object):
     the instance when it starts. Then start the reactor and watch the
     fun.
     """
-    plotFilePath = "thermistor2.png"
-    N_curve_plot = 200
     # Set much lower because real improvements seem to be made in this
     # example even with low improvement scores. I think that behavior
     # has something to do with all the independent parameters for six
@@ -335,7 +344,8 @@ class Runner(object):
             names_bounds[0], names_bounds[1],
             popsize=args.p, targetFraction=self.targetFraction)
         yield self.p.setup().addErrback(oops)
-        self.p.addCallback(self.ev.report, self.p.pm.prettyValues)
+        reporter = Reporter(self.ev, self.p)
+        self.p.addCallback(reporter)
         F = [float(x) for x in args.F.split(',')]
         de = DifferentialEvolution(
             self.p,
@@ -347,6 +357,9 @@ class Runner(object):
         msg(0, "Final population:\n{}", self.p)
         msg(0, "Elapsed time: {:.2f} seconds", time.time()-t0, 0)
         reactor.stop()
+
+    def run(self):
+        return self().addErrback(oops)
 
 
 args = Args(
@@ -383,7 +396,7 @@ def main():
     if args.h:
         return
     r = Runner(args)
-    reactor.callWhenRunning(r)
+    reactor.callWhenRunning(r.run)
     reactor.run()
 
 
