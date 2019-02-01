@@ -196,15 +196,15 @@ class Evaluator(Picklable):
     prefixes = "ABCD"
     prefix_bounds = {
         # Common to all thermistors
-        'A':   (5E-4,     2E-3),
-        'B':   (1.5E-4,   5E-4),
-        'C':   (1E-8,     4E-8),
-        'D':   (5E-9,     3E-8),
+        'A':   (1.0E-3,   1.2E-3),
+        'B':   (2.5E-4,   3E-4),
+        'C':   (8E-9,     1.5E-8),
+        'D':   (8E-9,     3E-8),
         # Per-thermistor relative variation, which is pretty
         # significant for the higher-order terms despite the fact that
         # all the thermistors are the same exact type of component.
-        'a':   (0.7,      1.2),
-        'b':   (0.7,      1.2),
+        'a':   (0.7,      1.25),
+        'b':   (0.7,      1.25),
         'c':   (0.05,     20.0),
         'd':   (0.05,     20.0),
     }
@@ -376,7 +376,7 @@ class Runner(object):
             self.p,
             CR=args.C, F=F, maxiter=args.m,
             randomBase=args.r, uniform=args.u, adaptive=not args.n,
-            bitterEnd=args.b, logHandle=self.fh)
+            bitterEnd=args.b, logHandle=self.fh, dwellByGrave=12)
         yield de()
         yield self.shutdown()
         msg(0, "Final population:\n{}", self.p)
@@ -405,7 +405,7 @@ args = Args(
 )
 args('-m', '--maxiter', 2000, "Maximum number of DE generations to run")
 args('-p', '--popsize', 10, "Population: # individuals per unknown parameter")
-args('-C', '--CR', 0.6, "DE Crossover rate CR")
+args('-C', '--CR', 0.8, "DE Crossover rate CR")
 args('-F', '--F', "0.5,1.0", "DE mutation scaling F: two values for range")
 args('-b', '--bitter-end', "Keep working to the end even with little progress")
 args('-r', '--random-base', "Use DE/rand/1 instead of DE/best/1")

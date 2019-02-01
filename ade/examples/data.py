@@ -95,9 +95,8 @@ class Data(Picklable):
             url = sub(self.urlProto, csvPath)
             msg("Downloading {} data file from edsuom.com...", csvPath)
             yield client.downloadPage(url, csvPath)
-            msg(1, "Done")
         value_lists = []; T_counts = {}
-        msg("Decompressing and parsing tempdump.csv.bz2...")
+        msg("Decompressing and parsing {}...", csvPath)
         with bz2.BZ2File(csvPath, 'r') as bh:
             while True:
                 line = bh.readline().strip()
@@ -109,7 +108,6 @@ class Data(Picklable):
                     continue
                 value_list = [float(x.strip()) for x in line.split(',')]
                 value_lists.append(value_list)
-        msg(1, "Done")
         msg("Doing array conversions...")
         value_lists.sort(None, lambda x: x[0])
         t_list = []
@@ -123,11 +121,11 @@ class Data(Picklable):
                         selected_value_lists.append(value_list[1:])
                         break
         else: selected_value_lists = value_lists
-        msg(1, "Read {:d} of {:d} data points", len(selected_value_lists), k+1)
+        msg("Read {:d} of {:d} data points", len(selected_value_lists), k+1)
         self.t = np.array(t_list)
         self.X = np.array(selected_value_lists)
         self.setWeights()
-        msg("Done setting up data")
+        msg("Done setting up data", '-')
 
     def setWeights(self):
         """
