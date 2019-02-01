@@ -231,8 +231,8 @@ class Reporter(object):
 
         The supplied I{func} must accept as arguments (1) a 1-D Numpy
         array of I{values} from a new best Individual, (2) the value
-        of my report I{counter}, and (3) the individual's SSE, as well
-        as any other arguments and keywords you provide.
+        of my report I{counter}, and (3) the individual's SSE,
+        followed by any other arguments and keywords you provide.
 
         I will run all the callbacks whenever I report on an
         Individual with an SSE that is lower than any of the other

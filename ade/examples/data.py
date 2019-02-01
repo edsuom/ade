@@ -93,11 +93,11 @@ class Data(Picklable):
         csvPath = sub("{}.csv.bz2", self.basename)
         if not os.path.exists(csvPath):
             url = sub(self.urlProto, csvPath)
-            print(sub("Downloading {} data file from edsuom.com...", csvPath))
+            msg("Downloading {} data file from edsuom.com...", csvPath)
             yield client.downloadPage(url, csvPath)
-            print("\tDone")
+            msg(1, "Done")
         value_lists = []; T_counts = {}
-        print("Decompressing and parsing tempdump.csv.bz2...")
+        msg("Decompressing and parsing tempdump.csv.bz2...")
         with bz2.BZ2File(csvPath, 'r') as bh:
             while True:
                 line = bh.readline().strip()
@@ -109,8 +109,8 @@ class Data(Picklable):
                     continue
                 value_list = [float(x.strip()) for x in line.split(',')]
                 value_lists.append(value_list)
-        print("\tDone")
-        print("Doing array conversions...")
+        msg(1, "Done")
+        msg("Doing array conversions...")
         value_lists.sort(None, lambda x: x[0])
         t_list = []
         t0 = value_lists[0][0]
@@ -123,39 +123,14 @@ class Data(Picklable):
                         selected_value_lists.append(value_list[1:])
                         break
         else: selected_value_lists = value_lists
-        print(sub(
-            "\tRead {:d} of {:d} data points", len(selected_value_lists), k+1))
+        msg(1, "Read {:d} of {:d} data points", len(selected_value_lists), k+1)
         self.t = np.array(t_list)
         self.X = np.array(selected_value_lists)
         self.setWeights()
-        print("\tDone")
+        msg("Done setting up data")
 
     def setWeights(self):
         """
         Override this in your sublcass to set my I{weights} attribute to a
         1-D Numpy array of weights, one for each CSV file row.
         """
-        
-    def plot(self):
-        """
-        Plots my data with annotations.
-        """
-        if self.weights is None:
-            I_below = []
-            I_above = np.arange(self.X.shape[0])
-        else:
-            I_below = np.flatnonzero(self.weights < self.weightCutoff)
-            I_above = np.flatnonzero(self.weights >= self.weightCutoff)
-        T = self.X[I_above, 0]
-        T_cutoff = self.X[I_below, 0]
-        pp = Plotter(3, 2, width=12, height=10)
-        pp.add_plotKeyword('markersize', 1)
-        pp.add_marker('.')
-        with pp as p:
-            for k in range(6):
-                R = self.X[I_above, k+1]
-                p.set_title(sub("Thermistor #{:d}", k+1))
-                ax = p(R, T)
-                R = self.X[I_below, k+1]
-                ax.plot(R, T_cutoff, 'r.', markersize=1)
-        pp.show()

@@ -247,7 +247,7 @@ class DifferentialEvolution(object):
     @ivar running: C{True} unless my L{shutdown} method has been called.
 
     @keyword logHandle: An open handle for a log file, or C{True} to
-        log output to STDOUT, or C{None} to suppress logging. Default
+        log output to STDOUT or C{None} to suppress logging. Default
         is STDOUT.
 
     @keyword CR: The I{crossover probability} between parent (i.e.,
@@ -310,7 +310,10 @@ class DifferentialEvolution(object):
     def __init__(self, population, **kw):
         """C{DifferentialEvolution(population, **kw)}"""
         self.p = population
-        msg(kw.pop('logHandle', True))
+        # Log to an open file handle if provided (no logging if file
+        # handle is None), otherwise to STDOUT
+        fh = kw['logHandle'] if 'logHandle' in kw else True
+        msg(fh)
         self.p.reporter()
         for name in self.attributes:
             value = kw.get(name, getattr(self, name, None))
@@ -332,6 +335,8 @@ class DifferentialEvolution(object):
         loops know that it's time to quit early. Calls L{abort} on my
         L{Population} object I{p} to shut it down ASAP.
         """
+        # WTF??? Never gets called on ^C!
+        import pdb; pdb.set_trace()
         if self.running:
             msg(0, "Shutting down DE...")
             self.running = False
@@ -511,3 +516,4 @@ class DifferentialEvolution(object):
             self.p.report()
             yield self.p.waitForReports()
             defer.returnValue(self.p)
+        msg(None)

@@ -38,14 +38,13 @@ nonlinear best-fit curve, with digital filtering to match thermal time
 constants using the model implemented by L{Evaluator.curve}.
 """
 
-import time
+import time, os.path
 
 import numpy as np
 from scipy import signal
 
 from twisted.internet import reactor, defer
 
-from asynqueue import ThreadQueue
 from asynqueue.process import ProcessQueue
 from yampex.plot import Plotter
 
@@ -103,6 +102,31 @@ class TemperatureData(Data):
         self.weights = np.where(
             self.X[:,0] < -5.0, 3*self.weights, self.weights)
 
+    def plot(self):
+        """
+        Plots my data with annotations.
+        """
+        if self.weights is None:
+            I_below = []
+            I_above = np.arange(self.X.shape[0])
+        else:
+            I_below = np.flatnonzero(self.weights < self.weightCutoff)
+            I_above = np.flatnonzero(self.weights >= self.weightCutoff)
+        T = self.X[I_above, 0]
+        T_cutoff = self.X[I_below, 0]
+        pp = Plotter(3, 2, width=12, height=10)
+        pp.add_plotKeyword('markersize', 1)
+        pp.add_marker('.')
+        with pp as p:
+            for k in range(6):
+                R = self.X[I_above, k+1]
+                p.set_title("Thermistor #{:d}", k+1)
+                ax = p(R, T)
+                R = self.X[I_below, k+1]
+                ax.plot(R, T_cutoff, 'r.', markersize=1)
+        pp.show()
+
+        
 
 class Evaluator(Picklable):
     """
@@ -115,19 +139,21 @@ class Evaluator(Picklable):
     sum-of-squared-error fitness of the curve to the thermistor data.
     """
     T_kelvin_offset = +273.15 # deg C
-    driftPenalty = 0.05
+    driftPenalty = 0.1
     prefixes = "ABCD"
     prefix_bounds = {
         # Common to all thermistors
         'A':   (5E-4,     2E-3),
         'B':   (1.5E-4,   5E-4),
-        'C':   (1E-8,     3E-8),
-        'D':   (8E-9,     2.5E-8),
-        # Per-thermistor relative variation
+        'C':   (1E-8,     4E-8),
+        'D':   (5E-9,     3E-8),
+        # Per-thermistor relative variation, which is pretty
+        # significant for the higher-order terms despite the fact that
+        # all the thermistors are the same exact type of component.
         'a':   (0.7,      1.2),
         'b':   (0.7,      1.2),
-        'c':   (0.1,      10.0),
-        'd':   (0.1,      10.0),
+        'c':   (0.05,     20.0),
+        'd':   (0.05,     20.0),
     }
 
     def setup(self):
@@ -160,7 +186,7 @@ class Evaluator(Picklable):
         # The data
         data = TemperatureData()
         return data.setup().addCallbacks(done, oops)
-
+    
     def prefix2name(self, prefix, k):
         return sub("{}{:d}", prefix, k)
     
@@ -210,7 +236,7 @@ class Evaluator(Picklable):
             T_curve = self.curve(R, *args)
             squaredResiduals = self.weights * np.square(T_curve - T)
             SSE += np.sum(squaredResiduals)
-        # Apply drift penalty
+        # Apply substantial SSE-proportional drift penalty
         values = np.array(values)
         for prefix in self.prefixes:
             # Add a penalty for drift of each parameter separately
@@ -218,9 +244,43 @@ class Evaluator(Picklable):
                  for x in self.indices if x.startswith(prefix.lower())]
             ratios = values[K]
             drift = np.sum(np.log(ratios))
-            SSE *= 1 + self.driftPenalty * drift**2
+            # The fourth power of the drift: We're not messing around
+            SSE *= 1 + self.driftPenalty * drift**4
         # Done
         return SSE
+
+    def report(self, values, counter, SSE, prettyValues):
+        """
+        Reports...
+        """
+        def titlePart(*args):
+            titleParts.append(sub(*args))
+
+        if not hasattr(self, 'pt'):
+            self.pt = Plotter(
+                3, 2, filePath=self.plotFilePath, width=15, height=10)
+            self.pt.set_grid(); self.pt.add_marker(',')
+        SSE_info = sub("SSE={:g}", SSE)
+        msg(0, prettyValues(values, SSE_info+", with"), 0)
+        T = self.X[:,0]
+        titleParts = []
+        titlePart("Temp vs Voltage")
+        titlePart(SSE_info)
+        titlePart("k={:d}", counter)
+        with self.pt as p:
+            for k in range(1, 7):
+                p.set_title("Thermistor #{:d}", k)
+                xName = sub("R{:d}", k)
+                R = self.ev.X[:,k]
+                # Scatter plot of temp and resistance readings
+                p.set_xlabel(xName)
+                ax = p(R, T)
+                # Plot current best-fit curve, with a bit of extrapolation
+                R = np.linspace(R.min()-10, R.max()+10, self.N_curve_plot)
+                T_curve = self.curve(R, *self.values2args(values, k))
+                ax.plot(R, T_curve, 'r-')
+        self.pt.set_title(", ".join(titleParts))
+        self.pt.show()
 
         
 class Runner(object):
@@ -235,9 +295,10 @@ class Runner(object):
     """
     plotFilePath = "thermistor2.png"
     N_curve_plot = 200
-    # Set much lower because real improvements are made even with low
-    # improvement scores. I think that behavior has something to do
-    # with all the independent parameters for six thermistors.
+    # Set much lower because real improvements seem to be made in this
+    # example even with low improvement scores. I think that behavior
+    # has something to do with all the independent parameters for six
+    # thermistors.
     targetFraction = 0.005
     
     def __init__(self, args):
@@ -247,8 +308,9 @@ class Runner(object):
         self.args = args
         self.ev = Evaluator()
         N = args.N if args.N else ProcessQueue.cores()-1
-        self.q = ThreadQueue(
-            raw=True) if args.l else ProcessQueue(N, returnFailure=True)
+        self.q = ProcessQueue(N, returnFailure=True)
+        self.fh = True if args.s else open(os.path.expanduser(args.l), 'w')
+        msg(self.fh)
 
     @defer.inlineCallbacks
     def shutdown(self):
@@ -258,43 +320,6 @@ class Runner(object):
             msg("Task Queue is shut down")
             self.q = None
         msg("Goodbye")
-    
-    def plot(self, X, Y, p, xName):
-        p.set_xlabel(xName)
-        return p(X, Y)
-
-    def titlePart(self, *args):
-        if not args or not hasattr(self, 'titleParts'):
-            self.titleParts = []
-        if not args:
-            return
-        self.titleParts.append(sub(*args))
-
-    def report(self, values, counter, SSE):
-        if not hasattr(self, 'pt'):
-            self.pt = Plotter(
-                3, 2, filePath=self.plotFilePath, width=15, height=10)
-            self.pt.set_grid(); self.pt.add_marker(',')
-        SSE_info = sub("SSE={:g}", SSE)
-        msg(0, self.p.pm.prettyValues(values, SSE_info+", with"), 0)
-        T = self.ev.X[:,0]
-        self.titlePart()
-        self.titlePart("Temp vs Voltage")
-        self.titlePart(SSE_info)
-        self.titlePart("k={:d}", counter)
-        with self.pt as p:
-            for k in range(1, 7):
-                xName = sub("R{:d}", k)
-                R = self.ev.X[:,k]
-                # Scatter plot of temp and resistance readings
-                ax = self.plot(R, T, p, xName)
-                # Plot current best-fit curve, with a bit of extrapolation
-                R = np.linspace(R.min()-10, R.max()+10, self.N_curve_plot)
-                T_curve = self.ev.curve(
-                    R, *self.ev.values2args(values, k))
-                ax.plot(R, T_curve, 'r-')
-        self.pt.set_title(", ".join(self.titleParts))
-        self.pt.show()
         
     def evaluate(self, values):
         values = list(values)
@@ -302,7 +327,6 @@ class Runner(object):
     
     @defer.inlineCallbacks
     def __call__(self):
-        msg(True)
         t0 = time.time()
         args = self.args
         names_bounds = yield self.ev.setup().addErrback(oops)
@@ -311,14 +335,13 @@ class Runner(object):
             names_bounds[0], names_bounds[1],
             popsize=args.p, targetFraction=self.targetFraction)
         yield self.p.setup().addErrback(oops)
-        self.p.addCallback(self.report)
+        self.p.addCallback(self.ev.report, self.p.pm.prettyValues)
         F = [float(x) for x in args.F.split(',')]
         de = DifferentialEvolution(
             self.p,
             CR=args.C, F=F, maxiter=args.m,
             randomBase=args.r, uniform=args.u, adaptive=not args.n,
-            bitterEnd=args.b
-        )
+            bitterEnd=args.b, logHandle=self.fh)
         yield de()
         yield self.shutdown()
         msg(0, "Final population:\n{}", self.p)
@@ -349,7 +372,8 @@ args('-r', '--random-base', "Use DE/rand/1 instead of DE/best/1")
 args('-n', '--not-adaptive', "Don't use automatic F adaptation")
 args('-u', '--uniform', "Initialize population uniformly instead of with LHS")
 args('-N', '--N-cores', 0, "Limit the number of CPU cores")
-args('-l', '--local-queue', "Use the local ThreadQueue, no subprocesses")
+args('-l', '--logfile', "thermistor2.log", "Logfile for (over)writing results")
+args('-s', '--stdout', "Write to STDOUT instead of logfile")
 
 
 def main():

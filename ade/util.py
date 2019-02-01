@@ -163,6 +163,8 @@ class Messenger(object):
         
     def fhSet(self, arg):
         def _fhSet(fh):
+            if fh is self.fh:
+                return fh
             fhPrev = self.fh
             if self.fh and self.fh is not sys.stdout:
                 self.fh.close()
