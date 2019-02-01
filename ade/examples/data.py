@@ -88,6 +88,10 @@ class Data(Picklable):
         Calling this gets you a C{Deferred} that fires when setup is done
         and my I{t}, I{X}, and possibly my I{weights} ivars are ready.
         """
+        def addList():
+            t_list.append(value_list[0] - t0)
+            selected_value_lists.append(value_list[1:])
+
         if self.basename is None:
             raise AttributeError("No CSV file defined")
         csvPath = sub("{}.csv.bz2", self.basename)
@@ -112,15 +116,14 @@ class Data(Picklable):
         value_lists.sort(None, lambda x: x[0])
         t_list = []
         t0 = value_lists[0][0]
-        if self.ranges:
-            selected_value_lists = []
-            for k, value_list in enumerate(value_lists):
+        selected_value_lists = []
+        for k, value_list in enumerate(value_lists):
+            if self.ranges:
                 for k0, k1 in self.ranges:
                     if k >= k0 and (k1 is None or k < k1):
-                        t_list.append(value_list[0] - t0)
-                        selected_value_lists.append(value_list[1:])
+                        addList()
                         break
-        else: selected_value_lists = value_lists
+            else: addList()
         msg("Read {:d} of {:d} data points", len(selected_value_lists), k+1)
         self.t = np.array(t_list)
         self.X = np.array(selected_value_lists)
@@ -132,3 +135,4 @@ class Data(Picklable):
         Override this in your sublcass to set my I{weights} attribute to a
         1-D Numpy array of weights, one for each CSV file row.
         """
+        self.weights = np.ones(len(self.t))

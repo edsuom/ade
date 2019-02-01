@@ -19,19 +19,16 @@ asynchronous multi-processing, but it still runs about twice as fast
 with four CPU cores as it does with one.
 
 
-II. Nonlinear curve fitting of voltages, as measured from the output
-of a thermistor voltage divider circuit, to observed temperatures.
+II. Nonlinear curve fitting of temperature versus resistance curves of
+six thermistors.
 -------------------------------------------------------------------------
 
 To see options, run
 $ python thermistor.py -h
 
-The included file thermistor.log is the result of running
-$ python thermistor.py -p 12
-
-on an eight-core CPU for about half an hour. If you run that command,
-you should see an image file thermistor.png appear and get updated
-from time to time. Take a look at it see the curve fit progressing.
+If you run the command without -h, you should see an image file
+thermistor.png appear and get updated from time to time. Take a look
+at it see the curve fit progressing.
 
 On Linux, the qiv image viewer works great for this:
 $ qiv -Te thermistor.png &

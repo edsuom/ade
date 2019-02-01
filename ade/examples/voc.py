@@ -24,18 +24,15 @@
 
 
 """
-Example script I{thermistor.py}: Identifying coefficients for the
-resistance versus temperature model of six thermistors.
+Example script I{voc.py}: Identifying coefficients for the
+open-circuit voltage of an AGM lead-acid battery over time.
 
-This example reads an eight-item-per-line CSV file. Each line
+This example reads a two-item-per-line CSV file. Each line
 contains: (B{1}) the time in seconds from some arbitrary starting
-time, (B{2}) the temperature in degrees C, as read by a trusted
-temperature sensor, and (B{3-8}) the resistances of six thermistors,
-measured at the known temperature.
+time, (B{2}) the battery voltage with no charge or discharge current.
 
 Then it uses asynchronous differential evolution to efficiently find a
-nonlinear best-fit curve, with digital filtering to match thermal time
-constants using the model implemented by L{Evaluator.curve}.
+nonlinear best-fit curve.
 """
 
 import time, os.path
@@ -55,10 +52,10 @@ from ade.de import DifferentialEvolution
 from data import Data
 
 
-class TemperatureData(Data):
+class BatteryData(Data):
     """
     Run L{setup} on my instance to decompress and load the
-    tempdump.csv.bz2 CSV file.
+    voc.csv.bz2 CSV file.
 
     The CSV file isn't included in the I{ade} package and will
     automatically be downloaded from U{edsuom.com}. Here's the privacy
@@ -76,54 +73,18 @@ class TemperatureData(Data):
 
     @see: The L{Data} base class.
     """
-    basename = "tempdump"
-    ranges = [(0, 213), (442, 2920), (3302, 6000), (6550, 7000),
-              (7200, 8210), (8280, 8345), (8380, None)]
-
-    dTdt_halfWeight = 0.05 / 10
-    dTdt_power = 3
+    basename = "voc"
     
-    def setWeights(self):
-        """
-        Call this to set my I{weights} attribute to a 1-D Numpy array to
-        weights that are larger for colder temperature readings, since
-        there are fewer of them.
-        """
-        T_filt = signal.lfilter([1, 1], [2], self.X[:,0])
-        dTdt = np.diff(T_filt) / np.diff(self.t)
-        weights = np.power(
-            self.dTdt_halfWeight / (np.abs(dTdt) + self.dTdt_halfWeight),
-            self.dTdt_power)
-        self.weights = np.pad(weights, (1, 0), 'constant')
-        # Hack to weight cold readings more, since fewer of them.
-        self.weights = np.where(
-            self.X[:,0] < 4.0, 10*self.weights, self.weights)
-        # Even more so for really cold readings
-        self.weights = np.where(
-            self.X[:,0] < -5.0, 3*self.weights, self.weights)
-
     def plot(self):
         """
         Plots my data with annotations.
         """
-        if self.weights is None:
-            I_below = []
-            I_above = np.arange(self.X.shape[0])
-        else:
-            I_below = np.flatnonzero(self.weights < self.weightCutoff)
-            I_above = np.flatnonzero(self.weights >= self.weightCutoff)
-        T = self.X[I_above, 0]
-        T_cutoff = self.X[I_below, 0]
-        pp = Plotter(3, 2, width=12, height=10)
+        pp = Plotter(1, width=12, height=10)
         pp.add_plotKeyword('markersize', 1)
         pp.add_marker('.')
         with pp as p:
-            for k in range(6):
-                R = self.X[I_above, k+1]
-                p.set_title("Thermistor #{:d}", k+1)
-                ax = p(R, T)
-                R = self.X[I_below, k+1]
-                ax.plot(R, T_cutoff, 'r.', markersize=1)
+            p.set_title("Open-Circuit Voltage over Time")
+            p(self.t, self.X[:,0])
         pp.show()
 
 
@@ -140,7 +101,7 @@ class Reporter(object):
         the actual vs. modeled temperature versus thermistor
         resistance curves.
     """
-    plotFilePath = "thermistor.png"
+    plotFilePath = "voc.png"
     N_curve_plot = 200
 
     def __init__(self, evaluator, population):
@@ -150,7 +111,7 @@ class Reporter(object):
         self.ev = evaluator
         self.prettyValues = population.pm.prettyValues
         self.pt = Plotter(
-            3, 2, filePath=self.plotFilePath, width=15, height=10)
+            1, filePath=self.plotFilePath, width=15, height=10)
         self.pt.set_grid()
         self.pt.add_marker(',')
     
@@ -160,30 +121,27 @@ class Reporter(object):
 
         SSE_info = sub("SSE={:g}", SSE)
         msg(0, self.prettyValues(values, SSE_info+", with"), 0)
-        T = self.ev.X[:,0]
+        V = self.ev.X[:,0]
         titleParts = []
-        titlePart("Temp vs Voltage")
+        titlePart("Voltage vs Time (sec)")
         titlePart(SSE_info)
         titlePart("k={:d}", counter)
         with self.pt as p:
-            for k in range(1, 7):
-                p.set_title("Thermistor #{:d}", k)
-                xName = sub("R{:d}", k)
-                R = self.ev.X[:,k]
-                # Scatter plot of temp and resistance readings
-                p.set_xlabel(xName)
-                ax = p(R, T)
-                # Plot current best-fit curve, with a bit of extrapolation
-                R = np.linspace(R.min()-10, R.max()+10, self.N_curve_plot)
-                T_curve = self.ev.curve(R, *self.ev.values2args(values, k))
-                ax.plot(R, T_curve, 'r-')
+            p.set_timex()
+            t = self.ev.t
+            ax = p(t, self.ev.X[:,0])
+            # Plot current best-fit curve, with lots of extrapolation
+            # to the right
+            t = np.linspace(t.min(), 2*t.max(), self.N_curve_plot)
+            V_curve = self.ev.curve(t, *values)
+            ax.plot(t, V_curve, 'r-')
         self.pt.set_title(", ".join(titleParts))
         self.pt.show()
 
 
 class Evaluator(Picklable):
     """
-    I evaluate thermistor curve fitness.
+    I evaluate battery VOC model fitness.
     
     Construct an instance of me, run the L{setup} method, and wait (in
     non-blocking Twisted-friendly fashion) for the C{Deferred} it
@@ -191,22 +149,17 @@ class Evaluator(Picklable):
     parameter values for a L{curve} to get a (deferred)
     sum-of-squared-error fitness of the curve to the thermistor data.
     """
-    T_kelvin_offset = +273.15 # deg C
-    driftPenalty = 0.1
-    prefixes = "ABCD"
-    prefix_bounds = {
-        # Common to all thermistors
-        'A':   (1.0E-3,   1.2E-3),
-        'B':   (2.5E-4,   3E-4),
-        'C':   (8E-9,     1.5E-8),
-        'D':   (8E-9,     3E-8),
-        # Per-thermistor relative variation, which is pretty
-        # significant for the higher-order terms despite the fact that
-        # all the thermistors are the same exact type of component.
-        'a':   (0.7,      1.25),
-        'b':   (0.7,      1.25),
-        'c':   (0.05,     20.0),
-        'd':   (0.05,     20.0),
+    bounds = {
+        'a1':   (0.0,      20.0),
+        'b1':   (1.0,      100.0),
+        'c1':   (1.0,      500.0),
+        'a2':   (0.0,      20.0),
+        'b2':   (50.0,     10000.0),
+        'c2':   (1.0,      10000.0),
+        'a3':   (0.0,      10.0),
+        'b3':   (500.0,    20000.0),
+        'c3':   (1.0,      20000.0),
+        'voc':  (40.0,     55.0),
     }
 
     def setup(self):
@@ -222,87 +175,38 @@ class Evaluator(Picklable):
                 setattr(self, name, getattr(data, name))
             return names, bounds
 
-        names = []; bounds = []; self.indices = {}
-        prefixes = sorted(self.prefix_bounds.keys())
-        for k in range(7):
-            for prefix in prefixes:
-                if k == 0 and prefix in self.prefixes:
-                    name = prefix
-                elif k > 0 and prefix in self.prefixes.lower():
-                    name = self.prefix2name(prefix, k)
-                else: continue
-                names.append(name)
-                self.indices[name] = len(bounds)
-                bounds.append(self.prefix_bounds[prefix])
+        bounds = []
+        names = sorted(self.bounds.keys())
+        for name in names:
+            bounds.append(self.bounds[name])
         # The data
-        data = TemperatureData()
+        data = BatteryData()
         return data.setup().addCallbacks(done, oops)
-    
-    def prefix2name(self, prefix, k):
+
+    def curve(self, t, *args):
         """
-        Returns the name of a parameter for the I{k}'th thermistor, having
-        a common I{prefix} with the other thermistors.
-        """
-        return sub("{}{:d}", prefix, k)
-    
-    def values2args(self, values, k):
-        """
-        Returns a subset list of parameter values to use as args in a call
-        to L{curve} for the specified Yocto-MaxThermistor input I{k}
-        (1-6).
-        """
-        names = [x for x in self.prefixes]
-        for prefix in [x.lower() for x in names]:
-            names.append(self.prefix2name(prefix, k))
-        return [values[self.indices[x]] for x in names]
-    
-    def curve(self, R, *args):
-        """
-        Given a 1-D vector of resistances measured for one thermistor,
-        followed by arguments defining curve parameters, returns a 1-D
-        vector of temperatures (degrees C) for those resistances.
+        Given a 1-D time vector followed by arguments defining curve
+        parameters, returns a 1-D vector of battery voltage over that
+        time with with no charge or discharge current, with one
+        particular but unknown SOC.
 
         The model implements this equation:
 
-        M{T = 1 / (A*b + B*b*ln(R) + C*c*ln(R)^2 + D*d*ln(R)^3 - 273.15}
-
-        where I{R} is in Ohms and I{T} is in degrees C. Uppercase
-        coefficients are for all thermistors and lowercase are for
-        just the thermistor in question.
+        M{V = a1*exp(-t/b1+c1) + ... ak*exp(-t/bk+ck) + voc}
         """
-        lnR = np.log(R)
-        a, b, c, d = [args[k]*args[k+4] for k in range(4)]
-        T_kelvin = 1.0 / (a + b*lnR + c*(lnR**2) + d*(lnR**3))
-        return T_kelvin - self.T_kelvin_offset
-
+        V = args[-1]
+        for k in range(3):
+            a, b, c = args[3*k:3*k+3]
+            V += a*np.exp(-(t+c)/b)
+        return V
+    
     def __call__(self, values):
         """
         Evaluation function for the parameter I{values}.
-
-        Applies a penalty if the geometric mean of the scaling factors
-        (values after the first six, lowercase param names) deviates
-        from 1.0, to counteract genetic drift.
         """
-        SSE = 0
-        T = self.X[:,0]
-        for k in range(1, 7):
-            R = self.X[:,k]
-            args = self.values2args(values, k)
-            T_curve = self.curve(R, *args)
-            squaredResiduals = self.weights * np.square(T_curve - T)
-            SSE += np.sum(squaredResiduals)
-        # Apply substantial SSE-proportional drift penalty
-        values = np.array(values)
-        for prefix in self.prefixes:
-            # Add a penalty for drift of each parameter separately
-            K = [self.indices[x]
-                 for x in self.indices if x.startswith(prefix.lower())]
-            ratios = values[K]
-            drift = np.sum(np.log(ratios))
-            # The fourth power of the drift: We're not messing around
-            SSE *= 1 + self.driftPenalty * drift**4
-        # Done
-        return SSE
+        V = self.X[:,0]
+        V_curve = self.curve(self.t, *values)
+        return np.sum(self.weights * np.square(V_curve - V))
 
         
 class Runner(object):
@@ -314,15 +218,7 @@ class Runner(object):
     parsed command-line options, then have the Twisted reactor call
     the instance when it starts. Then start the reactor and watch the
     fun.
-
-    @cvar targetFraction: Normally 4%, but set much lower in this
-        example (0.5%) because real improvements seem to be made in
-        this example even with low improvement scores. I think that
-        behavior has something to do with all the independent
-        parameters for six thermistors.
     """
-    targetFraction = 0.005
-    
     def __init__(self, args):
         """
         C{Runner(args)}
@@ -366,8 +262,7 @@ class Runner(object):
         names_bounds = yield self.ev.setup().addErrback(oops)
         self.p = Population(
             self.evaluate,
-            names_bounds[0], names_bounds[1],
-            popsize=args.p, targetFraction=self.targetFraction)
+            names_bounds[0], names_bounds[1], popsize=args.p)
         yield self.p.setup().addErrback(oops)
         reporter = Reporter(self.ev, self.p)
         self.p.addCallback(reporter)
@@ -389,11 +284,10 @@ class Runner(object):
 
 args = Args(
     """
-    Thermistor Temp vs resistance parameter finder using
-    Differential Evolution.
+    ... parameter finder using Differential Evolution.
 
-    Downloads a compressed CSV file of real thermistor data points
-    from edsuom.com to the current directory (if it's not already
+    Downloads a compressed CSV file of real VOC data points from
+    edsuom.com to the current directory (if it's not already
     present). The data points and the current best-fit curves are
     plotted in the PNG file (also in the current directory)
     pfinder.png. You can see the plots, automatically updated, with
@@ -412,7 +306,7 @@ args('-r', '--random-base', "Use DE/rand/1 instead of DE/best/1")
 args('-n', '--not-adaptive', "Don't use automatic F adaptation")
 args('-u', '--uniform', "Initialize population uniformly instead of with LHS")
 args('-N', '--N-cores', 0, "Limit the number of CPU cores")
-args('-l', '--logfile', "thermistor.log", "Logfile for (over)writing results")
+args('-l', '--logfile', "voc.log", "Logfile for (over)writing results")
 args('-s', '--stdout', "Write to STDOUT instead of logfile")
 
 
