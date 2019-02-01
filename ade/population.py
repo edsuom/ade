@@ -520,9 +520,7 @@ class Population(object):
 
         - I{func}: A callable to which an L{Individual} can send its
           parameter values and from which it receives a sum-of-squared
-          error float value as a result. The callable must accept a
-          single 1-D Numpy array as its sole argument and return the
-          sum of squared errors (SSE) as a single float value.
+          error float value as a result.
 
         - I{names}: A sequence of parameter names.
 
@@ -530,6 +528,12 @@ class Population(object):
           name. The first element of each tuple is the lower bound of
           a parameter in the second the upper bound.
 
+    The callable I{func} must accept a single 1-D Numpy array as its
+    sole argument and return the sum of squared errors (SSE) as a
+    single float value. To shut down I{ade}, it can return a negative
+    SSE value. If I{ade} is shutting down, it will use I{None} as the
+    argument, and the callable should act accordingly.
+    
     @keyword constraints: A list of callables that enforce any
         constraints on your parameter values. See
         L{ParameterManager.passesConstraints}.
@@ -592,7 +596,7 @@ class Population(object):
         """
         def evalFunc(values):
             if self.running is False:
-                return defer.succeed(-1)
+                values = None
             return defer.maybeDeferred(func, values)
 
         if not callable(func):
@@ -738,10 +742,13 @@ class Population(object):
         """
         self.running = False
         if not ignoreReporter:
+            msg("Shutting down reporter")
             self.reporter.abort()
         # This next little line may run a bunch of stuff that was
         # waiting for locks
+        msg("Releasing locks")
         self.release()
+        msg("Population object stopped")
     
     @defer.inlineCallbacks
     def setup(self, uniform=False, blank=False, filePath=None):
