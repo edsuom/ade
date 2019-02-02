@@ -46,6 +46,7 @@ class RowManager(object):
 
     I can iterate over the parameter names, in order.
     """
+    maxRows = 40
     reRange = re.compile(r'([a-zA-Z_]+)([0-9]+)\-([0-9]+)$')
     
     def __init__(self, names):
@@ -138,6 +139,7 @@ class RowManager(object):
         """
         bestSSE = np.min(self.SSE)
         K = np.flatnonzero(self.SSE <= maxRatio*bestSSE)
+        K = K[-self.maxRows:]
         self.SSE = self.SSE[K]
         self.values = self.values[K]
         self.stars = self.stars[K]

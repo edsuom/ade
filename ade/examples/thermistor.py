@@ -315,7 +315,7 @@ class Runner(object):
     the instance when it starts. Then start the reactor and watch the
     fun.
 
-    @cvar targetFraction: Normally 4%, but set much lower in this
+    @cvar targetFraction: Normally 3%, but set much lower in this
         example (0.5%) because real improvements seem to be made in
         this example even with low improvement scores. I think that
         behavior has something to do with all the independent
@@ -355,7 +355,8 @@ class Runner(object):
         to be evaluated for fitness.
         """
         if values is None:
-            return self.shutdown()
+            # Shutting down, don't try to evaluate
+            return defer.succeed(None)
         values = list(values)
         if self.q: return self.q.call(self.ev, values)
     

@@ -135,4 +135,4 @@ class Data(Picklable):
         Override this in your sublcass to set my I{weights} attribute to a
         1-D Numpy array of weights, one for each CSV file row.
         """
-        self.weights = np.ones(len(self.t))
+

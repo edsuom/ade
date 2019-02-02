@@ -365,10 +365,10 @@ class DifferentialEvolution(object):
         L{Population} object I{p} to shut it down ASAP.
         """
         if self.running:
+            reactor.removeSystemEventTrigger(self.triggerID)
             msg(0, "Shutting down DE...")
             self.running = False
             self.p.abort()
-            reactor.removeSystemEventTrigger(self.triggerID)
         
     def crossover(self, parent, mutant):
         """

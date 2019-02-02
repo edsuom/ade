@@ -69,23 +69,9 @@ class BatteryData(Data):
         server), is plain vanilla server logs with “referral” info
         about which web page sent you to this one.
 
-    @ivar weights: A 1-D array of weights for each row in that array.
-
     @see: The L{Data} base class.
     """
     basename = "voc"
-    
-    def plot(self):
-        """
-        Plots my data with annotations.
-        """
-        pp = Plotter(1, width=12, height=10)
-        pp.add_plotKeyword('markersize', 1)
-        pp.add_marker('.')
-        with pp as p:
-            p.set_title("Open-Circuit Voltage over Time")
-            p(self.t, self.X[:,0])
-        pp.show()
 
 
 class Reporter(object):
@@ -103,6 +89,7 @@ class Reporter(object):
     """
     plotFilePath = "voc.png"
     N_curve_plot = 200
+    extrapolationMultiple = 3
 
     def __init__(self, evaluator, population):
         """
@@ -111,31 +98,50 @@ class Reporter(object):
         self.ev = evaluator
         self.prettyValues = population.pm.prettyValues
         self.pt = Plotter(
-            1, filePath=self.plotFilePath, width=15, height=10)
+            2, filePath=self.plotFilePath, width=15, height=10)
         self.pt.set_grid()
-        self.pt.add_marker(',')
-    
+        self.pt.set_timex()
+
     def __call__(self, values, counter, SSE):
+        """
+        Prints out a new best parameter combination and its curve vs
+        observations, with lots of extrapolation to the right.
+        """
         def titlePart(*args):
             titleParts.append(sub(*args))
 
         SSE_info = sub("SSE={:g}", SSE)
-        msg(0, self.prettyValues(values, SSE_info+", with"), 0)
-        V = self.ev.X[:,0]
         titleParts = []
         titlePart("Voltage vs Time (sec)")
         titlePart(SSE_info)
         titlePart("k={:d}", counter)
-        with self.pt as p:
-            p.set_timex()
-            t = self.ev.t
-            ax = p(t, self.ev.X[:,0])
-            # Plot current best-fit curve, with lots of extrapolation
-            # to the right
-            t = np.linspace(t.min(), 2*t.max(), self.N_curve_plot)
-            V_curve = self.ev.curve(t, *values)
-            ax.plot(t, V_curve, 'r-')
         self.pt.set_title(", ".join(titleParts))
+        msg(0, self.prettyValues(values, SSE_info+", with"), 0)
+        with self.pt as sp:
+            t = self.ev.t
+            V = self.ev.X[:,0]
+            # Model versus observations
+            sp.add_line('-', 1)
+            sp.set_ylabel("V")
+            sp.set_zeroLine(values[-1])
+            sp.add_annotation(0, "Battery disconnect")
+            sp.add_annotation(-1, "Last observation")
+            sp.add_textBox("NE", "Estimated VOC: {:.2f} V", values[-1])
+            ax = sp(t, V)
+            tm = np.linspace(
+                t.min(), self.extrapolationMultiple*t.max(), self.N_curve_plot)
+            V_curve = self.ev.curve(tm, *values)
+            ax.plot(tm, V_curve, 'ro', markersize=2)
+            # Residuals
+            res = self.ev.curve(t, *values) - V
+            sp.set_ylabel("dV")
+            sp.set_zeroLine()
+            k = np.argmax(np.abs(res[2:])) + 2
+            resPercentage = 100 * res[k]/V[k]
+            sp.add_annotation(
+                k, "Worst non-initial residual: {:+.1f}V ({:+.2f}%)",
+                res[k], resPercentage)
+            sp(t, res)
         self.pt.show()
 
 
@@ -149,17 +155,22 @@ class Evaluator(Picklable):
     parameter values for a L{curve} to get a (deferred)
     sum-of-squared-error fitness of the curve to the thermistor data.
     """
+    scale_SSE = 100
     bounds = {
-        'a1':   (0.0,      20.0),
-        'b1':   (1.0,      100.0),
-        'c1':   (1.0,      500.0),
-        'a2':   (0.0,      20.0),
-        'b2':   (50.0,     10000.0),
-        'c2':   (1.0,      10000.0),
-        'a3':   (0.0,      10.0),
-        'b3':   (500.0,    20000.0),
-        'c3':   (1.0,      20000.0),
-        'voc':  (40.0,     55.0),
+        # Initial rapid drop with up to 5 minute time constant
+        'a1':   (0,      40),
+        'b1':   (1,      5*60),
+        'c1':   (1,      200),
+        # Middle drop with 30 min to 2 hour time constant
+        'a2':   (0,      600),
+        'b2':   (30*60,  2*3600),
+        'c2':   (50,     1000),
+        # Slow settling with 1-10 hour time constant
+        'a3':   (0,      600),
+        'b3':   (3600,   10*3600),
+        'c3':   (100,    4000),
+        # A bit beyond the extremes for VOC of an AGM lead acid battery
+        'voc':  (45,     54),
     }
 
     def setup(self):
@@ -171,7 +182,7 @@ class Evaluator(Picklable):
         parameter name.
         """
         def done(null):
-            for name in ('t', 'X', 'weights'):
+            for name in ('t', 'X'):
                 setattr(self, name, getattr(data, name))
             return names, bounds
 
@@ -206,7 +217,7 @@ class Evaluator(Picklable):
         """
         V = self.X[:,0]
         V_curve = self.curve(self.t, *values)
-        return np.sum(self.weights * np.square(V_curve - V))
+        return self.scale_SSE * np.sum(np.square(V_curve - V))
 
         
 class Runner(object):

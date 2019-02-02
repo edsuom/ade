@@ -441,6 +441,13 @@ class Reporter(object):
         If I{other} is C{None} and I{i} is worst than my best
         L{Individual}, calls L{msgRatio} with I{i} vs. the best
         individual to get the ratio of how much worse I{i} is than it.
+
+        Prints a progress character to STDOUT or the log indicating
+        the improvement, adding a "+" if I{i} is a new best
+        individual. A new best individual, no matter how small the
+        ratio, adds a small bonus to my L{Population} object's
+        replacements score, equivalent to a rounded improvement ratio
+        of 1.
         """
         if iOther is None:
             if self.iBest is None:
@@ -467,6 +474,8 @@ class Reporter(object):
             if self.iBest is None or i < self.iBest:
                 self.newBest(i)
                 self.progressChar("+")
+                # Bonus rir
+                self.p.replacement(1)
         return result
     
     def __call__(self, i=None, iOther=None):
@@ -566,7 +575,7 @@ class Population(object):
     @ivar targetFraction: The desired total score of improvements in
         each iteration in order for I{ade}'s adaptive algorithm to not
         change the current differential weight. See L{replacement} and
-        L{FManager} for details. The default is 4%, which works out to
+        L{FManager} for details. The default is 3%.
 
     @ivar debug: Set C{True} to show individuals getting
         replaced. (Results in a very messy log or console display.)
@@ -582,7 +591,7 @@ class Population(object):
     Np_min = 20
     Np_max = 500
     N_maxParallel = 10
-    targetFraction = 0.04
+    targetFraction = 0.03
     debug = False
     spew = False
     
@@ -975,6 +984,7 @@ class Population(object):
         does a call to L{replacement} with it if the new individual is
         better.
         """
+        if self.running is False: return
         ratio = self.reporter(iNew, iOld)
         if ratio: self.replacement(ratio)
 
@@ -1026,7 +1036,12 @@ class Population(object):
 
         Release the locks (as soon as possible) by calling L{release}
         with the indices that are locked.
+
+        If I'm shutting down, the returned C{Deferred} fires
+        immediately.
         """
+        if self.running is False:
+            return defer.succeed(None)
         if self.spew:
             # NOT PYTHON 3 COMPATIBLE!
             print "\nLOCK", indices
