@@ -38,7 +38,7 @@ nonlinear best-fit curve, with digital filtering to match thermal time
 constants using the model implemented by L{Evaluator.curve}.
 """
 
-import time, os.path
+import time
 
 import numpy as np
 from scipy import signal
@@ -331,7 +331,7 @@ class Runner(object):
         self.ev = Evaluator()
         N = args.N if args.N else ProcessQueue.cores()-1
         self.q = ProcessQueue(N, returnFailure=True)
-        self.fh = True if args.s else open(os.path.expanduser(args.l), 'w')
+        self.fh = open("thermistor.log", 'w') if args.l else True
         msg(self.fh)
 
     @defer.inlineCallbacks
@@ -413,8 +413,8 @@ args('-r', '--random-base', "Use DE/rand/1 instead of DE/best/1")
 args('-n', '--not-adaptive', "Don't use automatic F adaptation")
 args('-u', '--uniform', "Initialize population uniformly instead of with LHS")
 args('-N', '--N-cores', 0, "Limit the number of CPU cores")
-args('-l', '--logfile', "thermistor.log", "Logfile for (over)writing results")
-args('-s', '--stdout', "Write to STDOUT instead of logfile")
+args('-l', '--logfile',
+     "Write results to logfile 'thermistor.log' instead of STDOUT")
 
 
 def main():

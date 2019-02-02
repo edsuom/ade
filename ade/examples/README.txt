@@ -19,6 +19,7 @@ asynchronous multi-processing, but it still runs about twice as fast
 with four CPU cores as it does with one.
 
 
+
 II. Nonlinear curve fitting of temperature versus resistance curves of
 six thermistors.
 -------------------------------------------------------------------------
@@ -32,3 +33,19 @@ at it see the curve fit progressing.
 
 On Linux, the qiv image viewer works great for this:
 $ qiv -Te thermistor.png &
+
+
+
+III. Parameter finder for AGM lead-acid battery open-circuit voltage
+model
+-------------------------------------------------------------------------
+
+To see options, run
+$ python voc.py -h
+
+If you run the command without -h, you should see an image file
+voc.png appear and get updated from time to time. Take a look
+at it see the curve fit progressing.
+
+On Linux, the qiv image viewer works great for this:
+$ qiv -Te voc.png &
