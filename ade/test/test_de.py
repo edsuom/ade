@@ -144,6 +144,9 @@ class TestDifferentialEvolution(tb.TestCase):
         self.de = de.DifferentialEvolution(self.p, maxiter=35)
         yield self.p.setup()
 
+    def tearDown(self):
+        return self.de.shutdown()
+        
     @defer.inlineCallbacks
     def test_crossover(self):
         def doCrossovers(CR):

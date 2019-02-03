@@ -212,10 +212,20 @@ class Keyboard(basic.LineReceiver):
     def __init__(self, de):
         self.de = de
         self.setRawMode()
+        self.d = defer.Deferred()
+
+    def shutdown(self):
+        self.transport.loseConnection()
+        return self.d
         
     def rawDataReceived(self, data):
         self.de.shutdown()
 
+    def connectionLost(self, reason):
+        basic.LineReceiver.connectionLost(self, reason)
+        if not self.d.called:
+            self.d.callback(None)
+        
             
 class DifferentialEvolution(object):
     """
@@ -338,7 +348,8 @@ class DifferentialEvolution(object):
         fh = kw['logHandle'] if 'logHandle' in kw else True
         msg(fh)
         # Receive keystrokes
-        stdio.StandardIO(Keyboard(self))
+        self.kb = Keyboard(self)
+        stdio.StandardIO(self.kb)
         # Report on initial population
         self.p.reporter()
         for name in self.attributes:
@@ -369,6 +380,8 @@ class DifferentialEvolution(object):
             msg(0, "Shutting down DE...")
             self.running = False
             self.p.abort()
+            return self.kb.shutdown()
+        return defer.succeed(None)
         
     def crossover(self, parent, mutant):
         """
