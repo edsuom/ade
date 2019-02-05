@@ -33,7 +33,7 @@ from setuptools import setup
 required = [
     'Twisted', 'numpy', 'scipy', 'matplotlib', 'pydoe',
     # Other EAS projects
-    'AsynQueue>=0.9.5'
+    'AsynQueue>=0.9.6'
 ]
 
 
