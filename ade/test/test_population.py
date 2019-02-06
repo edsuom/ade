@@ -347,16 +347,25 @@ class TestPopulation(tb.TestCase):
         self.assertTrue(self.p.replacement())
         self.assertEqual(self.p.replacementScore, 0)
         self.assertFalse(self.p.replacement())
-        self.assertAlmostEqual(self.p.statusQuoScore, self.p.Np*4.0/100)
+        self.assertAlmostEqual(self.p.statusQuoScore, self.p.Np*3.0/100)
+        # 0 x 1
         self.p.replacement(0)
         self.assertEqual(self.p.replacementScore, 0)
         self.assertFalse(self.p.replacement())
+        # 1 x 1
         self.p.replacement(1)
         self.assertEqual(self.p.replacementScore, 0.25)
         self.assertFalse(self.p.replacement())
+        # 1 x 2
+        self.p.replacement(1)
+        self.p.replacement(1)
+        self.assertEqual(self.p.replacementScore, 0.50)
+        self.assertFalse(self.p.replacement())
+        # 2 x 1
         self.p.replacement(2)
         self.assertEqual(self.p.replacementScore, 1.25)
-        self.assertFalse(self.p.replacement())
+        self.assertTrue(self.p.replacement())
+        # 2 x 2
         self.p.replacement(2)
         self.p.replacement(2)
         self.assertEqual(self.p.replacementScore, 2.5)

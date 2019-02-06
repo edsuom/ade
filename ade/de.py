@@ -38,8 +38,7 @@ import numpy as np
 from pyDOE import lhs
 from scipy import stats
 
-from twisted.protocols import basic
-from twisted.internet import defer, task, reactor, stdio
+from twisted.internet import defer, task, reactor, stdio, protocol
 
 from population import Population
 from util import *
@@ -204,28 +203,23 @@ class FManager(object):
             self.lowest = scaleUp(lowest, self.scales[0], self.origLowest)
 
 
-class Keyboard(basic.LineReceiver):
+class Keyboard(protocol.Protocol):
     """
     Receives STDIN. Pressing the enter key which will cause I{ade} to
     quit.
     """
     def __init__(self, de):
         self.de = de
-        self.setRawMode()
-        self.d = defer.Deferred()
 
     def shutdown(self):
+        """
+        Cleanly shuts me down. Repeated calls have no effect.
+        """
         self.transport.loseConnection()
-        return self.d
-        
-    def rawDataReceived(self, data):
+
+    def dataReceived(self, data):
         self.de.shutdown()
 
-    def connectionLost(self, reason):
-        basic.LineReceiver.connectionLost(self, reason)
-        if not self.d.called:
-            self.d.callback(None)
-        
             
 class DifferentialEvolution(object):
     """
@@ -380,8 +374,7 @@ class DifferentialEvolution(object):
             msg(0, "Shutting down DE...")
             self.running = False
             self.p.abort()
-            return self.kb.shutdown()
-        return defer.succeed(None)
+            self.kb.shutdown()
         
     def crossover(self, parent, mutant):
         """
@@ -551,10 +544,13 @@ class DifferentialEvolution(object):
                         msg(-1, "Challengers failing too much, stopped.")
                         break
         else: msg(-1, "Maximum number of iterations reached.")
-        # File report for best individual
         if self.running:
+            # File report for best individual and shutdown
             self.p.report()
             yield self.p.waitForReports()
-            defer.returnValue(self.p)
-        else: msg("DifferentialEvolution object stopped.")
-        msg(None)
+            self.shutdown()
+        # "Return" value is the population object
+        msg("DE shutdown complete.")
+        defer.returnValue(self.p)
+
+        

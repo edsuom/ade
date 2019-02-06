@@ -747,7 +747,11 @@ class Population(object):
 
     def abort(self, ignoreReporter=False):
         """
-        Aborts my operations ASAP.
+        Aborts my operations ASAP. Repeated calls will release any
+        locks that got acquired since the last call.
+
+        L{Reporter.abort} calls this with I{ignoreReporter} set
+        C{True} to avoid infinite recursion.
         """
         self.running = False
         if not ignoreReporter:
@@ -1061,6 +1065,15 @@ class Population(object):
         If no indices are supplied, releases all active locks. (This
         is for aborting only.)
         """
+        # TODO: Figure out why calling this during an abort sometimes causes
+        # ------------------------------------------------------------------------
+        # Exception RuntimeError: 'maximum recursion depth exceeded while calling
+        #  a Python object' in <bound method DebugInfo.__del__ of
+        # <twisted.internet.defer.DebugInfo instance at 0x7f985c875758>> ignored
+        #
+        # Probably not coincidentally, when this happens, abort
+        # doesn't work. Instead, it hangs at one of the dLock
+        # releases.
         def spew():
             # NOT PYTHON 3 COMPATIBLE!
             print "\nRELEASING",
