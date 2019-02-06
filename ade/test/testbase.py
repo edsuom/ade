@@ -84,9 +84,13 @@ def realAckley(X):
     z += -np.exp(0.5*(np.sum(np.cos(2*np.pi*X))))
     return z + np.e + 20
 
+EVAL_COUNT = [0]
 def ackley(X):
-    return threads.deferToThread(realAckley, X).addErrback(oops)
-    
+    def done(result):
+        EVAL_COUNT[0] += 1
+        return result
+    return threads.deferToThread(realAckley, X).addCallbacks(done, oops)
+
 
 class MsgBase(object):
     """

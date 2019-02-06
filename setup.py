@@ -33,12 +33,12 @@ from setuptools import setup
 required = [
     'Twisted', 'numpy', 'scipy', 'matplotlib', 'pydoe',
     # Other EAS projects
-    'AsynQueue>=0.9.6'
+    'AsynQueue>=0.9.7'
 ]
 
 
 ### Define setup options
-kw = {'version': '1.1.0',
+kw = {'version': '1.2.0',
       'license': 'Apache License (2.0)',
       'platforms': 'OS Independent',
 
@@ -65,6 +65,7 @@ kw = {'version': '1.1.0',
           ],
       },
       'zip_safe': True,
+      'long_description_content_type': "text/markdown",
 }
 
 kw['keywords'] = [

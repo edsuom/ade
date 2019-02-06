@@ -31,7 +31,7 @@ line in a console, pressing the Enter key will cause it to run its
 L{shutdown} method and quit running.
 """
 
-import random
+import signal, random
 from copy import copy
 
 import numpy as np
@@ -205,10 +205,13 @@ class FManager(object):
 
 class Keyboard(protocol.Protocol):
     """
-    Receives STDIN. Pressing the enter key which will cause I{ade} to
+    Receives STDIN. Pressing the Enter key which will cause I{ade} to
     quit.
     """
     def __init__(self, de):
+        """
+        C{Keyboard(de)}
+        """
         self.de = de
 
     def shutdown(self):
@@ -218,16 +221,28 @@ class Keyboard(protocol.Protocol):
         self.transport.loseConnection()
 
     def dataReceived(self, data):
+        """
+        Shuts down the L{DifferentialEvolution} instance I serve whenever
+        data is received, e.g., the Enter key is pressed.
+        """
         self.de.shutdown()
+
+
+class AbortError(Exception):
+    """
+    L{DifferentialEvolution.shutdown} sends one of these to the
+    errback of a C{DeferredList} to ensure that it aborts.
+    """
 
             
 class DifferentialEvolution(object):
     """
-    Asynchronous Differential Evolution: The foundational object.
+    B{A}synchronous B{D}ifferential B{E}volution: The foundational
+    object.
 
     I perform differential evolution asynchronously, employing your
-    multiple CPU cores in a very cool efficient way that does not
-    change anything about the actual operations done in the DE
+    multiple CPU cores or CPUs in a very cool efficient way that does
+    not change anything about the actual operations done in the DE
     algorithm. The very same target selection, mutation, scaling, and
     recombination (crossover) will be done for a sequence of each
     target in the population, just as it is with a DE algorithm that
@@ -337,6 +352,8 @@ class DifferentialEvolution(object):
     def __init__(self, population, **kw):
         """C{DifferentialEvolution(population, **kw)}"""
         self.p = population
+        # Since ^C doesn't work properly, let's just ignore it entirely
+        signal.signal(signal.SIGINT, signal.SIG_IGN)
         # Log to an open file handle if provided (no logging if file
         # handle is None), otherwise to STDOUT
         fh = kw['logHandle'] if 'logHandle' in kw else True
@@ -357,6 +374,7 @@ class DifferentialEvolution(object):
         self.triggerID = reactor.addSystemEventTrigger(
             'before', 'shutdown', self.shutdown)
         self.running = True
+        self.dChallenges = None
 
     def shutdown(self):
         """
@@ -375,6 +393,8 @@ class DifferentialEvolution(object):
             self.running = False
             self.p.abort()
             self.kb.shutdown()
+            if self.dChallenges and not self.dChallenges.called:
+                self.dChallenges.errback(AbortError())
         
     def crossover(self, parent, mutant):
         """
@@ -504,9 +524,16 @@ class DifferentialEvolution(object):
         better with each generation, I will continue to run, even with
         tiny overall improvements.
         """
+        def failed(failureObj):
+            if failureObj.type == AbortError:
+                return
+            info = failureObj.getTraceback()
+            msg(-1, "Error during challenges:\n{}\n{}\n", '-'*40, info)
+        
         self.dwellCount = 0
         desc = sub("DE/{}/1/bin", "rand" if self.randomBase else "best")
         msg("Performing DE with CR={}, F={}, {}", self.CR, self.fm, desc, '-')
+        msg("Press the 'Enter' key to abort.")
         # Evolve!
         for kg in range(self.maxiter):
             self.p.reporter.progressChar()
@@ -525,12 +552,18 @@ class DifferentialEvolution(object):
                     # We must be shutting down, abort loop now
                     self.shutdown()
                     break
-                d = self.challenge(kt, kb)#.addErrback(oops)
+                d = self.challenge(kt, kb)
                 dList.append(d)
                 if not self.running: break
             else:
-                # Only run if no abort
-                yield defer.DeferredList(dList)
+                # Only wait for the challenges if there was no abort,
+                # and abort if any challenge results in a failure
+                self.dChallenges = defer.DeferredList(
+                    dList, fireOnOneErrback=True).addErrback(failed)
+                result = yield self.dChallenges
+                self.dChallenges = None
+                if result is None:
+                    self.shutdown()
             if not self.running: break
             if self.p.replacement():
                 # There was enough overall improvement to warrant

@@ -198,11 +198,16 @@ class Reporter(object):
     @see: L{__call__}.
 
     @keyword complaintCallback: Set to a callable that accepts an
-        C{Individual} instance and the result of a callback function
+        L{Individual} instance and the result of a callback function
         that may complain about the individual whose values and SSE
         were reported to it.
+
+    @cvar minDiff: The minimum fractional difference between a new
+        best individual's SSE and that of the previous best individual
+        for a report to be filed about the new one. The default is
+        0.02, or at least a 2% improvement required.
     """
-    minDiff = 0.01
+    minDiff = 0.02
 
     def __init__(self, population, complaintCallback=None):
         self.p = population
@@ -245,8 +250,7 @@ class Reporter(object):
         Returns C{True} if the SSE of individual I{iBetter} is not
         significantly different than that of individual I{iWorse}.
 
-        What is "significant" is defined by my I{minDiff} attribute,
-        which defaults to 0.01, or a 1% difference required.
+        What is "significant" is defined by my I{minDiff} attribute.
         """
         if iBetter is None or iWorse is None:
             return False
@@ -272,6 +276,9 @@ class Reporter(object):
         I{complaintCallback} is set to a callable (must accept the
         individual and the complainer's returned result as its two
         args), that will be called instead of the debugger.
+
+        If the callback had an error, it is logged, processing of any
+        further callbacks is halted, and I get aborted.
 
         @keyword iPrevBest: Set to the previous best individual to
             allow for it to be restored to its rightful place if a
@@ -378,7 +385,7 @@ class Reporter(object):
 
         "Equivalent" means a call to L{isEquivSSE} determines that the
         two individuals have SSEs with a fractional difference less
-        than my I{minDiff} attribute (default 1%).
+        than my I{minDiff} attribute.
 
         Otherwise returns the rounded integer ratio of numerator SSE
         divided by denominator SSE.
@@ -920,8 +927,8 @@ class Population(object):
             (2/5 to 2/3 as high as) the individual it replaced.
 
             I don't give much weight to an I{rir} of 1. The
-            improvement is pretty modest and could be as little as 1%
-            (assuming C{Reporter.minDiff}=0.01, the default). An
+            improvement is pretty modest and could be as little as 2%
+            (assuming C{Reporter.minDiff}=0.02, the default). An
             I{rir} of 2 gets five times as much weight as that.
 
             An I{rir} of 3 also gets disproportionately more weight,
@@ -1062,15 +1069,6 @@ class Population(object):
         If no indices are supplied, releases all active locks. (This
         is for aborting only.)
         """
-        # TODO: Figure out why calling this during an abort sometimes causes
-        # ------------------------------------------------------------------------
-        # Exception RuntimeError: 'maximum recursion depth exceeded while calling
-        #  a Python object' in <bound method DebugInfo.__del__ of
-        # <twisted.internet.defer.DebugInfo instance at 0x7f985c875758>> ignored
-        #
-        # Probably not coincidentally, when this happens, abort
-        # doesn't work. Instead, it hangs at one of the dLock
-        # releases.
         def tryRelease(dLock):
             if dLock.locked:
                 dLock.release()

@@ -132,7 +132,11 @@ class TestFManager(tb.TestCase):
         self.fm = de.FManager(F_orig, 0.9, 100, False)
         self.fm.down()
         self.checkVariate(F_orig)
-            
+
+
+class FakeException(Exception):
+    pass
+
                 
 class TestDifferentialEvolution(tb.TestCase):
     @defer.inlineCallbacks
@@ -143,9 +147,10 @@ class TestDifferentialEvolution(tb.TestCase):
             [(-5, 5)]*Nd, popsize=Np/Nd)
         self.de = de.DifferentialEvolution(self.p, maxiter=35)
         yield self.p.setup()
+        tb.EVAL_COUNT[0] = 0
 
     def tearDown(self):
-        return self.de.shutdown()
+        self.de.shutdown()
         
     @defer.inlineCallbacks
     def test_crossover(self):
@@ -187,14 +192,41 @@ class TestDifferentialEvolution(tb.TestCase):
         yield self.de.challenge(10, 11)
         self.assertEqual(self.p.kBest, 10)
         self.assertEqual(self.p.individuals(10), i10)
-
+        
     @defer.inlineCallbacks
     def test_call(self):
         yield self.makeDE(20, 2)
         p = yield self.de()
+        self.assertEqual(tb.EVAL_COUNT[0], 709)
         x = p.best()
         self.assertAlmostEqual(x[0], 0, 4)
         self.assertAlmostEqual(x[1], 0, 4)
+
+    @defer.inlineCallbacks
+    def test_call_challenge_failure(self):
+        def challengeWrapper(kt, kb):
+            count[0] += 1
+            print "CW", count
+            if count[0] == 5:
+                return defer.fail(failure.Failure(FakeException()))
+            return orig_challenge(kt, kb).addCallback(done)
+
+        def done(result):
+            count[1] += 1
+            return result
+
+        count = [0, 0]
+        yield self.makeDE(20, 2)
+        orig_challenge = self.de.challenge
+        self.patch(self.de, 'challenge', challengeWrapper)
+        p = yield self.de()
+        self.assertEqual(tb.EVAL_COUNT[0], 0)
+        self.assertLess(count[1], 19)
+        self.assertIsInstance(p, Population)
+        # This little delay is needed for some reason to avoid the
+        # FakeException being logged as an error
+        yield self.deferToDelay(0.05)
+        self.flushLoggedErrors()
 
     @defer.inlineCallbacks
     def test_abort_during_setup(self):
@@ -248,4 +280,4 @@ class Test_Abort(tb.TestCase):
         t = 0.1 + 0.3*np.random.random()
         self.deferToDelay(t).addCallback(lambda _: self.de.shutdown())
         yield d
-        self.assertLess(time.time()-t0, t+0.2)
+        self.assertLess(time.time()-t0, t+0.25)

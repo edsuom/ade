@@ -157,17 +157,17 @@ class Evaluator(Picklable):
     """
     scale_SSE = 100
     bounds = {
-        # Initial rapid drop with up to 5 minute time constant
+        # Initial rapid drop with up to 10 minute time constant
         'a1':   (0,      40),
-        'b1':   (1,      5*60),
+        'b1':   (1,      10*60),
         'c1':   (1,      200),
-        # Middle drop with 30 min to 2 hour time constant
+        # Middle drop with 20 min to 2 hour time constant
         'a2':   (0,      600),
-        'b2':   (30*60,  2*3600),
+        'b2':   (20*60,  2*3600),
         'c2':   (50,     1000),
-        # Slow settling with 1-10 hour time constant
-        'a3':   (0,      600),
-        'b3':   (3600,   10*3600),
+        # Slow settling with 1-12 hour time constant
+        'a3':   (0,      800),
+        'b3':   (3600,   12*3600),
         'c3':   (100,    4000),
         # A bit beyond the extremes for VOC of an AGM lead acid battery
         'voc':  (45,     54),
@@ -281,12 +281,13 @@ class Runner(object):
         de = DifferentialEvolution(
             self.p,
             CR=args.C, F=F, maxiter=args.m,
-            randomBase=args.r, uniform=args.u, adaptive=not args.n,
-            bitterEnd=args.b, logHandle=self.fh, dwellByGrave=12)
+            randomBase=not args.b, uniform=args.u,
+            adaptive=not args.n, bitterEnd=True, logHandle=self.fh)
         yield de()
         yield self.shutdown()
         msg(0, "Final population:\n{}", self.p)
         msg(0, "Elapsed time: {:.2f} seconds", time.time()-t0, 0)
+        msg(None)
         reactor.stop()
 
     def run(self):
@@ -309,12 +310,11 @@ args = Args(
     Press the Enter key to quit early.
     """
 )
-args('-m', '--maxiter', 2000, "Maximum number of DE generations to run")
-args('-p', '--popsize', 10, "Population: # individuals per unknown parameter")
+args('-m', '--maxiter', 800, "Number of DE generations to run")
+args('-p', '--popsize', 20, "Population: # individuals per unknown parameter")
 args('-C', '--CR', 0.8, "DE Crossover rate CR")
 args('-F', '--F', "0.5,1.0", "DE mutation scaling F: two values for range")
-args('-b', '--bitter-end', "Keep working to the end even with little progress")
-args('-r', '--random-base', "Use DE/rand/1 instead of DE/best/1")
+args('-b', '--best', "Use DE/best/1 instead of DE/rand/1")
 args('-n', '--not-adaptive', "Don't use automatic F adaptation")
 args('-u', '--uniform', "Initialize population uniformly instead of with LHS")
 args('-N', '--N-cores', 0, "Limit the number of CPU cores")
