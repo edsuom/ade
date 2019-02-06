@@ -214,9 +214,7 @@ class Reporter(object):
         self.cbrInProgress = False
         self.cbrScheduled = Bag()
         self.dt = DeferredTracker()
-        self.lock = defer.DeferredLock()
         self._syms_on_line = 0
-        self.q = NullQueue(returnFailure=True)
 
     def abort(self):
         """
@@ -580,9 +578,6 @@ class Population(object):
     @ivar debug: Set C{True} to show individuals getting
         replaced. (Results in a very messy log or console display.)
 
-    @ivar spew: Set C{True} to show locks getting acquired and release
-        (hardcore debugging only). Set via source or subclass.
-    
     @ivar running: Indicates my run status: C{None} after
         instantiation but before L{setup}, C{True} after setup, and
         C{False} if I{ade} is aborting.
@@ -593,7 +588,6 @@ class Population(object):
     N_maxParallel = 10
     targetFraction = 0.03
     debug = False
-    spew = False
     
     def __init__(
             self, func, names, bounds,
@@ -777,13 +771,19 @@ class Population(object):
         perhaps many times. But it may still be better than uniform
         initial population sampling.
 
-        If I{blank} is set, the initial individuals are all given a
-        placeholder infinite SSE instead of being evaluated.
-
         TODO: Load from I{filePath}.
 
         Sets my I{running} flag C{True} and returns a C{Deferred} that
         fires when the population has been set up.
+        
+        @keyword uniform: Use uniform random variates instead of a
+            Latin hypercube (LHS). Using LHS (the default) is usually
+            better because initializes pseudorandom parameter values
+            with minimal clustering.
+
+        @keyword blank: Set C{True} to give the initial individuals an
+             infinite placeholder SSE instead of being evaluated.
+
         """
         def running():
             return self.running is not False
@@ -1046,9 +1046,6 @@ class Population(object):
         """
         if self.running is False:
             return defer.succeed(None)
-        if self.spew:
-            # NOT PYTHON 3 COMPATIBLE!
-            print "\nLOCK", indices
         dList = []
         for k in indices:
             if indices.count(k) > 1:
@@ -1074,29 +1071,16 @@ class Population(object):
         # Probably not coincidentally, when this happens, abort
         # doesn't work. Instead, it hangs at one of the dLock
         # releases.
-        def spew():
-            # NOT PYTHON 3 COMPATIBLE!
-            print "\nRELEASING",
-            for k in indices:
-                dLock = self.dLocks[k]
-                if dLock.locked:
-                    print self.dLocks.index(dLock),
-            stillLocked = ", ".join(
-                    [str(k) for k, x in enumerate(self.dLocks) \
-                     if x.locked and k not in indices])
-            if not stillLocked:
-                stillLocked = "--"
-            print sub("\nStill locked: {}", stillLocked)
-        
         def tryRelease(dLock):
             if dLock.locked:
                 dLock.release()
 
-        if not indices:
-            indices = range(len(self.dLocks))
-        if self.spew: spew()
-        for k in indices:
-            tryRelease(self.dLocks[k])
+        if indices:
+            for k in indices:
+                tryRelease(self.dLocks[k])
+            return
+        for dLock in self.dLocks:
+            tryRelease(dLock)
 
     def best(self):
         """

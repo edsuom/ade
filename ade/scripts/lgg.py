@@ -168,7 +168,7 @@ class Grepper(object):
             while keepLooping:
                 line = fh.readline()
                 if not line: break
-                match = self.reSSE.match(line)
+                match = self.reSSE.search(line)
                 if match:
                     SSE = float(match.group(1))
                     values, stars = self.rm.add(SSE)

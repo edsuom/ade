@@ -416,9 +416,6 @@ class TestPopulation(tb.TestCase):
 
 
 class TestPopulation_Abort(tb.TestCase):
-    # Hell if I know why
-    magic_coeff = 1.28
-    
     def setUp(self):
         self.p = population.Population(
             self.tenthSecond, ["x"], [(-5, 5)], popsize=100)
@@ -430,8 +427,9 @@ class TestPopulation_Abort(tb.TestCase):
     def test_setup_no_abort(self):
         t0 = time.time()
         yield self.p.setup()
-        self.assertWithinFivePercent(
-            time.time()-t0, self.magic_coeff*0.1*self.p.N_maxParallel)
+        t1 = time.time()
+        self.assertGreater(t1-t0, 0.1)
+        self.assertLess(t1-t0, 0.13*self.p.N_maxParallel)
     
     @defer.inlineCallbacks
     def test_abort_during_setup(self):
@@ -439,4 +437,4 @@ class TestPopulation_Abort(tb.TestCase):
         d = self.p.setup()
         self.deferToDelay(0.5).addCallback(lambda _: self.p.abort())
         yield d
-        self.assertWithinFivePercent(time.time()-t0, self.magic_coeff*0.5)
+        self.assertLess(time.time()-t0, 0.65)
