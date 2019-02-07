@@ -47,26 +47,44 @@ class RowManager(object):
     I can iterate over the parameter names, in order.
     """
     maxRows = 40
-    reRange = re.compile(r'([a-zA-Z_]+)([0-9]+)\-([0-9]+)$')
+    reNumRange = re.compile(r'([a-zA-Z0-9_]+?)([0-9]+)\-([0-9]+)$')
+    reLetterRange = re.compile(r'([a-zA-Z0-9_]+?)([a-z])\-([a-z])$')
+    letters = "abcdefghijklmnopqrstuvwxyz"
     
     def __init__(self, names):
+        self.setupNames(names)
+
+    def addRange(self, reObj, name, ranger):
+        match = reObj.match(name)
+        if match:
+            prefix = match.group(1)
+            suffixValues = ranger(match.group(2), match.group(3))
+            for x in suffixValues:
+                self.names.append(prefix+str(x))
+            return True
+        
+    def setupNames(self, names):
+        def numRange(n1, n2):
+            return range(int(match.group(2)), int(match.group(3))+1)
+        
+        def letterRange(c1, c2):
+            return self.letters[
+                self.letters.index(c1):self.letters.index(c2)+1]
+        
         self.names = []
         for name in names:
-            match = self.reRange.match(name)
-            if match:
-                prefix = match.group(1)
-                suffixValues = range(
-                    int(match.group(2)), int(match.group(3))+1)
-                for x in suffixValues:
-                    self.names.append(prefix+str(x))
-            else: self.names.append(name)
+            if self.addRange(self.reNumRange, name, numRange):
+                continue
+            if self.addRange(self.reLetterRange, name, letterRange):
+                continue
+            self.names.append(name)
         self.N = len(self.names)
         self.rp = {}
         self.indices = {}
         for k, name in enumerate(self.names):
             self.indices[name] = k
             self.rp[name] = re.compile(sub(
-                r'(^|\s){}\=([\+\-]?[0-9][0-9\.e\E\-\+]+)(\**)(\s|$)', name))
+                r'(^|\s){}\=([\+\-]?[0-9][0-9\.e\E\-\+]+)(\**)(\s|\>|$)', name))
         self.SSE = []
         self.values = []
         self.stars = []
@@ -218,10 +236,7 @@ class Grepper(object):
         lines = ["", (" "*self.colSep).join(parts)]
         lines.append("-" * (len(lines[-1])+2))
         # Rows
-        prevSSE = None
         for k, SSE in enumerate(self.rm.SSE):
-            if prevSSE and np.abs(SSE/prevSSE - 1.0) < 0.01: continue
-            prevSSE = SSE
             values = self.rm.values[k,:]
             stars = self.rm.stars[k,:]
             parts = [self.rj(SSE), " "*self.colSep]
