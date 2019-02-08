@@ -196,15 +196,15 @@ class Evaluator(Picklable):
     prefixes = "ABCD"
     prefix_bounds = {
         # Common to all thermistors
-        'A':   (1.0E-3,   1.2E-3),
-        'B':   (2.5E-4,   3E-4),
-        'C':   (8E-9,     1.5E-8),
-        'D':   (8E-9,     3E-8),
+        'A':   (8E-4,     1.4E-3),
+        'B':   (2E-4,     3E-4),
+        'C':   (1E-8,     2E-8),
+        'D':   (7E-9,     2E-8),
         # Per-thermistor relative variation, which is pretty
         # significant for the higher-order terms despite the fact that
         # all the thermistors are the same exact type of component.
-        'a':   (0.7,      1.25),
-        'b':   (0.7,      1.25),
+        'a':   (0.6,      1.4),
+        'b':   (0.6,      1.4),
         'c':   (0.05,     20.0),
         'd':   (0.05,     20.0),
     }

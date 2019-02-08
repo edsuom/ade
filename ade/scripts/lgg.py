@@ -65,7 +65,7 @@ class RowManager(object):
         
     def setupNames(self, names):
         def numRange(n1, n2):
-            return range(int(match.group(2)), int(match.group(3))+1)
+            return range(int(n1), int(n2)+1)
         
         def letterRange(c1, c2):
             return self.letters[
@@ -135,7 +135,7 @@ class RowManager(object):
 
     def addMatches(self, line, values, stars):
         """
-        Adds items for all parameters found in the supplied L{line} to the
+        Adds items for all parameters found in the supplied I{line} to the
         appropriate places in the supplied I{values} and I{stars}
         lists.
 

@@ -25,7 +25,8 @@
 
 """
 The L{Data} object handles downloading (if necessary),
-decompressing, and reading data files for the L{thermistor2} example.
+decompressing, and reading data files for the L{thermistor} and L{voc}
+examples.
 """
 
 import os.path, bz2

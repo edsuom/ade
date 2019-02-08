@@ -27,8 +27,8 @@
 L{DifferentialEvolution} and support staff.
 
 When an instance of C{DifferentialEvolution} is run on the command
-line in a console, pressing the Enter key will cause it to run its
-L{shutdown} method and quit running.
+line in a console, pressing the Enter key will cause it to run
+L{DifferentialEvolution.shutdown} and quit running.
 """
 
 import signal, random
@@ -384,7 +384,7 @@ class DifferentialEvolution(object):
         pressed.
         
         Sets my I{running} flag C{False}, which lets all my various
-        loops know that it's time to quit early. Calls L{abort} on my
+        loops know that it's time to quit early. Calls L{Population.abort} on my
         L{Population} object I{p} to shut it down ASAP.
         """
         if self.running:

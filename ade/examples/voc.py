@@ -115,9 +115,9 @@ class Reporter(object):
         titlePart("Voltage vs Time (sec)")
         titlePart(SSE_info)
         titlePart("k={:d}", counter)
-        self.pt.set_title(", ".join(titleParts))
         msg(0, self.prettyValues(values, SSE_info+", with"), 0)
         with self.pt as sp:
+            sp.set_title(", ".join(titleParts))
             t = self.ev.t
             V = self.ev.X[:,0]
             # Model versus observations
@@ -138,9 +138,6 @@ class Reporter(object):
             sp.set_zeroLine()
             k = np.argmax(np.abs(res[2:])) + 2
             resPercentage = 100 * res[k]/V[k]
-            sp.add_annotation(
-                k, "Worst non-initial residual: {:+.1f}V ({:+.2f}%)",
-                res[k], resPercentage)
             sp(t, res)
         self.pt.show()
 
