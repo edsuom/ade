@@ -107,33 +107,24 @@ class Bag(object):
 class Messenger(object):
     """
     My module-level C{msg} instance writes messages to STDOUT or
-    another writable object.
+    another writable object in an extremely flexible
+    manner.
 
-    Call it with C{True} as the first or only argument to log to
-    STDOUT, or with an open file handle to log to that. Call with
-    C{False} or C{None} as the first or only argument to stop logging.
-
-    Call it with a string formatting prototype and the appropriate
-    number of formatting arguments to log a line of text. (Of course,
-    you can just supply the text with no formatting codes instead.)
-
-    You can precede the text or text proto/args with C{-1} to insert a
-    blank line before the text. Similarly, you can follow it with
-    C{-1} to append a blank line after the text. Or, you can follow it
-    with a single hyphen character ("-") to follow the text with a row
-    of hyphens as a separator.
+    My public API is mostly in L{__call__}, although L{writeLine},
+    L{writeChar}, and L{lineWritten} are public and can be useful on
+    their own.
     """
     N_dashes = 100
     
     def __init__(self):
         self.fh = None
         self.newlineNeeded = False
-        self._lineWritten = False
+        self._lineWasWritten = False
 
     def __nonzero__(self):
         return self.fh is not None
 
-    def dashes(self, breakBefore=False, breakAfter=False):
+    def _dashes(self, breakBefore=False, breakAfter=False):
         text = "\n" if breakBefore else ""
         text += "-" * self.N_dashes
         if breakAfter:
@@ -141,6 +132,15 @@ class Messenger(object):
         return text
     
     def writeLine(self, line):
+        """
+        Writes the supplied I{line} of text to my current writable object I{fh},
+        with a trailing newline.
+
+        If there's been a call to L{writeChar} since the last time
+        this method was called, a newline is written before I{line}.
+
+        If I{fh} is currently C{None}, nothing is written.
+        """
         if not self.fh:
             return
         self._lineWritten = True
@@ -150,19 +150,29 @@ class Messenger(object):
                 self.newlineNeeded = False
             self.fh.write(line + "\n")
             self.fh.flush()
-        except: self.fhSet(None)
+        except: self._fhSet(None)
 
     def writeChar(self, x):
+        """
+        Writes the single character I{x} to my current ratable object
+        I{fh}, with no newline.
+
+        Sets my I{newlineNeeded} flag to indicate that a newline is
+        needed before the next line of text gets written via
+        L{writeLine}.
+        
+        If I{fh} is currently C{None}, nothing is written.
+        """
         if not self.fh:
             return
         try:
             self.fh.write(x)
             self.fh.flush()
             self.newlineNeeded = True
-        except: self.fhSet(None)
+        except: self._fhSet(None)
         
-    def fhSet(self, arg):
-        def _fhSet(fh):
+    def _fhSet(self, arg):
+        def fhSet(fh):
             if fh is self.fh:
                 return fh
             fhPrev = self.fh
@@ -172,40 +182,74 @@ class Messenger(object):
             return fhPrev 
         
         if hasattr(arg, 'write'):
-            return _fhSet(arg)
+            return fhSet(arg)
         if isinstance(arg, bool):
-            return _fhSet(sys.stdout if arg else None)
+            return fhSet(sys.stdout if arg else None)
         if isinstance(arg, int):
             self.writeLine("\n"*arg)
             return
-        return _fhSet(None)
+        return fhSet(None)
 
     def lineWritten(self):
-        yes = self._lineWritten
-        self._lineWritten = False
+        """
+        Returns C{True} if a line was written since the last time this was
+        called.
+
+        The module-level call to make is C{msg.lineWritten()}.
+        """
+        yes = self._lineWasWritten
+        self._lineWasWritten = False
         return yes
     
     def __call__(self, *args, **kw):
+        """
+        A very convenient and flexible messaging method. Call at the
+        module level with C{msg}.
+
+        The module-level call to make is C{msg(...)}.
+        
+        Call with C{True} as the first or only argument to log to
+        STDOUT, or with an open file handle to log to that. Call with
+        C{False} or C{None} as the first or only argument to stop
+        logging. With a single argument, returns the previous file
+        handle.
+
+        Call it with a string formatting prototype and the appropriate
+        number of formatting arguments to log a line of text. (Of
+        course, you can just supply the text with no formatting codes
+        instead.)
+    
+        You can precede the text or text proto/args with C{0} or C{-1}
+        to insert a blank line before the text. Similarly, you can
+        follow it with C{0} or C{-1} to append a blank line after the
+        text.
+    
+        You can precede or follow the with a single hyphen character
+        ("-") to precede or follow the text with a row of hyphens as a
+        separator. (You can also do this with a numerical argument
+        immediately before or after.)
+    
+        Unless a single argument was supplied, returns the present
+        file handle.
+        """
         args = list(args)
         prefix = ""; suffix = ""
-        fhPrev = self.fh
+        fh = self.fh
         if args:
             if hasattr(args[0], 'write') or args[0] in (None, True, False):
-                fhPrev = self.fhSet(args.pop(0))
+                fh = self._fhSet(args.pop(0))
         if not args:
-            if fhPrev is sys.stdout:
-                return True
-            return fhPrev
+            return fh
         if len(args) == 1:
             arg = args[0]
             if not arg:
                 self.writeChar('\n')
             else:
-                text = self.dashes(True) if arg == '-' else arg
+                text = self._dashes(True) if arg == '-' else arg
                 if len(text) == 1:
                     self.writeChar(text)
                 else: self.writeLine(text)
-            return self
+            return self.fh
         for repeat in range(2):
             if isinstance(args[0], int):
                 if args[0] > 0:
@@ -213,19 +257,19 @@ class Messenger(object):
                 else:
                     prefix += '\n'
             elif args[0] == '-':
-                prefix += self.dashes(True, True)
+                prefix += self._dashes(True, True)
             else: break
             args.pop(0)
         N_braces = len(re.findall(r'\{[^\{]*\}', args[0]))
         while len(args) > N_braces + 1:
             if args[-1] == '-':
-                suffix += self.dashes(True)
+                suffix += self._dashes(True)
             elif args[-1] in (-1, 0):
                 suffix += "\n"
             else: break;
             args.pop()
         self.writeLine(prefix + sub(*args) + suffix)
-        return self
+        return fh
 msg = Messenger()
 
 
