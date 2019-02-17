@@ -24,12 +24,29 @@
 
 
 """
-Parses a log file produced by running a L{DifferentialEvolution}
-object to show parameter values leading up to the best solution it
-found before terminating.
+C{lgg}: Parses a log file produced by running a
+L{DifferentialEvolution} object to show parameter values leading up to
+the best solution it found before terminating.
+
+This is very handy for seeing whether you have to redefine bounds for
+any of your parameters. It is often useful to tighten bounds for
+particular problems. Or you might need to loosen things up if you see
+the '*' indicating that the value is close to the lower bound or the
+'**' indicating that it's close to the upper bound.
+
+Specify the log file with the first argument. If not specified,
+defaults to I{~/pfinder.log}.
+
+Call with no parameters specified to show parameters whose values are
+near one edge or another of the bounds in the last 10 entries of the
+log file.
+
+You can use glob patterns when specifying parameters. You can also
+specify ranges like I{x1-3}, which matches I{x1}, I{x2}, and I{x3}.
 """
 
-import sys, os.path, re, pdb, traceback
+import sys, os.path, re, pdb, traceback, fnmatch
+from collections import deque
 
 import numpy as np
 
@@ -91,7 +108,7 @@ class RowManager(object):
 
     def __iter__(self):
         for name in self.names:
-            yield name
+            yield self.indices[name], name
 
     def __len__(self):
         return self.N
@@ -109,17 +126,6 @@ class RowManager(object):
         stars = [None for x in range(self.N)]
         self.stars.append(stars)
         return values, stars
-
-    def insert(self, container, name, value):
-        """
-        Inserts I{value} to the supplied list I{container} at the index
-        for the parameter with the specified I{name}.
-        """
-        k = self.indices[name]
-        if container[k] is not None:
-            raise RuntimeError(sub(
-                "A value has already been assigned for '{}'!", name))
-        container[k] = value
 
     def arrays(self):
         """
@@ -170,16 +176,29 @@ class Grepper(object):
     colSep = 3
     width = 10
     precision = 5
-    reSSE = re.compile(r'SSE=([\d\.eE\-\+]+)')
+    reSSE = re.compile(r'SSE\=([\d\.eE\-\+]+)')
+    reParam = re.compile(
+        r'(^|\s)([a-zA-Z]+[_a-zA-Z0-9]*)\='+\
+        r'([\+\-]?[0-9][0-9\.e\E\-\+]+)(\**)(\s|\>|$)')
 
-    def __init__(self, filePath, names):
+    def __init__(self, filePath, args):
         self.filePath = filePath
+        if not args:
+            names = self.starredNames()
+        else:
+            names = []
+            for pattern in args:
+                for name in self.globNames(pattern):
+                    if name not in names:
+                        names.append(name)
+            names.sort()
         self.rm = RowManager(names)
-    
-    def load(self):
+
+    def filerator(self):
         """
-        Loads SSEs, and parameter values and stars for those SSEs, from my
-        log file.
+        Opens my I{filePath} and, for each SSE entry found in it, yields
+        2-tuples with the SSE as a float and a dict keyed by name with
+        a 2-tuple of (1) parameter value as a string, and (2) stars.
         """
         with open(self.filePath, 'r') as fh:
             keepLooping = True
@@ -187,20 +206,62 @@ class Grepper(object):
                 line = fh.readline()
                 if not line: break
                 match = self.reSSE.search(line)
-                if match:
-                    SSE = float(match.group(1))
-                    values, stars = self.rm.add(SSE)
-                    while True:
-                        if self.rm.addMatches(line, values, stars):
-                            break
+                if not match: continue
+                SSE = float(match.group(1))
+                pd = {}
+                line = line[match.end(0):]
+                while True:
+                    match = self.reParam.search(line)
+                    if not match:
                         line = fh.readline()
-                        if not line:
-                            # This shouldn't happen, because we
-                            # shouldn't run out of lines before all
-                            # parameter matches have been found for
-                            # this SSE
+                        if line is None:
+                            # EOF
                             keepLooping = False
                             break
+                        line = line.strip()
+                        if line: continue
+                        # All done with this SSE entry
+                        yield SSE, pd
+                        break
+                    name, svalue, stars = match.group(2, 3, 4)
+                    pd[name] = svalue, stars
+                    line = line[match.end(0):]
+
+    def starredNames(self, N=10):
+        """
+        Looks through the log file and identifies all names that have
+        stars in the last I{N} entries.
+        """
+        names = []
+        FIFO = deque(maxlen=N)
+        for SSE, pd in self.filerator():
+            FIFO.append((SSE, pd))
+        while FIFO:
+            SSE, pd = FIFO.pop()
+            for name in pd:
+                if pd[name][1] and name not in names:
+                    names.append(name)
+        return sorted(names)
+
+    def globNames(self, pattern):
+        """
+        Looks at the first SSE entry of the log file and identifies all
+        names that match the glob I{pattern}.
+        """
+        for SSE, pd in self.filerator():
+            return fnmatch.filter(sorted(pd.keys()), pattern)
+    
+    def load(self):
+        """
+        Loads SSEs, and parameter values and stars for those SSEs, from my
+        log file.
+        """
+        for SSE, pd in self.filerator():
+            values, stars = self.rm.add(SSE)
+            for k, name in self.rm:
+                vk, sk = pd[name]
+                values[k] = float(vk)
+                stars[k] = len(sk)
         # Have rm make its SSE, values, stars arrays
         self.rm.arrays()
         # Now have it trim the arrays
@@ -231,7 +292,7 @@ class Grepper(object):
         """
         # Heading
         parts = [self.rj("SSE")]
-        for name in self.rm:
+        for k, name in self.rm:
             parts.append(self.rj(name))
         lines = ["", (" "*self.colSep).join(parts)]
         lines.append("-" * (len(lines[-1])+2))
@@ -257,10 +318,13 @@ class Grepper(object):
 
 
 def main():
+    """
+    The C{lgg} script entry point.
+    """
     args = list(sys.argv[1:])
     # Parameter names don't have a dot in them, whereas the log file
     # name will
-    if '.' in args[0]:
+    if args and '.' in args[0]:
         fileName = args.pop(0)
     else: fileName = "~/pfinder.log"
     filePath = os.path.expanduser(fileName)
