@@ -38,7 +38,7 @@ Specify the log file with the first argument. If not specified,
 defaults to I{~/pfinder.log}.
 
 Call with no parameters specified to show parameters whose values are
-near one edge or another of the bounds in the last 10 entries of the
+near one edge or another of the bounds in the last few entries of the
 log file.
 
 You can use glob patterns when specifying parameters. You can also
@@ -227,7 +227,7 @@ class Grepper(object):
                     pd[name] = svalue, stars
                     line = line[match.end(0):]
 
-    def starredNames(self, N=10):
+    def starredNames(self, N=7):
         """
         Looks through the log file and identifies all names that have
         stars in the last I{N} entries.
