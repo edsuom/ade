@@ -123,7 +123,7 @@ class TemperatureData(Data):
                 p.set_title("Thermistor #{:d}", k+1)
                 ax = p(R, T)
                 R = self.X[I_below, k+1]
-                ax.plot(R, T_cutoff, 'r.', markersize=1)
+                ax.plot(R, T_cutoff, color='red', marker='.', markersize=1)
         pp.show()
 
 
@@ -153,6 +153,9 @@ class Reporter(object):
             3, 2, filePath=self.plotFilePath, width=15, height=10)
         self.pt.set_grid()
         self.pt.add_marker(',')
+        self.pt.add_line('')
+        self.pt.add_line('-')
+        self.pt.set_colors('blue', 'red')
     
     def __call__(self, values, counter, SSE):
         def titlePart(*args):
@@ -176,7 +179,7 @@ class Reporter(object):
                 # Plot current best-fit curve, with a bit of extrapolation
                 R = np.linspace(R.min()-10, R.max()+10, self.N_curve_plot)
                 T_curve = self.ev.curve(R, *self.ev.values2args(values, k))
-                ax.plot(R, T_curve, 'r-')
+                ax.plot(R, T_curve)
         self.pt.set_title(", ".join(titleParts))
         self.pt.show()
 

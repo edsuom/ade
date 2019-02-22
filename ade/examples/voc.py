@@ -131,7 +131,7 @@ class Reporter(object):
             tm = np.linspace(
                 t.min(), self.extrapolationMultiple*t.max(), self.N_curve_plot)
             V_curve = self.ev.curve(tm, *values)
-            ax.plot(tm, V_curve, 'ro', markersize=2)
+            ax.plot(tm, V_curve, color='red', marker='o', markersize=2)
             # Residuals
             res = self.ev.curve(t, *values) - V
             sp.set_ylabel("dV")

@@ -31,7 +31,7 @@ line in a console, pressing the Enter key will cause it to run
 L{DifferentialEvolution.shutdown} and quit running.
 """
 
-import signal, random
+import signal, random, sys
 from copy import copy
 
 import numpy as np
@@ -42,6 +42,10 @@ from twisted.internet import defer, task, reactor, stdio, protocol
 
 from population import Population
 from util import *
+
+# This is kind of hackish and ugly, but all the @defer.inlineCallbacks
+# action can involve some pretty deep recursion
+sys.setrecursionlimit(max([10000, sys.getrecursionlimit()]))
 
 
 class FManager(object):
