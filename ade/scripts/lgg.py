@@ -227,7 +227,7 @@ class Grepper(object):
                     pd[name] = svalue, stars
                     line = line[match.end(0):]
 
-    def starredNames(self, N=7):
+    def starredNames(self, N=4):
         """
         Looks through the log file and identifies all names that have
         stars in the last I{N} entries.

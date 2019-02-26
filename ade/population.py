@@ -221,7 +221,6 @@ class Reporter(object):
         self.cbrScheduled = Bag()
         self.dt = DeferredTracker()
         self._syms_on_line = 0
-        abort.callOnAbort(self.abort)
 
     def abort(self):
         """
@@ -633,6 +632,7 @@ class Population(object):
         self.counter = 0
         self.iList = []
         self.running = None
+        abort.callOnAbort(self.abort)
         
     def __getitem__(self, k):
         """
