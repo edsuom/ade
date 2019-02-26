@@ -35,7 +35,7 @@ from matplotlib import pyplot as plt
 from twisted.internet import defer, reactor
 
 from ade.util import *
-from ade import population
+from ade import abort, population
 from ade.individual import Individual
 
 from ade.test import testbase as tb
@@ -48,7 +48,10 @@ class TestConstraintChecking(tb.TestCase):
     def setUp(self):
         self.pm = population.ParameterManager(
             ['a', 'b'], [(-5, +5), (-5, +5)], )
-    
+
+    def tearDown(self):
+        abort.shutdown()
+        
     def unitySumList(self, params):
         return sum(params.values()) == 1.0
 
@@ -305,6 +308,9 @@ class TestPopulation(tb.TestCase):
         self.p = population.Population(
             tb.ackley, ["x", "y"], [(-5, 5), (-5, 5)], popsize=self.Np)
 
+    def tearDown(self):
+        abort.shutdown()
+        
     def positiveOnly(self, XY):
         return min(XY.values()) > 0
 

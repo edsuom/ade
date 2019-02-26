@@ -40,6 +40,7 @@ from scipy import stats
 
 from twisted.internet import defer, task, reactor, stdio, protocol
 
+import abort
 from population import Population
 from util import *
 
@@ -206,38 +207,6 @@ class FManager(object):
         if lowest < self.origLowest:
             self.lowest = scaleUp(lowest, self.scales[0], self.origLowest)
 
-
-class Keyboard(protocol.Protocol):
-    """
-    Receives STDIN. Pressing the Enter key which will cause I{ade} to
-    quit.
-    """
-    def __init__(self, de):
-        """
-        C{Keyboard(de)}
-        """
-        self.de = de
-
-    def shutdown(self):
-        """
-        Cleanly shuts me down. Repeated calls have no effect.
-        """
-        self.transport.loseConnection()
-
-    def dataReceived(self, data):
-        """
-        Shuts down the L{DifferentialEvolution} instance I serve whenever
-        data is received, e.g., the Enter key is pressed.
-        """
-        self.de.shutdown()
-
-
-class AbortError(Exception):
-    """
-    L{DifferentialEvolution.shutdown} sends one of these to the
-    errback of a C{DeferredList} to ensure that it aborts.
-    """
-
             
 class DifferentialEvolution(object):
     """
@@ -356,15 +325,11 @@ class DifferentialEvolution(object):
     def __init__(self, population, **kw):
         """C{DifferentialEvolution(population, **kw)}"""
         self.p = population
-        # Since ^C doesn't work properly, let's just ignore it entirely
-        signal.signal(signal.SIGINT, signal.SIG_IGN)
         # Log to an open file handle if provided (no logging if file
         # handle is None), otherwise to STDOUT
         fh = kw['logHandle'] if 'logHandle' in kw else True
         msg(fh)
         # Receive keystrokes
-        self.kb = Keyboard(self)
-        stdio.StandardIO(self.kb)
         # Report on initial population
         self.p.reporter()
         for name in self.attributes:
@@ -379,6 +344,7 @@ class DifferentialEvolution(object):
             'before', 'shutdown', self.shutdown)
         self.running = True
         self.dChallenges = None
+        abort.callOnAbort(self.shutdown)
 
     def shutdown(self):
         """
@@ -395,10 +361,8 @@ class DifferentialEvolution(object):
             reactor.removeSystemEventTrigger(self.triggerID)
             msg(0, "Shutting down DE...")
             self.running = False
-            self.p.abort()
-            self.kb.shutdown()
             if self.dChallenges and not self.dChallenges.called:
-                self.dChallenges.errback(AbortError())
+                self.dChallenges.errback(abort.AbortError())
         
     def crossover(self, parent, mutant):
         """
@@ -529,7 +493,7 @@ class DifferentialEvolution(object):
         tiny overall improvements.
         """
         def failed(failureObj):
-            if failureObj.type == AbortError:
+            if failureObj.type == abort.AbortError:
                 return
             info = failureObj.getTraceback()
             msg(-1, "Error during challenges:\n{}\n{}\n", '-'*40, info)

@@ -47,6 +47,7 @@ from twisted.internet import defer
 from asynqueue.null import NullQueue
 from asynqueue.util import DeferredTracker
 
+import abort
 from individual import Individual
 from util import *
 
@@ -220,6 +221,7 @@ class Reporter(object):
         self.cbrScheduled = Bag()
         self.dt = DeferredTracker()
         self._syms_on_line = 0
+        abort.callOnAbort(self.abort)
 
     def abort(self):
         """
@@ -592,7 +594,7 @@ class Population(object):
     popsize = 10
     Np_min = 20
     Np_max = 500
-    N_maxParallel = 10
+    N_maxParallel = 12
     targetFraction = 0.03
     debug = False
     
@@ -842,7 +844,10 @@ class Population(object):
             ds = defer.DeferredSemaphore(self.N_maxParallel)
         while running():
             yield ds.acquire()
+            # For some reason, abort doesn't get called until setup is
+            # done, so this check doesn't work. WTF???
             if not running() or len(self.iList) >= self.Np:
+                ds.release()
                 break
             i = getIndividual()
             if blank:

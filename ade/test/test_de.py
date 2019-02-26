@@ -34,7 +34,7 @@ from twisted.internet import defer, reactor
 
 from ade.util import *
 from ade.population import Population
-from ade import de
+from ade import abort, de
 
 from ade.test import testbase as tb
 
@@ -150,6 +150,7 @@ class TestDifferentialEvolution(tb.TestCase):
         tb.EVAL_COUNT[0] = 0
 
     def tearDown(self):
+        abort.shutdown()
         self.de.shutdown()
         
     @defer.inlineCallbacks
@@ -197,7 +198,7 @@ class TestDifferentialEvolution(tb.TestCase):
     def test_call(self):
         yield self.makeDE(20, 2)
         p = yield self.de()
-        self.assertEqual(tb.EVAL_COUNT[0], 709)
+        self.assertEqual(tb.EVAL_COUNT[0], 711)
         x = p.best()
         self.assertAlmostEqual(x[0], 0, 4)
         self.assertAlmostEqual(x[1], 0, 4)
@@ -231,6 +232,7 @@ class TestDifferentialEvolution(tb.TestCase):
     @defer.inlineCallbacks
     def test_abort_during_setup(self):
         d = self.makeDE(20, 2).addCallback(lambda _: self.de())
+        self.p.abort()
         self.de.shutdown()
         yield d
         self.assertLess(len(self.p), 20)
