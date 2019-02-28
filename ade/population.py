@@ -622,8 +622,8 @@ class Population(object):
         self.pm = ParameterManager(names, bounds, constraints)
         self.reporter = Reporter(self, complaintCallback)
         if popsize: self.popsize = popsize
-        self.Np = min([self.popsize * self.Nd, self.Np_max])
-        self.Np = max([self.Np_min, self.Np])
+        self.Np = max([
+            self.Np_min, min([self.popsize * self.Nd, self.Np_max])])
         self.kBest = None
         self.isProblem = False
         self.replacementScore = None
@@ -631,6 +631,7 @@ class Population(object):
         self._sortNeeded = True
         self.counter = 0
         self.iList = []
+        self.dLocks = []
         self.running = None
         abort.callOnAbort(self.abort)
         
@@ -837,15 +838,12 @@ class Population(object):
 
         if running():
             kIV = [None]*2
-            self.dLocks = []
             refreshIV()
             msg(0, "Initializing {:d} population members having {:d} parameters",
                 self.Np, self.Nd, '-')
             ds = defer.DeferredSemaphore(self.N_maxParallel)
         while running():
             yield ds.acquire()
-            # For some reason, abort doesn't get called until setup is
-            # done, so this check doesn't work. WTF???
             if not running() or len(self.iList) >= self.Np:
                 ds.release()
                 break
@@ -858,8 +856,9 @@ class Population(object):
             msg(0, repr(self))
             self._sortNeeded = True
             self.kBest = self.iList.index(self.iSorted[0])
-        self.running = True
-    
+            self.running = True
+        else: self.Np = 0
+            
     def save(self, filePath):
         """
         (Not implemented yet.)
@@ -1040,9 +1039,11 @@ class Population(object):
         Immediately returns a list of the individuals at the specified
         integer index or indices.
         """
-        if len(indices) == 1:
-            return self.iList[indices[0]]
-        return [self.iList[k] for k in indices]
+        result = []
+        for k in indices:
+            if k >= len(self.iList): return
+            result.append(self.iList[k])
+        return result[0] if len(result) == 1 else result
     
     def lock(self, *indices):
         """
@@ -1063,6 +1064,10 @@ class Population(object):
             if indices.count(k) > 1:
                 raise ValueError(
                     "Requesting the same lock twice will result in deadlock!")
+            if k >= len(self.dLocks):
+                # Invalid index, we must be shutting down
+                self.release()
+                return defer.succeed(None)
             dList.append(self.dLocks[k].acquire())
         return defer.DeferredList(dList).addErrback(oops)
 

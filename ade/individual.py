@@ -97,7 +97,7 @@ class Individual(object):
         C{None}.
         """
         if self._SSE is None or self._SSE < 0:
-            return np.inf
+            return float('+inf')
         return float(self._SSE)
     @SSE.setter
     def SSE(self, x):
@@ -125,9 +125,9 @@ class Individual(object):
     def __float__(self):
         """
         I can be evaluated as a float using my SSE. A negative SSE
-        translates to C{np.inf} because it indicates a fatal error.
+        translates to C{inf} because it indicates a fatal error.
         """
-        return self.SSE
+        return float('+inf' if self.SSE < 0 else self.SSE)
     
     def __getitem__(self, k):
         """
@@ -157,9 +157,10 @@ class Individual(object):
         I will evaluate as C{True} even if my SSE is C{None},
         infinite, or C{NaN}, so long as it is not negative.
         """
-        if self._SSE is None or np.isnan(self._SSE) or self._SSE >= 0:
-            return True
-        return False
+        if self._SSE is None: return True
+        SSE = float(self._SSE)
+        if np.isnan(SSE): return True
+        return SSE >= 0
     
     def __eq__(self, other):
         """
@@ -217,7 +218,7 @@ class Individual(object):
         Sets my SSE to the worst possible value and forces my population
         to update its sorting to account for my degraded status.
         """
-        self.SSE = np.inf
+        self.SSE = float('+inf')
         del self.p.iSorted
     
     def update(self, values):

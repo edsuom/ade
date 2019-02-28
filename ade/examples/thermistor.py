@@ -102,30 +102,6 @@ class TemperatureData(Data):
         self.weights = np.where(
             self.X[:,0] < -5.0, 3*self.weights, self.weights)
 
-    def plot(self):
-        """
-        Plots my data with annotations.
-        """
-        if self.weights is None:
-            I_below = []
-            I_above = np.arange(self.X.shape[0])
-        else:
-            I_below = np.flatnonzero(self.weights < self.weightCutoff)
-            I_above = np.flatnonzero(self.weights >= self.weightCutoff)
-        T = self.X[I_above, 0]
-        T_cutoff = self.X[I_below, 0]
-        pp = Plotter(3, 2, width=12, height=10)
-        pp.add_plotKeyword('markersize', 1)
-        pp.add_marker('.')
-        with pp as p:
-            for k in range(6):
-                R = self.X[I_above, k+1]
-                p.set_title("Thermistor #{:d}", k+1)
-                ax = p(R, T)
-                R = self.X[I_below, k+1]
-                ax.plot(R, T_cutoff, 'r.', markersize=1)
-        pp.show()
-
 
 class Reporter(object):
     """
@@ -151,7 +127,7 @@ class Reporter(object):
         self.prettyValues = population.pm.prettyValues
         self.pt = Plotter(
             3, 2, filePath=self.plotFilePath, width=15, height=10)
-        self.pt.set_grid()
+        self.pt.use_grid()
         self.pt.add_marker(',')
     
     def __call__(self, values, counter, SSE):
@@ -165,14 +141,14 @@ class Reporter(object):
         titlePart("Temp vs Voltage")
         titlePart(SSE_info)
         titlePart("k={:d}", counter)
-        with self.pt as p:
+        with self.pt as sp:
             for k in range(1, 7):
-                p.set_title("Thermistor #{:d}", k)
+                sp.set_title("Thermistor #{:d}", k)
                 xName = sub("R{:d}", k)
                 R = self.ev.X[:,k]
                 # Scatter plot of temp and resistance readings
-                p.set_xlabel(xName)
-                ax = p(R, T)
+                sp.set_xlabel(xName)
+                ax = sp(R, T)
                 # Plot current best-fit curve, with a bit of extrapolation
                 R = np.linspace(R.min()-10, R.max()+10, self.N_curve_plot)
                 T_curve = self.ev.curve(R, *self.ev.values2args(values, k))

@@ -183,6 +183,7 @@ class TestDifferentialEvolution(tb.TestCase):
     def test_challenge(self):
         Np = 120; Nd = 5
         yield self.makeDE(Np, Nd)
+        self.de.fm = de.FManager(0.5, 0.5, self.p.Np, True)
         from ade import individual
         for k in (10,11):
             i = individual.Individual(self.p, np.zeros(Nd))
@@ -255,6 +256,7 @@ class Test_Abort(tb.TestCase):
     def setUp(self):
         self.p = Population(self.fifthSecond, ["x"], [(-5, 5)])
         self.de = de.DifferentialEvolution(self.p, maxiter=35)
+        self.de.fm = de.FManager(0.5, 0.5, self.p.Np, True)
         return self.p.setup()
 
     def fifthSecond(self, x):

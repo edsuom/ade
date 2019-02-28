@@ -329,9 +329,6 @@ class DifferentialEvolution(object):
         # handle is None), otherwise to STDOUT
         fh = kw['logHandle'] if 'logHandle' in kw else True
         msg(fh)
-        # Receive keystrokes
-        # Report on initial population
-        self.p.reporter()
         for name in self.attributes:
             value = kw.get(name, getattr(self, name, None))
             if value is None:
@@ -339,7 +336,6 @@ class DifferentialEvolution(object):
             setattr(self, name, value)
         if self.CR < 0.0 or self.CR > 1.0:
             raise ValueError(sub("Invalid crossover constant {}", self.CR))
-        self.fm = FManager(self.F, self.CR, self.p.Np, self.adaptive)
         self.triggerID = reactor.addSystemEventTrigger(
             'before', 'shutdown', self.shutdown)
         self.running = True
@@ -357,10 +353,12 @@ class DifferentialEvolution(object):
         loops know that it's time to quit early. Calls L{Population.abort} on my
         L{Population} object I{p} to shut it down ASAP.
         """
-        if self.running:
+        if self.triggerID:
             reactor.removeSystemEventTrigger(self.triggerID)
-            msg(0, "Shutting down DE...")
+            self.triggerID = None
+        if self.running:
             self.running = False
+            msg(0, "Shutting down DE...")
             if self.dChallenges and not self.dChallenges.called:
                 self.dChallenges.errback(abort.AbortError())
         
@@ -432,12 +430,14 @@ class DifferentialEvolution(object):
             k0, k1 = self.p.sample(2, kt, kb)
             # Await legit values for all individuals used here
             yield self.p.lock(kt, kb, k0, k1)
-            if not self.running:
-                # We might have had locks acquired since the call to
-                # shutdown()
+            if self.running:
+                sample = self.p.individuals(kt, kb, k0, k1)
+            else: sample = None
+            if sample is None:            
+                # Shutting down!
                 self.p.release()
             else:
-                iTarget, iBase, i0, i1 = self.p.individuals(kt, kb, k0, k1)
+                iTarget, iBase, i0, i1 = sample
                 # All but the target can be released right away,
                 # because we are only using their local values here
                 # and don't care if someone else changes them at this
@@ -469,28 +469,9 @@ class DifferentialEvolution(object):
                 self.p.release(kt)
     
     @defer.inlineCallbacks
-    def __call__(self):
+    def _run(self):
         """
-        Here is what you call to run differential evolution on my
-        L{Population} I{p} of individuals.
-
-        You have to construct me with the population object, and you
-        have to run L{Population.setup} on it yourself. Make sure
-        that's been done and the resulting C{Deferred} has fired
-        before trying to call this.
-
-        At the conclusion of each generation's evaluations, I consider
-        the amount of overall improvement if I am running in adaptive
-        mode. If the overall improvement (sum of rounded ratios
-        between SSE of replaced individuals and their replacements)
-        exceeded that required to maintain the status quo, I bump up F
-        a bit. If the overall improvement did not meet that threshold,
-        I reduce F a bit, but only if there was no new best individual
-        in the population.
-
-        So long as the best individual in the population keeps getting
-        better with each generation, I will continue to run, even with
-        tiny overall improvements.
+        Called by L{__call__} to do most of the work.
         """
         def failed(failureObj):
             if failureObj.type == abort.AbortError:
@@ -498,10 +479,6 @@ class DifferentialEvolution(object):
             info = failureObj.getTraceback()
             msg(-1, "Error during challenges:\n{}\n{}\n", '-'*40, info)
         
-        self.dwellCount = 0
-        desc = sub("DE/{}/1/bin", "rand" if self.randomBase else "best")
-        msg("Performing DE with CR={}, F={}, {}", self.CR, self.fm, desc, '-')
-        msg("Press the 'Enter' key to abort.")
         # Evolve!
         for kg in range(self.maxiter):
             self.p.reporter.progressChar()
@@ -557,4 +534,36 @@ class DifferentialEvolution(object):
         msg("DE shutdown complete.")
         defer.returnValue(self.p)
 
-        
+    def __call__(self):
+        """
+        Here is what you call to run differential evolution on my
+        L{Population} I{p} of individuals.
+
+        You have to construct me with the population object, and you
+        have to run L{Population.setup} on it yourself. Make sure
+        that's been done and the resulting C{Deferred} has fired
+        before trying to call this.
+
+        At the conclusion of each generation's evaluations, I consider
+        the amount of overall improvement if I am running in adaptive
+        mode. If the overall improvement (sum of rounded ratios
+        between SSE of replaced individuals and their replacements)
+        exceeded that required to maintain the status quo, I bump up F
+        a bit. If the overall improvement did not meet that threshold,
+        I reduce F a bit, but only if there was no new best individual
+        in the population.
+
+        So long as the best individual in the population keeps getting
+        better with each generation, I will continue to run, even with
+        tiny overall improvements.
+        """
+        if not self.p.Np:
+            return defer.succeed(self.p)
+        # Report on initial population
+        self.p.reporter()
+        self.dwellCount = 0
+        self.fm = FManager(self.F, self.CR, self.p.Np, self.adaptive)
+        desc = sub("DE/{}/1/bin", "rand" if self.randomBase else "best")
+        msg("Performing DE with CR={}, F={}, {}", self.CR, self.fm, desc, '-')
+        msg("Press the 'Enter' key to abort.")
+        return self._run()

@@ -99,8 +99,8 @@ class Reporter(object):
         self.prettyValues = population.pm.prettyValues
         self.pt = Plotter(
             2, filePath=self.plotFilePath, width=15, height=10)
-        self.pt.set_grid()
-        self.pt.set_timex()
+        self.pt.use_grid()
+        self.pt.use_timex()
 
     def __call__(self, values, counter, SSE):
         """
