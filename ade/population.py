@@ -397,19 +397,23 @@ class Reporter(object):
         to I{iDenominator} and 0 will be returned. If its SSE is
         between 150.0 and 249.9, the return value is 2.
         """
+        def has_nan(i):
+            try: return np.isnan(i.SSE)
+            except: pass
+        
         if not iNumerator or not iDenominator:
             # This shouldn't happen
             return 0
         if not iNumerator.SSE or not iDenominator.SSE:
             # Neither should this
             return 0
-        if iNumerator < iDenominator or np.isnan(iDenominator.SSE):
+        if iNumerator < iDenominator or has_nan(iDenominator):
             ratio = 0
             sym = sym_lt
         elif self.isEquivSSE(iDenominator, iNumerator):
             ratio = 0
             sym = "0"
-        elif np.isnan(iNumerator.SSE):
+        elif has_nan(iNumerator):
             ratio = 1000
             sym = "9"
         else:
@@ -703,7 +707,7 @@ class Population(object):
         individuals.
         """
         def field(x):
-            return sub("{:>11.5g}", x)
+            return sub("{:>11.5g}", float(x))
 
         def addRow():
             lineParts = ["{:>11s}".format(columns[0]), '|']
@@ -714,8 +718,11 @@ class Population(object):
         N_top = (self.pm.maxLineLength-3) / 13
         iTops = self.iSorted[:N_top]
         if len(iTops) < N_top: N_top = len(iTops)
-        lines = [
-            sub("Population: Top {:d} of {:d} individuals", N_top, self.Np)]
+        SSEs = [float(i.SSE) for i in self]
+        lines = [sub(
+            "Population: {:d} individuals with SSE {:.5g} to "+\
+            "{:.5g}, avg eval time {:.3g} sec. Top {:d}:",
+            self.Np, min(SSEs), max(SSEs), np.mean(self.evalTimes()), N_top)]
         lines.append("")
         columns = ["SSE"] + [field(i.SSE) for i in iTops]
         addRow()
@@ -1096,3 +1103,15 @@ class Population(object):
         """
         if self.iSorted:
             return self.iSorted[0]
+
+    def evalTimes(self):
+        """
+        Returns a list of the most recent elapsed evaluation times for
+        each of my individuals that have done evaluations.
+        """
+        dtList = []
+        for i in self:
+            if i.dt is None: continue
+            dtList.append(i.dt)
+        return dtList
+        

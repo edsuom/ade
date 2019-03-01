@@ -31,7 +31,7 @@ L{Population} set up a population full of them, and have
 L{DifferentialEvolution} create challengers as it does its thing.
 """
 
-import random, pickle
+import random, pickle, time
 
 import numpy as np
 from twisted.internet import defer, task
@@ -57,10 +57,13 @@ class Individual(object):
 
     @ivar p: The L{Population} I am part of.
 
+    @ivar dt: The time difference between start and end of my last
+        evaluation.
+
     @keyword values: Set to a sequence of initial parameter values if
         you're not going to set them with a call to L{update}.
     """
-    __slots__ = ['values', '_SSE', 'p']
+    __slots__ = ['values', '_SSE', 'p', 'dt']
 
     def __init__(self, p, values=None):
         """Individual(p, values=None)"""
@@ -69,6 +72,7 @@ class Individual(object):
             self.values = np.empty(p.Nd)
         else: self.update(values)
         self.SSE = None
+        self.dt = None
 
     def __repr__(self):
         """
@@ -98,11 +102,11 @@ class Individual(object):
         """
         if self._SSE is None or self._SSE < 0:
             return float('+inf')
-        return float(self._SSE)
+        return self._SSE #float(self._SSE)
     @SSE.setter
     def SSE(self, x):
         """
-        Property: Sets my SSE value.
+        Property setter: Sets my SSE value.
         """
         self._SSE = x
     
@@ -248,8 +252,12 @@ class Individual(object):
         failure, I{ade} will abort operations. Use this feature to
         provide your evaluator with a simple way to stop everything if
         something goes terribly wrong.
+
+        Updates my I{dt} attribute with the elapsed time for this
+        evaluation.
         """
         def done(SSE):
+            self.dt = time.time() - t0
             self.p.counter += 1
             self.SSE = SSE
             return self
@@ -258,6 +266,7 @@ class Individual(object):
             msg(0, "FATAL ERROR in evaluation:\n{}\n{}\n", '-'*40, info)
             self.SSE = -1
             return self
+        t0 = time.time()
         return self.p.evalFunc(self.values).addCallbacks(done, failed)
 
     def save(self, filePath):
