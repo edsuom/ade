@@ -101,7 +101,7 @@ class Reporter(object):
             2, filePath=self.plotFilePath, width=15, height=10)
         self.pt.use_grid()
         self.pt.use_timex()
-
+    
     def __call__(self, values, counter, SSE):
         """
         Prints out a new best parameter combination and its curve vs
@@ -279,7 +279,7 @@ class Runner(object):
             self.p,
             CR=args.C, F=F, maxiter=args.m,
             randomBase=not args.b, uniform=args.u,
-            adaptive=not args.n, bitterEnd=True, logHandle=self.fh)
+            adaptive=not args.n, bitterEnd=args.e, logHandle=self.fh)
         yield de()
         yield self.shutdown()
         msg(0, "Final population:\n{}", self.p)
@@ -307,7 +307,8 @@ args = Args(
     Press the Enter key to quit early.
     """
 )
-args('-m', '--maxiter', 800, "Number of DE generations to run")
+args('-m', '--maxiter', 800, "Maximum number of DE generations to run")
+args('-e', '--bitter-end', False, "Run to the bitter end")
 args('-p', '--popsize', 20, "Population: # individuals per unknown parameter")
 args('-C', '--CR', 0.8, "DE Crossover rate CR")
 args('-F', '--F', "0.5,1.0", "DE mutation scaling F: two values for range")

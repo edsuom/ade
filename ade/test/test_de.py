@@ -139,15 +139,21 @@ class FakeException(Exception):
 
                 
 class TestDifferentialEvolution(tb.TestCase):
+    timeout = 30
+    verbose = False
+    
     @defer.inlineCallbacks
-    def makeDE(self, Np, Nd):
+    def makeDE(self, Np, Nd, slow=False, blank=False):
+        def slowAckley(X):
+            delay = np.random.sample()
+            return self.deferToDelay(delay).addCallback(lambda _: tb.ackley(X))
         self.p = Population(
-            tb.ackley,
+            slowAckley if slow else tb.ackley,
             [sub("x{:d}", k) for k in range(Nd)],
             [(-5, 5)]*Nd, popsize=Np/Nd)
         self.de = de.DifferentialEvolution(self.p, maxiter=35)
-        yield self.p.setup()
-        tb.EVAL_COUNT[0] = 0
+        yield self.p.setup(blank=blank)
+        tb.evals_reset()
 
     def tearDown(self):
         abort.shutdown()
@@ -191,15 +197,41 @@ class TestDifferentialEvolution(tb.TestCase):
             if k == 10:
                 i10 = i
             self.de.p[k] = i
+        tb.evals_reset()
         yield self.de.challenge(10, 11)
+        self.assertEqual(tb.evals(), 1)
         self.assertEqual(self.p.kBest, 10)
         self.assertEqual(self.p.individuals(10), i10)
+
+    @defer.inlineCallbacks
+    def test_challenge_realistic(self):
+        Np = 12; Nd = 5
+        N_won = 0; N_challenges = 25
+        yield self.makeDE(Np, Nd, slow=True)
+        self.de.fm = de.FManager(0.5, 0.5, self.p.Np, True)
+        from ade import individual
+        for kc in range(N_challenges):
+            kList = []; iList = []
+            for k in self.p.sample(2):
+                kList.append(k)
+                i = self.p.individuals(k)
+                i.update(10*np.random.sample(Nd)-5)
+                iList.append(i)
+            yield self.de.challenge(*kList)
+            iWinner = self.p.individuals(kList[0])
+            iParent = iList[0]
+            if iWinner is not iParent:
+                N_won += 1
+                self.assertLess(iWinner, iParent)
+        self.assertGreater(N_won, 0.2*N_challenges)
+        self.assertLess(N_won, 0.8*N_challenges)
+        msg("Best after challenges:\n{}", self.p.best())
         
     @defer.inlineCallbacks
     def test_call(self):
         yield self.makeDE(20, 2)
         p = yield self.de()
-        self.assertEqual(tb.EVAL_COUNT[0], 711)
+        self.assertEqual(tb.EVAL_COUNT[0], 700)
         x = p.best()
         self.assertAlmostEqual(x[0], 0, 4)
         self.assertAlmostEqual(x[1], 0, 4)

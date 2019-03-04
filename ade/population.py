@@ -42,7 +42,7 @@ import numpy as np
 from scipy import stats
 
 from pyDOE import lhs
-from twisted.internet import defer
+from twisted.internet import defer, task
 
 from asynqueue.null import NullQueue
 from asynqueue.util import DeferredTracker
@@ -259,7 +259,7 @@ class Reporter(object):
         worseSSE = iWorse.SSE
         if betterSSE is None or worseSSE == 0 or worseSSE is None:
             return False
-        ratio = betterSSE / worseSSE
+        ratio = float(betterSSE) / float(worseSSE)
         return abs(ratio - 1.0) < self.minDiff 
 
     def runCallbacks(self, i, iPrevBest=None):
@@ -417,7 +417,7 @@ class Reporter(object):
             ratio = 1000
             sym = "9"
         else:
-            ratio = np.round(iNumerator.SSE / iDenominator.SSE)
+            ratio = np.round(float(iNumerator.SSE) / float(iDenominator.SSE))
             sym = str(int(ratio)) if ratio < 10 else "9"
         self.progressChar(sym)
         return ratio
@@ -774,7 +774,6 @@ class Population(object):
         self.release()
         msg("Population object stopped")
     
-    @defer.inlineCallbacks
     def setup(self, uniform=False, blank=False, filePath=None):
         """
         Sets up my initial population using a Latin hypercube to
@@ -807,9 +806,9 @@ class Population(object):
         
         def refreshIV():
             kIV[0] = 0
-            IV = np.random.uniform(size=(self.Np, self.Nd)) \
-                 if uniform else \
-                    lhs(self.Nd, samples=self.Np, criterion='m')
+            IV = np.random.uniform(
+                size=(self.Np, self.Nd)) if uniform else lhs(
+                    self.Nd, samples=self.Np, criterion='m')
             kIV[1] =  self.pm.fromUnity(IV)
 
         def getNextIV():
@@ -819,52 +818,64 @@ class Population(object):
                 k, IV = kIV
             kIV[0] += 1
             return IV[k,:]
-
+        
         def getIndividual():
             for k in range(1000):
                 values = getNextIV()
                 if self.pm.passesConstraints(values):
                     break
-            else:
-                raise RuntimeError(
+            else: raise RuntimeError(
                     "Couldn't generate a conforming Individual!")
             return Individual(self, self.pm.limit(values))
-        
-        def evaluated(i):
-            ds.release()
-            if not i:
-                #import pdb; pdb.set_trace()
-                msg(0, "Bogus evaluation, aborting")
-                self.abort()
-                return
-            if i.SSE is None or len(self.iList) >= self.Np:
-                return
-            self.reporter(i)
+
+        def addIndividual(i):
             self.iList.append(i)
             self.dLocks.append(defer.DeferredLock())
+        
+        def evaluated(i, d):
+            if d in dList: dList.remove(d)
+            if not i:
+                msg(0, "Bogus initial evaluation of {}, aborting", i)
+                self.abort()
+                return
+            if i.SSE is not None and len(self.iList) < self.Np:
+                addIndividual(i)
+                self.reporter(i)
 
-        if running():
-            kIV = [None]*2
-            refreshIV()
-            msg(0, "Initializing {:d} population members having {:d} parameters",
-                self.Np, self.Nd, '-')
-            ds = defer.DeferredSemaphore(self.N_maxParallel)
-        while running():
-            yield ds.acquire()
-            if not running() or len(self.iList) >= self.Np:
-                ds.release()
-                break
-            i = getIndividual()
-            if blank:
-                i.SSE = np.inf
-                evaluated(i)
-            else: i.evaluate().addCallbacks(evaluated, oops)
-        if running():
-            msg(0, repr(self))
-            self._sortNeeded = True
-            self.kBest = self.iList.index(self.iSorted[0])
-            self.running = True
-        else: self.Np = 0
+        def populater():
+            while running():
+                N_doneAndPending = len(self.iList) + len(dList)
+                if N_doneAndPending == self.Np:
+                    break
+                i = getIndividual()
+                if blank:
+                    i.SSE = np.inf
+                    addIndividual(i)
+                    continue
+                d = i.evaluate()
+                d.addCallback(evaluated, d)
+                d.addErrback(oops)
+                dList.append(d)
+                if len(dList) > self.N_maxParallel:
+                    yield d
+            yield defer.DeferredList(dList)
+
+        def done(null):
+            if running():
+                msg(0, repr(self))
+                self._sortNeeded = True
+                self.kBest = self.iList.index(self.iSorted[0])
+                self.running = True
+            else: self.Np = 0
+            
+        if not running():
+            return defer.succeed(None)
+        kIV = [None]*2
+        refreshIV()
+        dList = []
+        msg(0, "Initializing {:d} population members having {:d} parameters",
+            self.Np, self.Nd, '-')
+        return task.coiterate(populater()).addCallback(done)
             
     def save(self, filePath):
         """

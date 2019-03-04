@@ -91,6 +91,11 @@ def ackley(X):
         return result
     return threads.deferToThread(realAckley, X).addCallbacks(done, oops)
 
+def evals_reset():
+    EVAL_COUNT[0] = 0
+def evals():
+    return EVAL_COUNT[0]
+
 
 class MsgBase(object):
     """

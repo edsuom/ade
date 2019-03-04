@@ -96,9 +96,9 @@ class Individual(object):
     @property
     def SSE(self):
         """
-        Property: My SSE value as a float. Infinite if no SSE computed
-        yet, a fatal error occurred during evaluation, or was set to
-        C{None}.
+        Property: My SSE value, which must at least behave like a
+        float. Infinite if no SSE computed yet, a fatal error occurred
+        during evaluation, or was set to C{None}.
         """
         if self._SSE is None or self._SSE < 0:
             return float('+inf')

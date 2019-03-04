@@ -425,8 +425,12 @@ class DifferentialEvolution(object):
         challenger. Whoever has the lowest result of a call to
         L{Individual.evaluate} is the winner and is assigned to index
         I{kt}.
+
+        The "returned" C{Deferred} fires with C{None}.
         """
         if self.running:
+            # Indices of two randomly chosen unique individuals that
+            # are not at index kt or kb.
             k0, k1 = self.p.sample(2, kt, kb)
             # Await legit values for all individuals used here
             yield self.p.lock(kt, kb, k0, k1)
