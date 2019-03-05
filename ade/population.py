@@ -833,7 +833,6 @@ class Population(object):
             self.dLocks.append(defer.DeferredLock())
         
         def evaluated(i, d):
-            if d in dList: dList.remove(d)
             if not i:
                 msg(0, "Bogus initial evaluation of {}, aborting", i)
                 self.abort()
@@ -843,22 +842,24 @@ class Population(object):
                 self.reporter(i)
 
         def populater():
+            k = 0
             while running():
-                N_doneAndPending = len(self.iList) + len(dList)
-                if N_doneAndPending == self.Np:
-                    break
                 i = getIndividual()
                 if blank:
                     i.SSE = np.inf
                     addIndividual(i)
                     continue
+                k += 1
                 d = i.evaluate()
                 d.addCallback(evaluated, d)
                 d.addErrback(oops)
-                dList.append(d)
-                if len(dList) > self.N_maxParallel:
-                    yield d
-            yield defer.DeferredList(dList)
+                dt.put(d)
+                if dt.dCount > self.N_maxParallel:
+                    yield dt.deferToAny()
+                else: yield
+                if k >= self.Np:
+                    break
+            yield dt.deferToAll()
 
         def done(null):
             if running():
@@ -870,9 +871,8 @@ class Population(object):
             
         if not running():
             return defer.succeed(None)
-        kIV = [None]*2
-        refreshIV()
-        dList = []
+        dt = DeferredTracker()
+        kIV = [None]*2; refreshIV()
         msg(0, "Initializing {:d} population members having {:d} parameters",
             self.Np, self.Nd, '-')
         return task.coiterate(populater()).addCallback(done)
