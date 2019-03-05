@@ -62,16 +62,21 @@ class Individual(object):
 
     @keyword values: Set to a sequence of initial parameter values if
         you're not going to set them with a call to L{update}.
-    """
-    __slots__ = ['values', '_SSE', 'p', 'dt']
 
-    def __init__(self, p, values=None):
+    @keyword SSE0: The starting SSE value, if any, from passing but
+        "reluctant" constraint results. See
+        L{ParameterManager.passesConstraints}.
+    """
+    __slots__ = ['values', '_SSE', '_SSE0', 'p', 'dt']
+
+    def __init__(self, p, values=None, SSE0=0.0):
         """Individual(p, values=None)"""
         self.p = p
         if values is None:
             self.values = np.empty(p.Nd)
         else: self.update(values)
-        self.SSE = None
+        self._SSE = None
+        self._SSE0 = SSE0
         self.dt = None
 
     def __repr__(self):
@@ -99,10 +104,13 @@ class Individual(object):
         Property: My SSE value, which must at least behave like a
         float. Infinite if no SSE computed yet, a fatal error occurred
         during evaluation, or was set to C{None}.
+
+        My initial SSE value, if any, from a soft constraint result is
+        added.
         """
         if self._SSE is None or self._SSE < 0:
             return float('+inf')
-        return self._SSE #float(self._SSE)
+        return self._SSE + self._SSE0
     @SSE.setter
     def SSE(self, x):
         """
@@ -240,7 +248,7 @@ class Individual(object):
             values = np.array(values)
         self.values = values
     
-    def evaluate(self):
+    def evaluate(self, SSE0=0.0):
         """
         Computes the sum of squared errors (SSE) from my evaluation
         function using my current I{values}.
@@ -255,11 +263,15 @@ class Individual(object):
 
         Updates my I{dt} attribute with the elapsed time for this
         evaluation.
+
+        @keyword SSE0: The starting SSE value, if any, from passing
+            but "reluctant" constraint results. See
+            L{ParameterManager.passesConstraints}.
         """
         def done(SSE):
             self.dt = time.time() - t0
             self.p.counter += 1
-            self.SSE = SSE
+            self.SSE = SSE + SSE0
             return self
         def failed(failureObj):
             info = failureObj.getTraceback()

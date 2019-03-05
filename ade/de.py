@@ -454,10 +454,11 @@ class DifferentialEvolution(object):
                 self.crossover(iTarget, iChallenger)
                 # Continue with Pr(values) / Pr(midpoints)
                 self.p.limit(iChallenger)
-                if self.p.pm.passesConstraints(iChallenger.values):
+                result = self.p.pm.passesConstraints(iChallenger.values)
+                if result:
                     # Passes constraints!
                     # Now the hard part: Evaluate fitness of the challenger
-                    yield iChallenger.evaluate()
+                    yield iChallenger.evaluate(result)
                     if iChallenger and self.running:
                         if iChallenger < iTarget:
                             # The challenger won the tournament, replace

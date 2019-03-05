@@ -152,22 +152,63 @@ class ParameterManager(object):
         """
         Checks if I{values} pass all my constraints.
         
-        Call with a 1-D array of parameter I{values} to check them against
-        all of the constraints. Each callable in my I{constraints}
-        list must return C{True} if it found the parameters (supplied
-        to each callable as a dict) to be acceptable. The result will
-        be C{True} if and only if all constraints were satisfied. (Or
-        if you constructed me with an empty list.)
+        Call with a 1-D array of parameter I{values} to check them
+        against all of the constraints. Each callable in my
+        I{constraints} list must return a nonzero result if it found
+        the parameters (supplied to each callable as a dict) to be
+        acceptable. The result will be nonzero if and only if all
+        constraints were satisfied. (Or if you constructed me with an
+        empty list.)
+
+        Soft Constraints
+        ================
+            Commits after #8f29e6f5 and release 1.2.2 introduced soft
+            constraints, in which callables may return a float for their
+            nonzero result. The sum of such results is used as a starting
+            point for SSE calculations, providing an efficient way to
+            apply penalties for undesirable values of parameters or
+            parameter combinations.
+    
+            C{Note:} A float value of 0.0 is considered non-zero! It
+            is considered to be from a constraint that passed
+            perfectly, with no penalty. But to ensure that the result
+            of this method call is considered non-zero, any float
+            value equal to (or less than) zero coming from a
+            constraint callable results in the addition of an
+            infinitesimal SSE "penalty." In Python, C{bool(1E-20)}
+            equals C{True}.
+
+            If you don't want to be using a soft constraint, just make
+            sure that your constraint-checking callable returns
+            C{True} if the parameter values were acceptable and
+            C{False} or C{None} if they weren't.
+
+        Return Value
+        ============
+            Returns C{True} if there were no constraints or only Boolean
+            constraints were checked and all passed. Returns a float if
+            all constraints passed and there was at least one soft
+            constraint. Returns C{False} if any constraints failed.
         """
         if not self.constraints: return True
         param = {}
         for name, value in zip(self.names, values):
             param[name] = value
+        SSE = 0.0
         for func in self.constraints:
-            if not func(param):
+            result = func(param)
+            if result is None or result is False:
                 # This constraint was violated, bail out
                 return False
-        return True
+            if result is True:
+                # Passed Boolean constraint, no SSE addition
+                continue
+            if result <= 0:
+                # Perfect score from soft constraint
+                SSE += 1E-20
+                continue
+            SSE += float(result)
+        return SSE
 
     def limit(self, values):
         """
@@ -828,11 +869,11 @@ class Population(object):
         def getIndividual():
             for k in range(1000):
                 values = getNextIV()
-                if self.pm.passesConstraints(values):
-                    break
+                result = self.pm.passesConstraints(values)
+                if result: break
             else: raise RuntimeError(
                     "Couldn't generate a conforming Individual!")
-            return Individual(self, self.pm.limit(values))
+            return Individual(self, self.pm.limit(values), SSE0=result)
 
         def addIndividual(i):
             self.iList.append(i)
