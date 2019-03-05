@@ -226,8 +226,8 @@ class Messenger(object):
     
         You can precede or follow the with a single hyphen character
         ("-") to precede or follow the text with a row of hyphens as a
-        separator. (You can also do this with a numerical argument
-        immediately before or after.)
+        separator. (You can also combine this with a numerical
+        argument that comes immediately before or after.)
     
         Unless a single argument was supplied, returns the present
         file handle.
