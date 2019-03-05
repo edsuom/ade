@@ -23,7 +23,8 @@
 # governing permissions and limitations under the License.
 
 """
-Example script for the I{ade} package: goldstein-price.py
+Example script I{goldstein-price.py}: The Goldstein-Price
+test function.
 
 Runs as many subordinate python processes as there are CPU cores to
 solve the Goldstein-Price test function using asynchronous

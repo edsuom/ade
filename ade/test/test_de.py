@@ -240,7 +240,6 @@ class TestDifferentialEvolution(tb.TestCase):
     def test_call_challenge_failure(self):
         def challengeWrapper(kt, kb):
             count[0] += 1
-            print "CW", count
             if count[0] == 5:
                 return defer.fail(failure.Failure(FakeException()))
             return orig_challenge(kt, kb).addCallback(done)

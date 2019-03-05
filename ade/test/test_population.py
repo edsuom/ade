@@ -443,4 +443,4 @@ class TestPopulation_Abort(tb.TestCase):
         d = self.p.setup()
         self.deferToDelay(0.5).addCallback(lambda _: self.p.abort())
         yield d
-        self.assertLess(time.time()-t0, 0.65)
+        self.assertLess(time.time()-t0, 0.72)

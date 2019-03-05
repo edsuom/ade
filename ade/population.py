@@ -571,6 +571,10 @@ class Population(object):
         my default target for the total score of improvements in each
         iteration.
 
+    @cvar N_maxParallel: The maximum number of parallel evaluations
+        during population L{setup}. Uses an instance of
+        C{asynqueue.util.DeferredTracker} for concurrency limiting.
+    
     @ivar popsize: The number of individuals per parameter. The
         population size will scale with the number of parameters, up
         until I{Np_max} is reached. Default is 10 individuals per
@@ -593,6 +597,8 @@ class Population(object):
     @ivar running: Indicates my run status: C{None} after
         instantiation but before L{setup}, C{True} after setup, and
         C{False} if I{ade} is aborting.
+
+    @see: U{asynqueue.util.DeferredTracker<http://edsuom.com/AsynQueue/asynqueue.util.DeferredTracker.html>}, used to limit concurrency during population L{setup}.
     """
     popsize = 10
     Np_min = 20
@@ -841,7 +847,8 @@ class Population(object):
                 addIndividual(i)
                 self.reporter(i)
 
-        def populater():
+        @defer.inlineCallbacks
+        def populate():
             k = 0
             while running():
                 i = getIndividual()
@@ -854,9 +861,7 @@ class Population(object):
                 d.addCallback(evaluated, d)
                 d.addErrback(oops)
                 dt.put(d)
-                if dt.dCount > self.N_maxParallel:
-                    yield dt.deferToAny()
-                else: yield
+                yield dt.deferUntilFewer(self.N_maxParallel)
                 if k >= self.Np:
                     break
             yield dt.deferToAll()
@@ -871,11 +876,11 @@ class Population(object):
             
         if not running():
             return defer.succeed(None)
-        dt = DeferredTracker()
+        dt = DeferredTracker(interval=0.05)
         kIV = [None]*2; refreshIV()
         msg(0, "Initializing {:d} population members having {:d} parameters",
             self.Np, self.Nd, '-')
-        return task.coiterate(populater()).addCallback(done)
+        return populate().addCallback(done)
             
     def save(self, filePath):
         """

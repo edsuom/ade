@@ -33,12 +33,12 @@ from setuptools import setup
 required = [
     'Twisted', 'numpy', 'scipy', 'matplotlib', 'pydoe',
     # Other EAS projects
-    'AsynQueue>=0.9.7', 'yampex>=0.9.0',
+    'AsynQueue>=0.9.8', 'yampex>=0.9.1',
 ]
 
 
 ### Define setup options
-kw = {'version': '1.2.1',
+kw = {'version': '1.2.2',
       'license': 'Apache License (2.0)',
       'platforms': 'OS Independent',
 
@@ -119,10 +119,13 @@ scaling factor *F* based on how much each generation is improving, and
 automatic termination after a reasonable level of convergence to the
 best solution.
 
-For a tutorial and usage examples, see the `project page`_ at
-**edsuom.com**.
+Comes with a couple of small and informative [example
+files](http://edsuom.com/ade/ade.examples.html), which you can install
+to an *ade-examples* subdirectory of your home directory by typing
+`ade-examples` as a shell command.
 
-.. _project page: http://edsuom.com/ade.html
+For a tutorial and usage examples, see the [project
+page](http://edsuom.com/ade.html) at **edsuom.com**.
 
 """
 
