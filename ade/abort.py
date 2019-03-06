@@ -38,9 +38,6 @@ import signal
 
 from twisted.internet import reactor, stdio, protocol
 
-# Since ^C doesn't work properly, let's just ignore it entirely
-signal.signal(signal.SIGINT, signal.SIG_IGN)
-
 
 class AbortError(Exception):
     """
@@ -90,19 +87,51 @@ class Keyboard(protocol.Protocol):
         self.shutdown()
 
 
-KB = Keyboard()
+class KeyboardHolder(object):
+    """
+    Constructs a class-wide instance of L{Keyboard} if not already
+    present and offers a couple of methods for using it.
+    """
+    KB = None
+    def __init__(self):
+        if self.KB is None:
+            self.setKB()
+            # Since ^C doesn't work properly, we will now just ignore
+            # it entirely
+            signal.signal(signal.SIGINT, signal.SIG_IGN)
+    
+    @classmethod
+    def setKB(cls):
+        cls.KB = Keyboard()
+            
+    @classmethod
+    def shutdown(cls):
+        if cls.KB: cls.KB.shutdown()
+            
+    def callOnAbort(self, func):
+        self.KB.addCallback(func)
+
+    def abortNow(self):
+        self.KB.dataReceived(None)
+    
+
 def callOnAbort(func):
     """
     Adds C{func} to the list of callbacks to call if the Enter key is
     pressed.
     """
-    KB.addCallback(func)
+    KeyboardHolder().callOnAbort(func)
 
 def shutdown():
     """
-    Shuts down the L{Keyboard} protocol.
+    Shuts down the L{Keyboard} protocol, if one has been constructed.
     """
-    KB.shutdown()
+    KeyboardHolder.shutdown()
 
+def abortNow():
+    """
+    Causes I{ade} to abort now as if the Enter key had been pressed.
+    """
+    KeyboardHolder().abortNow()
 
 
