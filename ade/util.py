@@ -291,9 +291,10 @@ MSG = _Debug()._msg
 class Args(object):
     """
     Convenience class by Edwin A. Suominen for compact and sensible
-    commandline argument parsing. The code of this class, separate
-    from the rest of this module and package, is dedicated to the
-    public domain.
+    commandline argument parsing.
+
+    The code of this class, separate from the rest of this module and
+    package, is dedicated to the public domain.
 
     Usage: Construct an instance with a text description of your
     application. Then call the instance for each option you want to
@@ -308,26 +309,38 @@ class Args(object):
     upper and lowercase). If you need more than that, you may be
     overcomplicating your command line.
 
-    Call the instance with just one argument, a text description, to
+    Call the instance with a text description as a single argument to
     allow for positional arguments. The arguments will be accessed
     from the instance as sequence items.
+
+    Call the instance with a callable to run it if the global module
+    name is '__main__' (i.e., it's been called as a script) and the
+    'h' option (for help) is not set.
 
     The instance will look exactly like an L{argparse.ArgumentParser}
     object, all set up and ready to have its attributes accessed.
     """
     def __init__(self, text):
         self.args = None
-        import argparse
+        import argparse, textwrap
         lines = text.strip().split('\n')
-        kw = {'description': lines[0]}
-        if len(lines) > 1:
-            kw['epilog'] = " ".join(lines[1:])
+        kw = {
+            'description': lines.pop(0),
+            'formatter_class': argparse.RawDescriptionHelpFormatter,
+        }
+        paras = []; paraLines = []
+        while lines:
+            line = lines.pop(0).strip()
+            if line: paraLines.append(line)
+            if not line or not lines:
+                paras.append(textwrap.fill(" ".join(paraLines)))
+                del paraLines[:]
+        if paras:
+            kw['epilog'] = "\n\n".join(paras)
         self.parser = argparse.ArgumentParser(**kw)
 
     def __nonzero__(self):
-        return any([
-            bool(getattr(self.args, x))
-            for x in dir(self.args) if not x.startswith('_')])
+        return len(self) > 0
 
     def addDefault(self, text, default, dest=None):
         if dest and '{}' in text: text = text.format(dest)
@@ -351,10 +364,13 @@ class Args(object):
                 action='store_true', help=helpText)
             return
         if len(args) == 1:
-            helpText = args[0]
+            arg = args[0]
+            if callable(arg):
+                name = arg.__module__
+                if name == '__main__' and not self.h: return arg()
+                return
             self.parser.add_argument(
-                '_args_', default=None, nargs='*', help=helpText)
-            return
+                '_args_', default=None, nargs='*', help=arg)
 
     def __iter__(self):
         for x in getattr(self, '_args_', []):
