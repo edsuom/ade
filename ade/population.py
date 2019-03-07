@@ -796,7 +796,8 @@ class Population(object):
         TODO: Load from I{filePath}.
 
         Sets my I{running} flag C{True} and returns a C{Deferred} that
-        fires when the population has been set up.
+        fires when the population has been set up, with C{True} if
+        it's ready to go and setup didn't get aborted.
         
         @keyword uniform: Use uniform random variates instead of a
             Latin hypercube (LHS). Using LHS (the default) is usually
@@ -805,7 +806,6 @@ class Population(object):
 
         @keyword blank: Set C{True} to give the initial individuals an
              infinite placeholder SSE instead of being evaluated.
-
         """
         def running():
             return self.running is not False
@@ -872,7 +872,9 @@ class Population(object):
                 self._sortNeeded = True
                 self.kBest = self.iList.index(self.iSorted[0])
                 self.running = True
-            else: self.Np = 0
+                return True
+            else:
+                self.Np = 0
             
         if not running():
             return defer.succeed(None)

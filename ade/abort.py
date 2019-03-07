@@ -83,7 +83,8 @@ class Keyboard(protocol.Protocol):
         e.g., the Enter key is pressed.
         """
         while self.callbacks:
-            self.callbacks.pop(0)()
+            func = self.callbacks.pop(0)
+            func()
         self.shutdown()
 
 
@@ -109,7 +110,11 @@ class KeyboardHolder(object):
         if cls.KB: cls.KB.shutdown()
             
     def callOnAbort(self, func):
-        self.KB.addCallback(func)
+        if self.KB.triggerID is None:
+            # Already aborted! But let the reactor iterate before
+            # calling
+            reactor.callLater(0, func)
+        else: self.KB.addCallback(func)
 
     def abortNow(self):
         self.KB.dataReceived(None)
@@ -132,6 +137,7 @@ def abortNow():
     """
     Causes I{ade} to abort now as if the Enter key had been pressed.
     """
-    KeyboardHolder().abortNow()
+    kbh = KeyboardHolder()
+    reactor.callLater(0, kbh.abortNow)
 
 
