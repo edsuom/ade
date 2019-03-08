@@ -291,6 +291,17 @@ class Runner(object):
         return self().addErrback(oops)
 
 
+def main():
+    """
+    Called when this module is run as a script.
+    """
+    if args.h:
+        return
+    r = Runner(args)
+    reactor.callWhenRunning(r.run)
+    reactor.run()
+
+
 args = Args(
     """
     Parameter finder for AGM lead-acid battery open-circuit voltage
@@ -308,7 +319,7 @@ args = Args(
     """
 )
 args('-m', '--maxiter', 800, "Maximum number of DE generations to run")
-args('-e', '--bitter-end', False, "Run to the bitter end")
+args('-e', '--bitter-end', "Run to the bitter end")
 args('-p', '--popsize', 20, "Population: # individuals per unknown parameter")
 args('-C', '--CR', 0.8, "DE Crossover rate CR")
 args('-F', '--F', "0.5,1.0", "DE mutation scaling F: two values for range")
@@ -317,18 +328,4 @@ args('-n', '--not-adaptive', "Don't use automatic F adaptation")
 args('-u', '--uniform', "Initialize population uniformly instead of with LHS")
 args('-N', '--N-cores', 0, "Limit the number of CPU cores")
 args('-l', '--logfile', "Write results to logfile 'voc.log' instead of STDOUT")
-
-
-def main():
-    """
-    Called when this module is run as a script.
-    """
-    if args.h:
-        return
-    r = Runner(args)
-    reactor.callWhenRunning(r.run)
-    reactor.run()
-
-
-if __name__ == '__main__':
-    main()
+args(main)
