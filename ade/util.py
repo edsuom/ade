@@ -27,7 +27,7 @@ Utility stuff used by most modules of L{ade}. Imports the author's
 public-domain convenience class L{Args} from a separate module.
 """
 
-import os, sys, re
+import os, sys, re, time
 
 from twisted.python import failure
 
@@ -108,6 +108,64 @@ class Bag(object):
         return self.x
 
 
+class EvalTimer(Picklable):
+    """
+    Piecewise evaluation helper.
+
+    If your evaluation (fitness) function is made up of a number of
+    separate parts that each contribute to the overall SSE, you can
+    call each part via an instance of me and iterate over my instance
+    to run the fastest parts first. With the I{xSSE} option enabled
+    for L{DifferentialEvolution}, that may avoid the need for the
+    slower parts to run as much during challenges.
+
+    The sole constructor argument I{k} identifies the position (first
+    is 0) of a hashable argument to L{run} that serves as an ID for
+    the function part, uniquely identifies one flavor of a call to it
+    for the overall evaluation.
+
+    For example, consider an evaluation function that involves calling
+    the same callable C{f} three times with a different integer ID as
+    the first argument followed by an array of parameter values. You
+    would set I{k} to 0, since the first argument is the unique ID.
+    """
+    def __init__(self, k):
+        self.k = k
+        self.times = {}
+        self.Ns = {}
+
+    def __call__(self, func, *args, **kw):
+        """
+        Call my instance with one part I{func} of the overall fitness
+        function with its I{args} and any I{kw}. The I{func} must
+        return a C{Deferred} result, and one of its arguments must be
+        a unique identifying ID for the part it plays.
+
+        Updates my average for elapsed time of the call, using the arg
+        at my ID index I{k} as a dict key.
+        """
+        def done(result):
+            key = args[self.k]
+            self.times[key] = self.times.get(key, 0) + time.time()
+            self.Ns[key] = self.Ns.get(key, 0) + 1
+            return result
+        
+        t0 = time.time()
+        return func(*args, **kw).addBoth(done)
+
+    def __iter__(self):
+        """
+        I iterate over my IDs, in ascending order of the average time it
+        took their function parts to run.
+        """
+        pairs = []
+        for ID in self.times:
+            avgTime = self.times[ID] / self.Ns[ID]
+            pairs.append([ID, avgTime])
+        for ID, avgTime in sorted(pairs, lambda x: x[1]):
+            yield ID
+
+    
 class Messenger(object):
     """
     My module-level C{msg} instance writes messages to STDOUT or
@@ -275,18 +333,3 @@ class Messenger(object):
         self.writeLine(prefix + sub(*args) + suffix)
         return fh
 msg = Messenger()
-
-
-class _Debug(object):
-    debugMode = False
-    @classmethod
-    def _msg(cls, *args):
-        if not args:
-            return cls.debugMode
-        if len(args) == 1:
-            if isinstance(args[0], bool):
-                cls.debugMode = args[0]
-                return
-        if cls.debugMode:
-            msg(*args)
-MSG = _Debug()._msg
