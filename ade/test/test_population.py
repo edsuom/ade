@@ -46,6 +46,7 @@ from ade.test import testbase as tb
 
 class TestConstraintChecking(tb.TestCase):
     def setUp(self):
+        abort.restart()
         self.pm = population.ParameterManager(
             ['a', 'b'], [(-5, +5), (-5, +5)], )
 

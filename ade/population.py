@@ -629,20 +629,13 @@ class Population(object):
             self.targetFraction = targetFraction
             msg("WARNING: Non-default target improvement score of {:f}",
                 targetFraction)
+        self.clear()
         self.pm = ParameterManager(names, bounds, constraints)
         self.reporter = Reporter(self, complaintCallback)
         if popsize: self.popsize = popsize
         self.Np = max([
             self.Np_min, min([self.popsize * self.Nd, self.Np_max])])
-        self.kBest = None
-        self.isProblem = False
-        self.replacementScore = None
         self.statusQuoScore = self.targetFraction * self.Np
-        self._sortNeeded = True
-        self.counter = 0
-        self.iList = []
-        self.dLocks = []
-        self.running = None
         abort.callOnAbort(self.abort)
         
     def __getitem__(self, k):
@@ -687,6 +680,13 @@ class Population(object):
         Sequence-like container of individuals: "in".
         """
         return i in self.iList
+
+    def __nonzero__(self):
+        """
+        Sequence-like container of individuals: I am C{True} if I have
+        any.
+        """
+        return bool(self.iList)
     
     @property
     def iSorted(self):
@@ -743,6 +743,20 @@ class Population(object):
         lines.append(sub("Best individual:\n{}\n", repr(self.best())))
         return "\n".join(lines)
 
+    def clear(self):
+        """
+        Wipes out any existing population and sets up everything for a
+        brand new one.
+        """
+        self.counter = 0
+        self.iList = []
+        self.dLocks = []
+        self.running = None
+        self.kBest = None
+        self.isProblem = False
+        self.replacementScore = None
+        self._sortNeeded = True
+    
     def limit(self, i):
         """
         Limits the individual's parameter values to the bounds in the way
@@ -873,11 +887,10 @@ class Population(object):
                 self.kBest = self.iList.index(self.iSorted[0])
                 self.running = True
                 return True
-            else:
-                self.Np = 0
             
         if not running():
             return defer.succeed(None)
+        if self: self.clear()
         dt = DeferredTracker(interval=0.05)
         kIV = [None]*2; refreshIV()
         msg(0, "Initializing {:d} population members having {:d} parameters",

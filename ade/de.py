@@ -310,6 +310,11 @@ class DifferentialEvolution(object):
         with occasional marginally better replacements but don't want
         to go until the I{bitterEnd}, feel free to increase this from
         the default.
+
+    @keyword goalSSE: You can set a goal for SSE to indicate that any
+        further iterations are pointless if that goal is reached.  If
+        defined and the best individual has a better SSE than it at
+        the end of an iteration, there will be no further iterations.
     """
     attributes = {
         'CR':           0.8,
@@ -320,6 +325,7 @@ class DifferentialEvolution(object):
         'adaptive':     True,
         'bitterEnd':    False,
         'dwellByGrave': 7,
+        'goalSSE':      None,
     }
 
     def __init__(self, population, **kw):
@@ -331,8 +337,7 @@ class DifferentialEvolution(object):
         msg(fh)
         for name in self.attributes:
             value = kw.get(name, getattr(self, name, None))
-            if value is None:
-                value = self.attributes[name]
+            if value is None: value = self.attributes[name]
             setattr(self, name, value)
         if self.CR < 0.0 or self.CR > 1.0:
             raise ValueError(sub("Invalid crossover constant {}", self.CR))
@@ -350,8 +355,9 @@ class DifferentialEvolution(object):
         pressed.
         
         Sets my I{running} flag C{False}, which lets all my various
-        loops know that it's time to quit early. Calls L{Population.abort} on my
-        L{Population} object I{p} to shut it down ASAP.
+        loops know that it's time to quit early. Calls
+        L{Population.abort} on my L{Population} object I{p} to shut it
+        down ASAP.
         """
         if self.triggerID:
             reactor.removeSystemEventTrigger(self.triggerID)
@@ -514,7 +520,11 @@ class DifferentialEvolution(object):
                 if result is None:
                     self.shutdown()
             if not self.running: break
-            if self.p.replacement():
+            if self.goalSSE and self.p.best < self.goalSSE:
+                msg(-1,
+                    "Goal SSE of {:.5g} has been met, stopped.", self.goalSSE)
+                break
+            elif self.p.replacement():
                 # There was enough overall improvement to warrant
                 # scaling F back up a bit
                 self.fm.up()
@@ -561,7 +571,8 @@ class DifferentialEvolution(object):
         better with each generation, I will continue to run, even with
         tiny overall improvements.
         """
-        if not self.p.Np:
+        if self.p.running is False:
+            # Population setup got aborted
             return defer.succeed(self.p)
         # Report on initial population
         self.p.reporter()

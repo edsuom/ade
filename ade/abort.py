@@ -140,4 +140,5 @@ def abortNow():
     kbh = KeyboardHolder()
     reactor.callLater(0, kbh.abortNow)
 
-
+def restart():
+    KeyboardHolder.setKB()

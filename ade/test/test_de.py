@@ -141,6 +141,9 @@ class FakeException(Exception):
 class TestDifferentialEvolution(tb.TestCase):
     timeout = 30
     verbose = False
+
+    def setUp(self):
+        abort.restart()
     
     @defer.inlineCallbacks
     def makeDE(self, Np, Nd, slow=False, blank=False):
@@ -285,13 +288,25 @@ class TestDifferentialEvolution(tb.TestCase):
 
 class Test_Abort(tb.TestCase):
     def setUp(self):
+        abort.restart()
+        from asynqueue.util import DeferredTracker
+        self.dt = DeferredTracker()
         self.p = Population(self.fifthSecond, ["x"], [(-5, 5)])
         self.de = de.DifferentialEvolution(self.p, maxiter=35)
         self.de.fm = de.FManager(0.5, 0.5, self.p.Np, True)
         return self.p.setup()
 
+    def tearDown(self):
+        def done(null):
+            abort.shutdown()
+            self.de.shutdown()
+        return self.dt.deferToAll().addCallback(done)
+    
     def fifthSecond(self, x):
-        return self.deferToDelay(0.2).addCallback(lambda _: 1.23)
+        d = self.deferToDelay(0.2)
+        d.addCallback(lambda _: 1.23)
+        self.dt.put(d)
+        return d
 
     @defer.inlineCallbacks
     def test_abort_challenge_beforehand(self):
@@ -304,15 +319,17 @@ class Test_Abort(tb.TestCase):
     def test_abort_challenge_midway(self):
         t0 = time.time()
         d = self.de.challenge(1, 2)
-        self.deferToDelay(0.05).addCallback(lambda _: self.de.shutdown())
+        dd = self.deferToDelay(0.05).addCallback(lambda _: self.de.shutdown())
         yield d
         self.assertWithinFivePercent(time.time()-t0, 0.2)
+        yield dd
 
     @defer.inlineCallbacks
     def test_abort_call(self):
         t0 = time.time()
         d = self.de()
         t = 0.1 + 0.3*np.random.random()
-        self.deferToDelay(t).addCallback(lambda _: self.de.shutdown())
+        dd = self.deferToDelay(t).addCallback(lambda _: self.de.shutdown())
         yield d
         self.assertLess(time.time()-t0, t+0.25)
+        yield dd
