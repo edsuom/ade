@@ -615,10 +615,12 @@ class Population(object):
         C{Population(func, names, bounds, constraints=[], popsize=None,
         debug=False, complaintCallback=None)}
         """
-        def evalFunc(values):
+        def evalFunc(values, xSSE=None):
             if self.running is False:
                 values = None
-            return defer.maybeDeferred(func, values)
+            if xSSE is None:
+                return defer.maybeDeferred(func, values)
+            return defer.maybeDeferred(func, values, xSSE=xSSE)
 
         if not callable(func):
             raise ValueError(sub("Object '{}' is not callable", func))

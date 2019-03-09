@@ -315,6 +315,14 @@ class DifferentialEvolution(object):
         further iterations are pointless if that goal is reached.  If
         defined and the best individual has a better SSE than it at
         the end of an iteration, there will be no further iterations.
+
+    @keyword xSSE: Set C{True} if your evaluation function can accept
+        and make use of an I{xSSE} keyword defining an SSE value above
+        which continuing the evaluation is pointless. If this is set,
+        each call to the eval function for a challenger will include
+        the I{xSSE} keyword set to its target's SSE. If the
+        challenger's SSE exceeds I{xSSE}, the evaluation can terminate
+        early because the challenge will fail no matter what.
     """
     attributes = {
         'CR':           0.8,
@@ -326,6 +334,7 @@ class DifferentialEvolution(object):
         'bitterEnd':    False,
         'dwellByGrave': 7,
         'goalSSE':      None,
+        'xSSE':         False,
     }
 
     def __init__(self, population, **kw):
@@ -463,7 +472,9 @@ class DifferentialEvolution(object):
                 if self.p.pm.passesConstraints(iChallenger.values):
                     # Passes constraints!
                     # Now the hard part: Evaluate fitness of the challenger
-                    yield iChallenger.evaluate()
+                    if self.xSSE:
+                        yield iChallenger.evaluate(iTarget.SSE)
+                    else: yield iChallenger.evaluate()
                     if iChallenger and self.running:
                         if iChallenger < iTarget:
                             # The challenger won the tournament, replace

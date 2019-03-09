@@ -240,7 +240,7 @@ class Individual(object):
             values = np.array(values)
         self.values = values
     
-    def evaluate(self):
+    def evaluate(self, xSSE=None):
         """
         Computes the sum of squared errors (SSE) from my evaluation
         function using my current I{values}.
@@ -267,7 +267,11 @@ class Individual(object):
             self.SSE = -1
             return self
         t0 = time.time()
-        return self.p.evalFunc(self.values).addCallbacks(done, failed)
+        if xSSE is None:
+            d = self.p.evalFunc(self.values)
+        else: d = self.p.evalFunc(self.values, xSSE=xSSE)
+        d.addCallbacks(done, failed)
+        return d
 
     def save(self, filePath):
         """
