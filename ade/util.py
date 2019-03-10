@@ -162,7 +162,7 @@ class EvalTimer(Picklable):
         for ID in self.times:
             avgTime = self.times[ID] / self.Ns[ID]
             pairs.append([ID, avgTime])
-        for ID, avgTime in sorted(pairs, lambda x: x[1]):
+        for ID, avgTime in sorted(pairs, key=lambda x: x[1]):
             yield ID
 
     
