@@ -306,6 +306,7 @@ class TestPopulation(tb.TestCase):
     verbose = False
     
     def setUp(self):
+        abort.restart()
         self.p = population.Population(
             tb.ackley, ["x", "y"], [(-5, 5), (-5, 5)], popsize=self.Np)
 

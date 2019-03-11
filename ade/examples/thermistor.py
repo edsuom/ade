@@ -251,7 +251,7 @@ class Evaluator(Picklable):
         T_kelvin = 1.0 / (a + b*lnR + c*(lnR**2) + d*(lnR**3))
         return T_kelvin - self.T_kelvin_offset
 
-    def __call__(self, values):
+    def __call__(self, values, xSSE=None):
         """
         Evaluation function for the parameter I{values}.
 
@@ -267,6 +267,8 @@ class Evaluator(Picklable):
             T_curve = self.curve(R, *args)
             squaredResiduals = self.weights * np.square(T_curve - T)
             SSE += np.sum(squaredResiduals)
+            if xSSE and SSE > xSSE:
+                return SSE
         # Apply substantial SSE-proportional drift penalty
         values = np.array(values)
         for prefix in self.prefixes:
@@ -277,6 +279,8 @@ class Evaluator(Picklable):
             drift = np.sum(np.log(ratios))
             # The fourth power of the drift: We're not messing around
             SSE *= 1 + self.driftPenalty * drift**4
+            if xSSE and SSE > xSSE:
+                break
         # Done
         return SSE
 
@@ -325,7 +329,7 @@ class Runner(object):
             self.q = None
             msg("Goodbye")
         
-    def evaluate(self, values):
+    def evaluate(self, values, xSSE=None):
         """
         The function that gets called with each combination of parameters
         to be evaluated for fitness.
@@ -334,7 +338,7 @@ class Runner(object):
             # Shutting down, don't try to evaluate
             return defer.succeed(None)
         values = list(values)
-        if self.q: return self.q.call(self.ev, values)
+        if self.q: return self.q.call(self.ev, values, xSSE)
     
     @defer.inlineCallbacks
     def __call__(self):
@@ -351,7 +355,7 @@ class Runner(object):
         F = [float(x) for x in args.F.split(',')]
         de = DifferentialEvolution(
             self.p,
-            CR=args.C, F=F, maxiter=args.m,
+            CR=args.C, F=F, maxiter=args.m, xSSE=args.x,
             randomBase=args.r, uniform=args.u, adaptive=not args.n,
             bitterEnd=args.b, logHandle=self.fh, dwellByGrave=12)
         yield de()
@@ -391,6 +395,7 @@ args('-u', '--uniform', "Initialize population uniformly instead of with LHS")
 args('-N', '--N-cores', 0, "Limit the number of CPU cores")
 args('-l', '--logfile',
      "Write results to logfile 'thermistor.log' instead of STDOUT")
+args('-x', '--xSSE', "Abort evaluation if challenger's SSE exceeds target's")
 
 
 def main():

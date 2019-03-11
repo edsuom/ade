@@ -24,7 +24,8 @@
 
 """
 Utility stuff used by most modules of L{ade}. Imports the author's
-public-domain convenience class L{Args} from a separate module.
+public-domain convenience class L{Args} from a separate module
+L{args}.
 """
 
 import os, sys, re, time
@@ -37,7 +38,8 @@ from ade.args import Args
 
 def sub(proto, *args):
     """
-    This really should be a built-in function.
+    Format string prototype I{proto} with I{args}. This really should
+    be a built-in function.
     """
     try:
         return proto.format(*args)
@@ -137,17 +139,19 @@ class EvalTimer(Picklable):
     def __call__(self, func, *args, **kw):
         """
         Call my instance with one part I{func} of the overall fitness
-        function with its I{args} and any I{kw}. The I{func} must
-        return a C{Deferred} result, and one of its arguments must be
-        a unique identifying ID for the part it plays.
+        function with its I{args} and any I{kw}.
+
+        The I{func} must return a C{Deferred} result, and one of its
+        arguments must be a unique identifying ID for the part it
+        plays.
 
         Updates my average for elapsed time of the call, using the arg
         at my ID index I{k} as a dict key.
         """
         def done(result):
-            key = args[self.k]
-            self.times[key] = self.times.get(key, 0) + time.time()
-            self.Ns[key] = self.Ns.get(key, 0) + 1
+            ID = args[self.k]
+            self.times[ID] = self.times.get(ID, 0) + time.time()
+            self.Ns[ID] = self.Ns.get(ID, 0) + 1
             return result
         
         t0 = time.time()
@@ -157,6 +161,15 @@ class EvalTimer(Picklable):
         """
         I iterate over my IDs, in ascending order of the average time it
         took their function parts to run.
+
+        Does a sort of IDs by average time each time I iterate, which
+        seems inefficient but really isn't. Sorting is very fast, and
+        L{__call__} is probably being run more often than L{__iter__},
+        so caching wouldn't make sense.
+
+        My I{times} and I{Ns} dicts can update while I'm iterating
+        with no problems. I will keep using the ascending order I
+        computed before I started yielding IDs.
         """
         pairs = []
         for ID in self.times:
