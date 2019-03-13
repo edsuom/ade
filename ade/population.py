@@ -722,7 +722,8 @@ class Population(object):
             for x in columns[1:]:
                 lineParts.append(x)
             lines.append(" ".join(lineParts))
-        
+
+        if not self: return "Population: (empty)"
         N_top = (self.pm.maxLineLength-3) / 13
         iTops = self.iSorted[:N_top]
         if len(iTops) < N_top: N_top = len(iTops)
