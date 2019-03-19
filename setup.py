@@ -33,12 +33,12 @@ from setuptools import setup
 required = [
     'Twisted', 'numpy', 'scipy', 'matplotlib', 'pydoe',
     # Other EAS projects
-    'AsynQueue>=0.9.8', 'yampex>=0.9.1',
+    'AsynQueue>=0.9.8', 'yampex>=0.9.2',
 ]
 
 
 ### Define setup options
-kw = {'version': '1.2.2',
+kw = {'version': '1.2.3',
       'license': 'Apache License (2.0)',
       'platforms': 'OS Independent',
 

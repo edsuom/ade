@@ -45,9 +45,10 @@ from twisted.internet import reactor, defer
 from asynqueue.process import ProcessQueue
 from yampex.plot import Plotter
 
-from ade.util import *
 from ade.population import Population
 from ade.de import DifferentialEvolution
+from ade.image import ImageViewer
+from ade.util import *
 
 from data import Data
 
@@ -101,6 +102,7 @@ class Reporter(object):
             2, filePath=self.plotFilePath, width=15, height=10)
         self.pt.use_grid()
         self.pt.use_timex()
+        ImageViewer(self.plotFilePath)
     
     def __call__(self, values, counter, SSE):
         """
