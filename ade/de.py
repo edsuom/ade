@@ -332,7 +332,7 @@ class DifferentialEvolution(object):
         'uniform':      False,
         'adaptive':     True,
         'bitterEnd':    False,
-        'dwellByGrave': 7,
+        'dwellByGrave': 5,
         'goalSSE':      None,
         'xSSE':         False,
     }
