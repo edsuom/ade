@@ -380,44 +380,93 @@ class Reporter(object):
         
     def msgRatio(self, iNumerator, iDenominator, sym_lt="X"):
         """
-        Returns 0 if I{iNumerator} or I{iDenominator} is C{None},
-        numerator SSE < denominator SSE, denominator SSE is C{None},
-        or numerator and denominator SSE are equivalent.
+        Returns 0 if I{iNumerator} is better (lower SSE) than
+        I{iDenominator}. Otherwise returns the rounded integer ratio
+        of numerator SSE divided by denominator SSE.
 
-        "Equivalent" means a call to L{isEquivSSE} determines that the
-        two individuals have SSEs with a fractional difference less
-        than my I{minDiff} attribute.
+        I{iNumerator} is automatically better if the SSE of
+        I{iDenominator} is bogus, meaning C{None}, C{np.nan}, or
+        infinite. That is, unless its own SSE is also bogus, in which
+        case a ratio of zero is returned. If I{iNumerator} has a bogus
+        SSE but I{iDenominator} does not, a very high ratio is
+        returned; a bogus evaluation got successfully challenged, and
+        that's very significant.
 
-        Otherwise returns the rounded integer ratio of numerator SSE
-        divided by denominator SSE.
+        I{iNumerator} is not considered better if its SSE is
+        "equivalent" to that of I{iDenominator}, meaning that a call
+        to L{isEquivSSE} determines that the two individuals have SSEs
+        with a fractional difference less than my I{minDiff}
+        attribute. For example, if I{iDenominator} has an SSE of
+        100.0, returns 1 if I{iNumerator} has an SSE between 101.1 and
+        149.9. If I{iNumerator} has an SSE of 100.9, it is considered
+        equivalent to I{iDenominator} and 0 will be returned. If its
+        SSE is between 150.0 and 249.9, the return value is 2.
 
-        For example, if I{iDenominator} has an SSE of 100.0, returns 1
-        if I{iNumerator} has an SSE between 101.1 and 149.9. If
-        I{iNumerator} has an SSE of 100.9, it is considered equivalent
-        to I{iDenominator} and 0 will be returned. If its SSE is
-        between 150.0 and 249.9, the return value is 2.
+        Logs a progress character:
+
+            - "?" if either I{iNumerator} or I{iDenominator} evaluates
+              as boolean C{False}. (This should only happen if there
+              was a fatal error during evaluation and shutdown is
+              imminent.)
+
+            - "!" if I{iNumerator} has a bogus SSE but I{iDenominator}
+              does not. (Successful challenge because parent had error.)
+
+            - "%" if I{iNumerator} has a bogus SSE and so does
+              I{iDenominator}. (Everybody's fucked up.)
+
+            - "#" if I{iDenominator} has a bogus SSE but I{iNumerator}
+              does not. (Failed challenge due to error.)
+
+            - The character supplied with the I{sym_lt} keyword
+              (defaults to "X") if I{iNumerator} is better than
+              I{iDenominator}, indicating a failed challenge.
+        
+            - "0" if I{iNumerator} is worse than I{iDenominator}
+              (challenger) but with an equivalent SSE.
+
+            - A digit from 1-9 if I{iNumerator} is worse than
+              I{iDenominator} (challenger), with the digit indicating
+              how much better (lower) the SSE of I{iDenominator} is
+              than that of I{iNumerator}. (A digit of "9" only
+              indicates that the ratio was at least nine and might be
+              much higher.)
         """
-        def has_nan(i):
-            try: return np.isnan(i.SSE)
-            except: pass
+        def bogus(i):
+            SSE = i.SSE
+            if SSE is None: return True
+            try: isNan = np.isnan(SSE)
+            except: isNan = False
+            return isNan or np.isinf(SSE)
         
         if not iNumerator or not iDenominator:
-            # This shouldn't happen
-            return 0
-        if not iNumerator.SSE or not iDenominator.SSE:
-            # Neither should this
-            return 0
-        if iNumerator < iDenominator or has_nan(iDenominator):
+            ratio = 0
+            sym = "?"
+        elif bogus(iNumerator):
+            if bogus(iDenominator):
+                ratio = 0
+                sym = "%"
+            else:
+                ratio = 1000
+                sym = "!"
+        elif bogus(iNumerator):
+            ratio = 0
+            sym = "!"
+        elif bogus(iDenominator):
+            ratio = 0
+            sym = "#"
+        elif iNumerator < iDenominator:
             ratio = 0
             sym = sym_lt
         elif self.isEquivSSE(iDenominator, iNumerator):
             ratio = 0
             sym = "0"
-        elif has_nan(iNumerator):
-            ratio = 1000
-            sym = "9"
         else:
-            ratio = np.round(float(iNumerator.SSE) / float(iDenominator.SSE))
+            if not iDenominator.SSE:
+                ratio = 1000
+            else:
+                ratio = np.round(
+                    float(iNumerator.SSE) / float(iDenominator.SSE))
             sym = str(int(ratio)) if ratio < 10 else "9"
         self.progressChar(sym)
         return ratio

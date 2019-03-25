@@ -226,9 +226,30 @@ class TestReporter(tb.TestCase):
         self.assertEqual(text, "0X2X9X3X")
 
     @defer.inlineCallbacks
-    def test_msgRatio_nans(self):
+    def test_msgRatio_nan(self):
         def reciprocal(x):
             if x[0] == 0: return np.nan
+            return 1.0 / x[0]
+        self.p = tb.MockPopulation(reciprocal, ['x'], [(-5, 5)], popsize=1)
+        self.r = population.Reporter(self.p)
+        fh = StringIO()
+        msg(fh)
+        iPrev = yield self.p.spawn([1.0]).evaluate()
+        expectedRatios = [0, 1000, 1, 2, 0, 0, 1000, 3]
+        for k, x in enumerate([0, 1, 1.4, 3, 0, 0, 1, 3.1]):
+            # Closer to (0), thus higher SSE
+            i = yield self.p.spawn(np.array([x])).evaluate()
+            ratio = self.r.msgRatio(iPrev, i)
+            self.assertAlmostEqual(ratio, expectedRatios[k])
+            iPrev = i
+        text = fh.getvalue()
+        msg(None)
+        self.assertEqual(text, "#!12#%!3")
+
+    @defer.inlineCallbacks
+    def test_msgRatio_inf(self):
+        def reciprocal(x):
+            if x[0] == 0: return float('+inf')
             return 1.0 / x[0]
         self.p = tb.MockPopulation(reciprocal, ['x'], [(-5, 5)], popsize=1)
         self.r = population.Reporter(self.p)
@@ -243,8 +264,8 @@ class TestReporter(tb.TestCase):
             self.assertAlmostEqual(ratio, expectedRatios[k])
         text = fh.getvalue()
         msg(None)
-        self.assertEqual(text, "X0123")
-
+        self.assertEqual(text, "#0123")
+        
     @defer.inlineCallbacks
     def test_fileReport_otherNone(self):
         fh = StringIO()

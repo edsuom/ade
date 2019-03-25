@@ -155,8 +155,8 @@ class Individual(object):
     def __nonzero__(self):
         """
         I am C{True} if there were no fatal errors during my last
-        evaluation, as indicated by an evaluation SSE result of less
-        than zero.
+        evaluation, which would be indicated by an evaluation SSE
+        result of less than zero.
 
         I will evaluate as C{True} even if my SSE is C{None},
         infinite, or C{NaN}, so long as it is not negative.
