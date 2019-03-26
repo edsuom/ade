@@ -63,7 +63,6 @@ class RowManager(object):
 
     I can iterate over the parameter names, in order.
     """
-    maxRows = 40
     reNumRange = re.compile(r'([a-zA-Z0-9_]+?)([0-9]+)\-([0-9]+)$')
     reLetterRange = re.compile(r'([a-zA-Z0-9_]+?)([a-z])\-([a-z])$')
     letters = "abcdefghijklmnopqrstuvwxyz"
@@ -154,19 +153,48 @@ class RowManager(object):
             self.insert(stars, name, len(match.group(3)))
         return None not in values
 
-    def trim(self, maxRatio=4.0):
+    def trim(self, maxRatio=2.0, maxDiff=0.01, maxRows=40):
         """
-        Trims my arrays to only include the best (latest) SSEs.
+        Trims my arrays to only include the entry with the best (latest)
+        SSE and worse (earlier) entries representing a significant
+        step in evolution toward the best SSE.
+
+        The following criteria are applied to decide whether entries
+        remain:
+
+            1. SSE less than I{maxRatio} (default 2.0) times the best SSE.
+
+            2. SSE or at least one parameter as a relative difference
+               of more than I{maxDiff} (default 0.01, i.e., +/-1%)
+               from the SSE or parameter of a better entry that is
+               closest in SSE.
+
+            3. No more than I{maxRows} displayed (default 40).
 
         Modifies the arrays, so calling this repeatedly will trim them
         some more.
         """
+        def diffEnough(a, b):
+            if b == 0:
+                return abs(a) > maxDiff
+            return abs(a-b)/b > maxDiff
+        
+        K = np.argsort(self.SSE)
         bestSSE = np.min(self.SSE)
-        K = np.flatnonzero(self.SSE <= maxRatio*bestSSE)
-        K = K[-self.maxRows:]
-        self.SSE = self.SSE[K]
-        self.values = self.values[K]
-        self.stars = self.stars[K]
+        KS = [K[0]]
+        for k in K[1:]:
+            SSE = self.SSE[k]
+            if SSE > maxRatio*bestSSE: break
+            if not diffEnough(SSE, self.SSE[KS[-1]]): 
+                for kk, value in enumerate(self.values[k]):
+                    if diffEnough(value, self.values[KS[-1]][kk]):
+                        break
+                else: continue
+            KS.append(k)
+        KS = list(reversed(KS[-maxRows:]))
+        self.SSE = self.SSE[KS]
+        self.values = self.values[KS]
+        self.stars = self.stars[KS]
 
     
 class Grepper(object):
@@ -202,8 +230,10 @@ class Grepper(object):
         """
         with open(self.filePath, 'r') as fh:
             keepLooping = True
+            lineCount = 0
             while keepLooping:
                 line = fh.readline()
+                lineCount += 1
                 if not line: break
                 match = self.reSSE.search(line)
                 if not match: continue
@@ -226,18 +256,54 @@ class Grepper(object):
                     name, svalue, stars = match.group(2, 3, 4)
                     pd[name] = svalue, stars
                     line = line[match.end(0):]
+            # Now parse final population table
+            fh.seek(max([0, lineCount-200]))
+            stage = 0
+            params = {}
+            while True:
+                line = fh.readline().strip()
+                if stage == 0:
+                    if line.startswith("Population:"):
+                        stage = 1
+                    continue
+                if stage == 1:
+                    if line.startswith("SSE"):
+                        stage = 2
+                        SSEs = line.split('|')[1].split()
+                    continue
+                if line.startswith('--'):
+                    if params: break
+                    continue
+                name, values = [x.strip() for x in line.split('|')]
+                params[name] = values.split()
+            for k, SSE in enumerate(SSEs):
+                pd = {}
+                parts = [sub("{}={}", name, params[name][k]) for name in params]
+                line = " ".join(parts)
+                while line:
+                    match = self.reParam.search(line)
+                    if not match: break
+                    name, svalue, stars = match.group(2, 3, 4)
+                    pd[name] = svalue, stars
+                    line = line[match.end(0):]
+                yield float(SSE), pd
 
     def starredNames(self, N=4):
         """
         Looks through the log file and identifies all names that have
-        stars in the last I{N} entries.
+        stars in the I{N} lowest-SSE entries.
         """
+        best = {}
         names = []
-        FIFO = deque(maxlen=N)
         for SSE, pd in self.filerator():
-            FIFO.append((SSE, pd))
-        while FIFO:
-            SSE, pd = FIFO.pop()
+            if len(best) < N:
+                best[SSE] = pd
+                continue
+            SSEs = sorted(best.keys())
+            if SSE < SSEs[-1]:
+                del best[SSEs[-1]]
+                best[SSE] = pd
+        for pd in best.values():
             for name in pd:
                 if pd[name][1] and name not in names:
                     names.append(name)
