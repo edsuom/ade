@@ -396,34 +396,35 @@ class Reporter(object):
         "equivalent" to that of I{iDenominator}, meaning that a call
         to L{isEquivSSE} determines that the two individuals have SSEs
         with a fractional difference less than my I{minDiff}
-        attribute. For example, if I{iDenominator} has an SSE of
-        100.0, returns 1 if I{iNumerator} has an SSE between 101.1 and
-        149.9. If I{iNumerator} has an SSE of 100.9, it is considered
+        attribute. For example, if I{iDenominator} has an SSE=100.0,
+        returns 1 if I{iNumerator} has an SSE between 101.1 and 149.9.
+
+        If I{iNumerator} has an SSE of 100.9, it is considered
         equivalent to I{iDenominator} and 0 will be returned. If its
         SSE is between 150.0 and 249.9, the return value is 2.
 
         Logs a progress character:
 
-            - "?" if either I{iNumerator} or I{iDenominator} evaluates
+            - B{?} if either I{iNumerator} or I{iDenominator} evaluates
               as boolean C{False}. (This should only happen if there
               was a fatal error during evaluation and shutdown is
               imminent.)
 
-            - "!" if I{iNumerator} has a bogus SSE but I{iDenominator}
+            - B{!} if I{iNumerator} has a bogus SSE but I{iDenominator}
               does not. (Successful challenge because parent had error.)
 
-            - "%" if I{iNumerator} has a bogus SSE and so does
+            - B{%} if I{iNumerator} has a bogus SSE and so does
               I{iDenominator}. (Everybody's fucked up.)
 
-            - "#" if I{iDenominator} has a bogus SSE but I{iNumerator}
+            - B{#} if I{iDenominator} has a bogus SSE but I{iNumerator}
               does not. (Failed challenge due to error.)
 
             - The character supplied with the I{sym_lt} keyword
               (defaults to "X") if I{iNumerator} is better than
               I{iDenominator}, indicating a failed challenge.
         
-            - "0" if I{iNumerator} is worse than I{iDenominator}
-              (challenger) but with an equivalent SSE.
+            - The digit B{0} if I{iNumerator} is worse than
+              I{iDenominator} (challenger) but with an equivalent SSE.
 
             - A digit from 1-9 if I{iNumerator} is worse than
               I{iDenominator} (challenger), with the digit indicating
@@ -431,6 +432,7 @@ class Reporter(object):
               than that of I{iNumerator}. (A digit of "9" only
               indicates that the ratio was at least nine and might be
               much higher.)
+
         """
         def bogus(i):
             SSE = i.SSE

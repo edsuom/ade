@@ -122,10 +122,11 @@ class EvalTimer(Picklable):
     for L{DifferentialEvolution}, that may avoid the need for the
     slower parts to run as much during challenges.
 
-    The sole constructor argument I{k} identifies the position (first
-    is 0) of a hashable argument to L{run} that serves as an ID for
-    the function part, uniquely identifies one flavor of a call to it
-    for the overall evaluation.
+    The sole constructor argument I{k} identifies the position of a
+    hashable argument to L{__call__} (starting with 0 for the first
+    arg following I{func}) that serves as an ID for the function part,
+    uniquely identifies one flavor of a call to it for the overall
+    evaluation.
 
     For example, consider an evaluation function that involves calling
     the same callable C{f} three times with a different integer ID as
