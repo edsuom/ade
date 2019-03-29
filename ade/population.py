@@ -378,7 +378,7 @@ class Reporter(object):
         print("Well, shit. New best wasn't actually best. Fix this!\n")
         import pdb; pdb.set_trace()
         
-    def msgRatio(self, iNumerator, iDenominator, sym_lt="X"):
+    def msgRatio(self, iNumerator, iDenominator, bogus_char="!"):
         """
         Returns 0 if I{iNumerator} is better (lower SSE) than
         I{iDenominator}. Otherwise returns the rounded integer ratio
@@ -410,8 +410,10 @@ class Reporter(object):
               was a fatal error during evaluation and shutdown is
               imminent.)
 
-            - B{!} if I{iNumerator} has a bogus SSE but I{iDenominator}
-              does not. (Successful challenge because parent had error.)
+            - The character supplied with the I{bogus_char} keyword
+              (defaults to "!") if I{iNumerator} has a bogus SSE but
+              I{iDenominator} does not. (Successful challenge because
+              parent had error, or bogus new population candidate.)
 
             - B{%} if I{iNumerator} has a bogus SSE and so does
               I{iDenominator}. (Everybody's fucked up.)
@@ -419,9 +421,8 @@ class Reporter(object):
             - B{#} if I{iDenominator} has a bogus SSE but I{iNumerator}
               does not. (Failed challenge due to error.)
 
-            - The character supplied with the I{sym_lt} keyword
-              (defaults to "X") if I{iNumerator} is better than
-              I{iDenominator}, indicating a failed challenge.
+            - B{X} if I{iNumerator} is better than I{iDenominator},
+              indicating a failed challenge.
         
             - The digit B{0} if I{iNumerator} is worse than
               I{iDenominator} (challenger) but with an equivalent SSE.
@@ -432,7 +433,6 @@ class Reporter(object):
               than that of I{iNumerator}. (A digit of "9" only
               indicates that the ratio was at least nine and might be
               much higher.)
-
         """
         def bogus(i):
             SSE = i.SSE
@@ -450,16 +450,13 @@ class Reporter(object):
                 sym = "%"
             else:
                 ratio = 1000
-                sym = "!"
-        elif bogus(iNumerator):
-            ratio = 0
-            sym = "!"
+                sym = bogus_char
         elif bogus(iDenominator):
             ratio = 0
             sym = "#"
         elif iNumerator < iDenominator:
             ratio = 0
-            sym = sym_lt
+            sym = "X"
         elif self.isEquivSSE(iDenominator, iNumerator):
             ratio = 0
             sym = "0"
@@ -525,7 +522,7 @@ class Reporter(object):
             else:
                 # Worse than best (or same, unlikely), ratio is how
                 # much worse
-                result = self.msgRatio(i, self.iBest)
+                result = self.msgRatio(i, self.iBest, bogus_char="#")
         else:
             # Ratio is how much better this is than other. Thus,
             # numerator is other, because ratio is other SSE vs this
@@ -905,20 +902,23 @@ class Population(object):
         def addIndividual(i):
             self.iList.append(i)
             self.dLocks.append(defer.DeferredLock())
+
+        def needMore():
+            return len(self.iList) < self.Np
         
         def evaluated(i, d):
             if not i:
                 msg(0, "Bogus initial evaluation of {}, aborting", i)
                 self.abort()
                 return
-            if i.SSE is not None and len(self.iList) < self.Np:
+            self.reporter(i)
+            if not np.isinf(i.SSE) and needMore():
                 addIndividual(i)
-                self.reporter(i)
 
         @defer.inlineCallbacks
         def populate():
             k = 0
-            while running():
+            while running() and needMore():
                 i = getIndividual()
                 if blank:
                     i.SSE = np.inf
@@ -928,10 +928,10 @@ class Population(object):
                 d = i.evaluate()
                 d.addCallback(evaluated, d)
                 d.addErrback(oops)
-                dt.put(d)
-                yield dt.deferUntilFewer(self.N_maxParallel)
-                if k >= self.Np:
-                    break
+                if k < self.Np:
+                    dt.put(d)
+                    yield dt.deferUntilFewer(self.N_maxParallel)
+                else: yield d
             yield dt.deferToAll()
 
         def done(null):
