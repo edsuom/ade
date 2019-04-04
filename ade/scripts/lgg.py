@@ -256,12 +256,13 @@ class Grepper(object):
                     name, svalue, stars = match.group(2, 3, 4)
                     pd[name] = svalue, stars
                     line = line[match.end(0):]
-            # Now parse final population table
-            fh.seek(max([0, lineCount-200]))
-            stage = 0
-            params = {}
-            while True:
-                line = fh.readline().strip()
+            # Now parse final population table, if any
+            k = max([0, lineCount-200]); fh.seek(k); N = lineCount-k
+            stage = 0; params = {}; SSEs = []
+            for k in range(N):
+                line = fh.readline()
+                if not line: continue
+                line = line.strip()
                 if stage == 0:
                     if line.startswith("Population:"):
                         stage = 1
