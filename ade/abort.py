@@ -55,6 +55,7 @@ class Keyboard(protocol.Protocol):
         """
         C{Keyboard()}
         """
+        self.ignoreAll = False
         self.callbacks = []
         self.triggerID = reactor.addSystemEventTrigger(
             'before', 'shutdown', self.shutdown)
@@ -76,12 +77,19 @@ class Keyboard(protocol.Protocol):
         reactor.removeSystemEventTrigger(self.triggerID)
         self.triggerID = None
         self.transport.loseConnection()
-    
+
+    def ignore(self):
+        """
+        Call this to ignore keypresses. For development purposes only.
+        """
+        self.ignoreAll = True
+        
     def dataReceived(self, data):
         """
         Runs down the shutdown callback the first time data is received,
         e.g., the Enter key is pressed.
         """
+        if self.ignoreAll: return
         while self.callbacks:
             func = self.callbacks.pop(0)
             func()
@@ -104,7 +112,12 @@ class KeyboardHolder(object):
     @classmethod
     def setKB(cls):
         cls.KB = Keyboard()
-            
+
+    @classmethod
+    def ignore(cls):
+        if not cls.KB: cls.setKB()
+        cls.KB.ignore()
+    
     @classmethod
     def shutdown(cls):
         if cls.KB: cls.KB.shutdown()
@@ -141,4 +154,15 @@ def abortNow():
     reactor.callLater(0, kbh.abortNow)
 
 def restart():
+    """
+    Starts over, ready to abort again.
+    """
     KeyboardHolder.setKB()
+
+def ignoreKeyboard():
+    """
+    Causes Enter keypress to be ignored, disabling abort. For
+    development purposes only.
+    """
+    KeyboardHolder.ignore()
+    
