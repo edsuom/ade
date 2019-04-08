@@ -100,7 +100,7 @@ class RowManager(object):
         for k, name in enumerate(self.names):
             self.indices[name] = k
             self.rp[name] = re.compile(sub(
-                r'(^|\s){}\=([\+\-]?[0-9][0-9\.e\E\-\+]+)(\**)(\s|\>|$)', name))
+                r'(^|\s){}\=([\+\-]?[0-9][0-9\.e\E\-\+]*)(\**)(\s|\>|$)', name))
         self.SSE = []
         self.values = []
         self.stars = []
@@ -207,7 +207,7 @@ class Grepper(object):
     reSSE = re.compile(r'SSE\=([\d\.eE\-\+]+)')
     reParam = re.compile(
         r'(^|\s)([a-zA-Z]+[_a-zA-Z0-9]*)\='+\
-        r'([\+\-]?[0-9][0-9\.e\E\-\+]+)(\**)(\s|\>|$)')
+        r'([\+\-]?[0-9][0-9\.e\E\-\+]*)(\**)(\s|\>|$)')
 
     def __init__(self, filePath, args):
         self.filePath = filePath
