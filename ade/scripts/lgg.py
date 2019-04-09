@@ -185,7 +185,7 @@ class RowManager(object):
         for k in K[1:]:
             SSE = self.SSE[k]
             if SSE > maxRatio*bestSSE: break
-            if not diffEnough(SSE, self.SSE[KS[-1]]): 
+            if not diffEnough(SSE, self.SSE[KS[-1]]):
                 for kk, value in enumerate(self.values[k]):
                     if diffEnough(value, self.values[KS[-1]][kk]):
                         break
@@ -257,14 +257,18 @@ class Grepper(object):
                     pd[name] = svalue, stars
                     line = line[match.end(0):]
             # Now parse final population table, if any
-            k = max([0, lineCount-200]); fh.seek(k); N = lineCount-k
+            fh.seek(0)
             stage = 0; params = {}; SSEs = []
-            for k in range(N):
+            N_consecutiveBlank = 0
+            while True:
                 line = fh.readline()
-                if not line: continue
+                if not line:
+                    N_consecutiveBlank += 1
+                    if N_consecutiveBlank > 4: break
+                    continue
                 line = line.strip()
                 if stage == 0:
-                    if line.startswith("Population:"):
+                    if line.startswith("Final population"):
                         stage = 1
                     continue
                 if stage == 1:
