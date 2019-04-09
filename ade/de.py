@@ -484,6 +484,9 @@ class DifferentialEvolution(object):
                     else:
                         # Oops! Fatal error occurred!
                         self.shutdown()
+                else:
+                    # Failed constraints
+                    self.p.showFailedConstraint()
                 # Now that the individual at the target index has been
                 # determined, we can finally release the lock for that
                 # index

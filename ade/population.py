@@ -476,9 +476,9 @@ class Reporter(object):
         console/log line.
 
         If the number of symbols logged to the current line reaches my
-        line-length limit, a is inserted. To reset the count of
-        symbols logged to the current line, call this method with no
-        symbol provided.
+        line-length limit, a newline is inserted. To reset the count
+        of symbols logged to the current line, call this method with
+        no symbol provided.
         """
         if sym is None:
             if self._syms_on_line: msg("")
@@ -654,6 +654,7 @@ class Population(object):
     N_maxParallel = 12
     targetFraction = 0.03
     debug = False
+    failedConstraintChar = " "
     
     def __init__(
             self, func, names, bounds,
@@ -895,6 +896,7 @@ class Population(object):
                 values = getNextIV()
                 if self.pm.passesConstraints(values):
                     break
+                self.showFailedConstraint()
             else: raise RuntimeError(
                     "Couldn't generate a conforming Individual!")
             return Individual(self, self.pm.limit(values))
@@ -1103,7 +1105,13 @@ class Population(object):
         if not self.running:
             return defer.succeed(None)
         return self.reporter.waitForCallbacks()
-            
+
+    def showFailedConstraint(self):
+        """
+        Outputs a progress character to indicate a failed constraint.
+        """
+        self.reporter.progressChar(self.failedConstraintChar)
+    
     def push(self, i):
         """
         Pushes the supplied L{Individual} I{i} onto my population and
