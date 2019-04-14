@@ -152,8 +152,11 @@ class Individual(object):
     
     def __getitem__(self, k):
         """
-        Sequence-like read access to values.
+        Sequence-like read access to values when I{k} is an integer,
+        dict-like access otherwise.
         """
+        if not isinstance(k, int):
+            k = self.p.pm.names.index(k)
         return self.values[k]
 
     def __setitem__(self, k, value):
