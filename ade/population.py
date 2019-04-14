@@ -34,7 +34,7 @@ for the C{Deferred} that L{Population.setup} returns before
 proceeding.
 """
 
-import random
+import random, pickle, os.path
 from copy import copy
 from textwrap import TextWrapper
 
@@ -64,8 +64,9 @@ class ParameterManager(object):
     @ivar mins: Lower bound of each parameter.
     @ivar maxs: Lower bound of each parameter.
     """
-    maxLineLength = 100
+    maxLineLength = 120
     dashes = "-"*maxLineLength
+    fill = TextWrapper(width=maxLineLength, break_on_hyphens=False).fill
 
     def __init__(self, names, bounds, constraints=[]):
         if len(bounds) != len(names):
@@ -80,9 +81,42 @@ class ParameterManager(object):
         self.mids = self.mins + 0.5 * self.scales
         self.constraints = constraints if hasattr(
             constraints, '__iter__') else [constraints]
-        self.fill = TextWrapper(
-            width=self.maxLineLength, break_on_hyphens=False).fill
 
+    def __getstate__(self):
+        """
+        For pickling.
+        """
+        state = {}
+        names = {
+            'names', 'sortedNameIndices',
+            'mins', 'maxs', 'scales', 'mids', 'constraints',
+        }
+        for name in names:
+            if hasattr(self, name):
+                state[name] = getattr(self, name)
+        return state
+
+    def __setstate__(self, state):
+        """
+        For unpickling.
+        """
+        for name in state:
+            setattr(self, name, state[name])
+
+    def stringValue(self, k, value, forColumn=False):
+        """
+        For the parameter with position I{k}, returns the float
+        I{value} formatted as a string. Adds a '*' if value within 5%
+        of the lower bound, or '**' if within 5% of the upper bound.
+        """
+        uValue = (value - self.mins[k]) / self.scales[k]
+        suffix = "*" if uValue < 0.05 else "**" if uValue > 0.95 else ""
+        if forColumn:
+            proto = "{:>10.5g}{:2s}"
+            #proto = "{:>10.5g}{:3s}" if value < 0 else "{:>11.5g}{:2s}"
+        else: proto = "{:g}{}"
+        return sub(proto, float(value), suffix)
+        
     def prettyValues(self, values, *args):
         """
         Returns an easily readable string representation of the supplied
@@ -100,12 +134,7 @@ class ParameterManager(object):
             lineParts.append(args[0].format(*args[1:]))
         unityValues = self.toUnity(values)
         for k, name, value in self.sortedNamerator(values):
-            part = "{}={:g}".format(name, value)
-            uv = unityValues[k]
-            if uv < 0.05:
-                part += "*"
-            elif uv > 0.95:
-                part += "**"
+            part = sub("{}={}", name, self.stringValue(k, value))
             lineParts.append(part)
         text = " ".join(lineParts)
         return self.fill(text)
@@ -138,7 +167,7 @@ class ParameterManager(object):
         scaled = self.scales * values
         return self.mins + scaled
 
-    def toUnity(self, values):
+    def toUnity(self, values, ):
         """
         Translates actual into normalized values.
         
@@ -664,16 +693,9 @@ class Population(object):
         C{Population(func, names, bounds, constraints=[], popsize=None,
         debug=False, complaintCallback=None)}
         """
-        def evalFunc(values, xSSE=None):
-            if self.running is False:
-                values = None
-            if xSSE is None:
-                return defer.maybeDeferred(func, values)
-            return defer.maybeDeferred(func, values, xSSE=xSSE)
-
         if not callable(func):
             raise ValueError(sub("Object '{}' is not callable", func))
-        self.evalFunc = evalFunc
+        self.func = func
         self.Nd = len(bounds)
         if debug: self.debug = True
         if targetFraction:
@@ -688,7 +710,73 @@ class Population(object):
             self.Np_min, min([self.popsize * self.Nd, self.Np_max])])
         self.statusQuoScore = self.targetFraction * self.Np
         abort.callOnAbort(self.abort)
+
+    @classmethod
+    def load(self, filePath, func=None):
+        """
+        Returns a new instance of me with values initialized from the
+        original version pickled at I{filePath}.
+
+        The pickled version will not have a reference to the
+        evaluation function that was supplied to the original version
+        in its constructor. If you want to do further evaluations, you
+        can supply a reference to that function (or even a different
+        one, though that would be weird) with the I{func} keyword.
+        """
+        filePath = os.path.expanduser(filePath)
+        with open(filePath, 'rb') as fh:
+            p = pickle.load(fh)
+        p.func = func
+        return p
         
+    def __getstate__(self):
+        """
+        For pickling. Note that the user-supplied evaluation function is
+        not included.
+        """
+        state = {}
+        names = {
+            # Bools
+            'debug', 'running',
+            # Scalars
+            'Nd', 'Np', 'popsize', 'targetFraction', 'statusQuoScore',
+            # Other
+            'iList', 'pm',
+        }
+        for name in names:
+            if hasattr(self, name):
+                state[name] = getattr(self, name)
+        try:
+            state['_ccbPickle'] = pickle.dumps(self.reporter.complaintCallback)
+        except: pass
+        return state
+
+    def __setstate__(self, state):
+        """
+        For unpickling.
+        """
+        self.clear()
+        ccbPickle = state.pop('_ccbPickle', None)
+        for name in state:
+            setattr(self, name, state[name])
+        complaintCallback = pickle.loads(ccbPickle) if ccbPickle else None
+        self.reporter = Reporter(self, complaintCallback)
+        for i in self.iList:
+            i.p = self
+            self.dLocks.append(defer.DeferredLock())
+
+    def save(self, filePath):
+        """
+        Writes a pickled version of me to the specified I{filePath}.
+
+        Note that the user-supplied evaluation function will not be
+        included in the pickled version. However, you can supply it as
+        a keyword to L{load}.
+        """
+        filePath = os.path.expanduser(filePath)
+        with open(filePath, 'wb') as fh:
+            pickle.dump(self, fh)
+            
     def __getitem__(self, k):
         """
         Sequence-like access to my individuals.
@@ -702,8 +790,6 @@ class Population(object):
         """
         if not isinstance(i, Individual):
             raise TypeError("You can only set me with Individuals")
-        if i.SSE == np.inf:
-            self.isProblem = True
         self.iList[k] = i
         self._sortNeeded = True
         if self.kBest is None or i < self.iList[self.kBest]:
@@ -763,9 +849,6 @@ class Population(object):
         An informative string representation with a text table of my best
         individuals.
         """
-        def field(x):
-            return sub("{:>11.5g}", float(x))
-
         def addRow():
             lineParts = ["{:>11s}".format(columns[0]), '|']
             for x in columns[1:]:
@@ -773,7 +856,7 @@ class Population(object):
             lines.append(" ".join(lineParts))
 
         if not self: return "Population: (empty)"
-        N_top = (self.pm.maxLineLength-3) / 13
+        N_top = (self.pm.maxLineLength-3) / 15
         iTops = self.iSorted[:N_top]
         if len(iTops) < N_top: N_top = len(iTops)
         SSEs = [float(i.SSE) for i in self]
@@ -782,19 +865,31 @@ class Population(object):
             "{:.5g}, avg eval time {:.3g} sec. Top {:d}:",
             self.Np, min(SSEs), max(SSEs), np.mean(self.evalTimes()), N_top)]
         lines.append("")
-        columns = ["SSE"] + [field(i.SSE) for i in iTops]
+        columns = ["SSE"] + [sub("{:>10.5g}  ", float(i.SSE)) for i in iTops]
         addRow()
         lines.append(self.pm.dashes)
         X = np.empty([self.Nd, N_top])
         for kc, i in enumerate(iTops):
             X[:,kc] = i.values
         for kr, name in self.pm.sortedNamerator():
-            columns = [name] + [field(X[kr,kc]) for kc in range(N_top)]
+            columns = [name] + [
+                self.pm.stringValue(kr, X[kr,kc], forColumn=True)
+                for kc in range(N_top)]
             addRow()
         lines.append(self.pm.dashes)
         lines.append(sub("Best individual:\n{}\n", repr(self.best())))
         return "\n".join(lines)
 
+    def evalFunc(self, values, xSSE=None):
+        """
+        A wrapper for the user-supplied evaluation function.
+        """
+        if self.running is False:
+            values = None
+        if xSSE is None:
+            return defer.maybeDeferred(self.func, values)
+        return defer.maybeDeferred(self.func, values, xSSE=xSSE)
+    
     def clear(self):
         """
         Wipes out any existing population and sets up everything for a
@@ -805,7 +900,6 @@ class Population(object):
         self.dLocks = []
         self.running = None
         self.kBest = None
-        self.isProblem = False
         self.replacementScore = None
         self._sortNeeded = True
     
@@ -897,8 +991,9 @@ class Population(object):
                 if self.pm.passesConstraints(values):
                     break
                 self.showFailedConstraint()
-            else: raise RuntimeError(
-                    "Couldn't generate a conforming Individual!")
+            else:
+                msg(0, "Couldn't generate a conforming Individual, aborting!")
+                self.abort()
             return Individual(self, self.pm.limit(values))
 
         def addIndividual(i):
@@ -952,16 +1047,6 @@ class Population(object):
         msg(0, "Initializing {:d} population members having {:d} parameters",
             self.Np, self.Nd, '-')
         return populate().addCallback(done)
-            
-    def save(self, filePath):
-        """
-        (Not implemented yet.)
-        
-        This will save my individuals to a data file at I{filePath} in
-        a way that can repopulate a new instance of me with those same
-        individuals and without any evaluations being required.
-        """
-        raise NotImplementedError("TODO...")
         
     def addCallback(self, func, *args, **kw):
         """

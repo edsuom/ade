@@ -76,6 +76,11 @@ class Picklable(object):
     def __getstate__(self):
         state = {}
         dirClass = dir(self.__class__)
+        if '__slots__' in dirClass:
+            for name in self.__slots__:
+                if hasattr(self, name):
+                    state[name] = getattr(self, name)
+            return state
         for name in dir(self):
             if name.startswith('_') or name in dirClass:
                 continue
@@ -191,7 +196,7 @@ class Messenger(object):
     L{writeChar}, and L{lineWritten} are public and can be useful on
     their own.
     """
-    N_dashes = 100
+    N_dashes = 120
     
     def __init__(self):
         self.fh = None

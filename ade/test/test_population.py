@@ -26,7 +26,7 @@
 Unit tests for L{ade.population}.
 """
 
-import time, os.path, random
+import time, os.path, random, pickle
 from StringIO import StringIO
 
 import numpy as np
@@ -323,7 +323,6 @@ class TestReporter(tb.TestCase):
         
 class TestPopulation(tb.TestCase):
     Np = 20
-
     verbose = False
     
     def setUp(self):
@@ -442,6 +441,13 @@ class TestPopulation(tb.TestCase):
         self.p.release(4, 5)
         yield d
         self.assertEqual(stuff, [1, 2, 3])
+
+    @defer.inlineCallbacks
+    def test_pickle(self):
+        yield self.p.setup()
+        text = pickle.dumps(self.p)
+        p = pickle.loads(text)
+        self.assertEqual(repr(p), repr(self.p))
 
 
 class TestPopulation_Abort(tb.TestCase):

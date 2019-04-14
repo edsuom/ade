@@ -74,6 +74,23 @@ class Individual(object):
         self.SSE = None
         self.dt = None
 
+    def __getstate__(self):
+        """
+        For pickling. Does not include the L{Population} object I{p}.
+        """
+        state = {}
+        for name in {'values', '_SSE', 'dt'}:
+            state[name] = getattr(self, name)
+        return state
+
+    def __setstate__(self, state):
+        """
+        For unpickling. You have to set the I{p} attribute of the
+        unpickled version of me to a L{Population} object.
+        """
+        for name in state:
+            setattr(self, name, state[name])
+        
     def __repr__(self):
         """
         Informative string representation, with SSE and pretty-printed values.
