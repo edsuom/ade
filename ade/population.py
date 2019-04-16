@@ -50,6 +50,7 @@ from asynqueue.util import DeferredTracker
 import abort
 from individual import Individual
 from report import Reporter
+from history import History
 from util import *
 
 
@@ -213,7 +214,7 @@ class ParameterManager(object):
         values = np.where(values > self.maxs, 2*self.maxs - values, values)
         return np.clip(values, self.mins, self.maxs)
 
-
+    
 class Population(object):
     """
     I contain a population of parameter-combination L{Individual}
@@ -312,9 +313,10 @@ class Population(object):
             self.targetFraction = targetFraction
             msg("WARNING: Non-default target improvement score of {:f}",
                 targetFraction)
-        self.clear()
+        self.history = History(names)
         self.pm = ParameterManager(names, bounds, constraints)
         self.reporter = Reporter(self, complaintCallback)
+        self.clear()
         if popsize: self.popsize = popsize
         self.Np = max([
             self.Np_min, min([self.popsize * self.Nd, self.Np_max])])
@@ -351,7 +353,7 @@ class Population(object):
             # Scalars
             'Nd', 'Np', 'popsize', 'targetFraction', 'statusQuoScore',
             # Other
-            'iList', 'pm',
+            'iList', 'pm', 'history',
         }
         for name in names:
             if hasattr(self, name):
@@ -405,6 +407,7 @@ class Population(object):
         if self.kBest is None or i < self.iList[self.kBest]:
             # This one is now the best I have
             self.kBest = k
+        self.history.add(i)
         
     def __len__(self):
         """
@@ -508,6 +511,7 @@ class Population(object):
         self.counter = 0
         self.iList = []
         self.dLocks = []
+        if hasattr(self, 'history'): self.history.clear()
         self.running = None
         self.kBest = None
         self.replacementScore = None
@@ -609,6 +613,7 @@ class Population(object):
         def addIndividual(i):
             self.iList.append(i)
             self.dLocks.append(defer.DeferredLock())
+            self.history.add(i)
 
         def needMore():
             return len(self.iList) < self.Np
@@ -816,6 +821,7 @@ class Population(object):
             self.iList.index(self.iSorted[k]) for k in (-1, 0)]
         self[kWorst] = i
         self._sortNeeded = True
+        self.history.add(i)
     
     def sample(self, N, *exclude):
         """
