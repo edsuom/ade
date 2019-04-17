@@ -40,17 +40,21 @@ class History(object):
     I maintain a roster of the L{Individual} objects that a
     L{Population} has had and possibly replaced.
 
-    @cvar N_max: The most individuals I can have in my roster. If more
+    @keyword N_max: The most individuals I can have in my roster. If more
         are added when it's full, the highest-SSE one is bumped to
         make room.
 
+    @ivar names: A sequence of my individuals' parameter names,
+        supplied as the sole constructor argument.
+    
     @ivar iList: My roster of individuals, maintained in ascending
         order of SSE.
+
+    @ivar SSEs: A list of SSEs, one for each individual in I{iList}.
     """
-    N_max = 1000
-    
-    def __init__(self, names):
+    def __init__(self, names, N_max=None):
         self.names = names
+        self.N_max = N_max
         self.iList = []
         self.SSEs = []
 
@@ -116,13 +120,27 @@ class History(object):
         """
         Plots the values versus SSE for each of the named
         parameters. Accepts keywords used for L{value_vs_SSE}.
+
+        If there are two integer args, they are used to select a range
+        of my I{names}.
         """
+        if not names:
+            names = self.names
+        elif [isinstance(x, int) for x in names] == [True, True]:
+            names = self.names[slice(*names)]
         XY = self.value_vs_SSE(*names, **kw)
-        pt = plot.Plotter(len(XY)-1)
-        pt.add_marker('x'); pt.add_line(""); pt.use_grid()
-        with pt as sp:
-            for name, Y in zip(names, XY[1:]):
-                sp.set_title(name)
-                sp(XY[0], Y)
-        pt.show()
+        N = len(XY) - 1
+        kList = range(N)
+        while kList:
+            N = min([9, len(kList)])
+            kkList = kList[:N]; kList = kList[N:]
+            Nc = 1 if N == 1 else 3 if N > 6 else 2
+            pt = plot.Plotter(N, Nc=Nc)
+            pt.add_marker('.', 1.5); pt.add_line(""); pt.use_grid()
+            with pt as sp:
+                for k in kkList:
+                    name = names[k]
+                    sp.set_title(name)
+                    sp(XY[0], XY[k+1])
+        pt.showAll()
 

@@ -34,7 +34,7 @@ for the C{Deferred} that L{Population.setup} returns before
 proceeding.
 """
 
-import random, pickle, os.path
+import random, pickle, os.path, bz2
 from copy import copy
 from textwrap import TextWrapper
 
@@ -138,16 +138,20 @@ class ParameterManager(object):
         text = " ".join(lineParts)
         return self.fill(text)
 
-    def sortedNamerator(self, values=None):
+    def sortedNamerator(self, values=None, namesOnly=False):
         """
-        Generates tuples of sorted names.
+        Generates tuples of sorted names, or just the sorted names if
+        I{namesOnly} is set C{True}.
 
         Each tuple contains (1) the index in a I{values} list of
         parameters where each named parameter appears, and (2) the
         name itself. If such a list of I{values} is supplied, each
         tuple also includes (3) the value for that name.
         """
-        if values is None:
+        if namesOnly:
+            for k in self.sortedNameIndices:
+                yield self.names[k]
+        elif values is None:
             for k in self.sortedNameIndices:
                 yield k, self.names[k]
         else:
@@ -313,8 +317,8 @@ class Population(object):
             self.targetFraction = targetFraction
             msg("WARNING: Non-default target improvement score of {:f}",
                 targetFraction)
-        self.history = History(names)
         self.pm = ParameterManager(names, bounds, constraints)
+        self.history = History(list(self.pm.sortedNamerator(namesOnly=True)))
         self.reporter = Reporter(self, complaintCallback)
         self.clear()
         if popsize: self.popsize = popsize
@@ -327,16 +331,20 @@ class Population(object):
     def load(self, filePath, func=None):
         """
         Returns a new instance of me with values initialized from the
-        original version pickled at I{filePath}.
+        original version that was pickled and written with BZ2
+        compression to I{filePath}.
 
         The pickled version will not have a reference to the
         evaluation function that was supplied to the original version
         in its constructor. If you want to do further evaluations, you
         can supply a reference to that function (or even a different
         one, though that would be weird) with the I{func} keyword.
+
+        @see: L{save} for the way to create compressed pickles of an
+            instance of me.
         """
         filePath = os.path.expanduser(filePath)
-        with open(filePath, 'rb') as fh:
+        with bz2.BZ2File(filePath, 'r') as fh:
             p = pickle.load(fh)
         p.func = func
         return p
@@ -379,14 +387,15 @@ class Population(object):
 
     def save(self, filePath):
         """
-        Writes a pickled version of me to the specified I{filePath}.
+        Writes a BZ2-compressed pickled version of me to the specified
+        I{filePath}.
 
         Note that the user-supplied evaluation function will not be
         included in the pickled version. However, you can supply it as
         a keyword to L{load}.
         """
         filePath = os.path.expanduser(filePath)
-        with open(filePath, 'wb') as fh:
+        with bz2.BZ2File(filePath, 'w') as fh:
             pickle.dump(self, fh)
             
     def __getitem__(self, k):
