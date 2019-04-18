@@ -35,41 +35,106 @@ from ade import history
 from ade.test import testbase as tb
 
 
+class TestAnalysis(tb.TestCase):
+    def setUp(self):
+        self.names = ['foo', 'bar', 'zebra']
+        self.X = np.array([
+            [1, 2, 5],
+            [2, 3, 4],
+            [3, 4, 3],
+            [4, 5, 2],
+            [5, 6, 1]
+        ])
+        self.SSEs = [
+            110.0,      # 0
+            120.0,      # 1
+            129.0,      # 2
+            140.0,      # 4
+            150.0,      # 3
+        ]
+        self.K = [0, 1, 2, 4, 3]
+        self.a = history.Analysis(self.names, self.X, self.K, self.SSEs)
+
+    def test_corr(self):
+        self.assertAlmostEqual(self.a.corr(0, 1), +1)
+        self.assertAlmostEqual(self.a.corr(0, 2), -1)
+        
+    def test_Kf12(self):
+        K = self.a.Kf12(0.0, 0.5)
+        self.assertTrue(np.all(K == [0, 1, 2]))
+
+    def test_Kp12(self):
+        K = self.a.Kp12(0.0, 0.5)
+        self.assertTrue(np.all(K == [0, 1, 2]))
+        K = self.a.Kp12(0.2, 0.7)
+        self.assertTrue(np.all(K == [1, 2, 4]))
+        K = self.a.Kp12(0.5, 1.0)
+        self.assertTrue(np.all(K == [2, 4, 3]))
+
+
 class TestHistory(tb.TestCase):
     def setUp(self):
         self.names = ['foo', 'bar', 'zebra']
         self.h = history.History(self.names, N_max=10)
 
     def test_add(self):
-        i = tb.MockIndividual(values=[1,2,3])
-        i.SSE = 101.0
-        self.h.add(i)
-        self.assertEqual(len(self.h), 1)
-        self.assertTrue(np.all(self.h[0] == np.array([1,2,3])))
-        i = tb.MockIndividual(values=[4,5,6])
-        i.SSE = 102.0
-        self.h.add(i)
-        self.assertEqual(len(self.h), 2)
-        self.assertTrue(np.all(self.h[1] == np.array([4,5,6])))
+        for k in range(5):
+            i = tb.MockIndividual(values=[k,k+1,k+2])
+            i.SSE = 100.0 + k
+            self.h.add(i)
+            self.assertEqual(len(self.h), k+1)
+            self.assertTrue(np.all(self.h[k] == i.values))
 
     def test_add_limitSize_improving(self):
         for k in range(15):
             i = tb.MockIndividual(values=[k,k+1,k+2])
-            i.SSE = 1000.0-k
+            i.SSE = 1000.0 - k
             self.h.add(i)
         self.assertEqual(len(self.h), 10)
         self.assertEqual(self.h[0][0], 14)
+        self.assertEqual(self.h[1][0], 13)
         self.assertEqual(self.h[9][0], 5)
 
     def test_add_limitSize_worsening(self):
         for k in range(15):
             i = tb.MockIndividual(values=[k,k+1,k+2])
-            i.SSE = 1000.0+k
+            i.SSE = 1000.0 + k
             self.h.add(i)
         self.assertEqual(len(self.h), 10)
         self.assertEqual(self.h[0][0], 0)
         self.assertEqual(self.h[9][0], 9)
 
+    def test_add_limitSize_duplicative(self):
+        for k in range(21):
+            i = tb.MockIndividual(values=[k,k+1,k+2])
+            i.SSE = 1000.0 - k
+            self.h.add(i)
+        self.assertEqual(self.h[0][0], 20)
+        self.assertEqual(self.h[1][0], 19)
+        i.SSE += 0.00001
+        value = i.values[0]
+        i.values[0] = value*1.00001
+        self.h.add(i)
+        self.assertEqual(self.h[0][0], 20)
+        self.assertEqual(self.h[1][0], 19)
+        i.values[0] = value*1.01
+        self.h.add(i)
+        self.assertEqual(self.h[0][0], 20.0)
+        self.assertAlmostEqual(self.h[1][0], value*1.01, 5)
+
+    def test_add_limitSize_duplicativeButBest(self):
+        for k in range(21):
+            i = tb.MockIndividual(values=[k,k+1,k+2])
+            i.SSE = 1000.0 - k
+            self.h.add(i)
+        self.assertEqual(self.h[0][0], 20)
+        self.assertEqual(self.h[1][0], 19)
+        i.SSE -= 0.00001
+        value = i.values[0]
+        i.values[0] = value*1.00001
+        self.h.add(i)
+        self.assertAlmostEqual(self.h[0][0], value*1.00001, 5)
+        
     def test_valueVsSSE(self):
         for k in range(10):
             i = tb.MockIndividual(values=[k,k+1,k+2])
