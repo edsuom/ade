@@ -124,7 +124,13 @@ class MsgBase(object):
             
 
 class MockIndividual(object):
-    def __init__(self, p, values=None):
+    class PlaceHolder:
+        pass
+    
+    def __init__(self, p=None, values=None):
+        if p is None:
+            p = self.PlaceHolder()
+            if values: p.Nd = len(values)
         self.p = p
         if values is None:
             self.values = np.empty(p.Nd)

@@ -317,8 +317,8 @@ class Population(object):
             self.targetFraction = targetFraction
             msg("WARNING: Non-default target improvement score of {:f}",
                 targetFraction)
+        self.history = History(names)
         self.pm = ParameterManager(names, bounds, constraints)
-        self.history = History(list(self.pm.sortedNamerator(namesOnly=True)))
         self.reporter = Reporter(self, complaintCallback)
         self.clear()
         if popsize: self.popsize = popsize
