@@ -77,12 +77,18 @@ class ParameterManager(object):
         self.names = names
         self.sortedNameIndices = [
             names.index(name) for name in sorted(names)]
+        self.constraints = constraints if hasattr(
+            constraints, '__iter__') else [constraints]
+        self.setup(bounds)
+
+    def setup(self, bounds):
+        """
+        Call to set (or reset) the bounds of my parameters.
+        """
         self.mins = np.array([x[0] for x in bounds])
         self.maxs = np.array([x[1] for x in bounds])
         self.scales = self.maxs - self.mins
         self.mids = self.mins + 0.5 * self.scales
-        self.constraints = constraints if hasattr(
-            constraints, '__iter__') else [constraints]
 
     def __getstate__(self):
         """
@@ -328,7 +334,7 @@ class Population(object):
         abort.callOnAbort(self.abort)
 
     @classmethod
-    def load(cls, filePath, func=None, complaintCallback=None):
+    def load(cls, filePath, **kw):
         """
         Returns a new instance of me with values initialized from the
         original version that was pickled and written with BZ2
@@ -341,14 +347,32 @@ class Population(object):
         those functions (or even a different one, though that would be
         weird) with the I{func} and I{complaintCallback} keywords.
 
+        @keyword func: Evaluation function, specify if you want to
+            resume evaluations.
+
+        @keyword complaintCallback: Callback function for complaining
+            about new-best reports during resumed evaluations.
+
+        @keyword bounds: A list of bounds to update my restored
+            I{ParameterManager} object with. Specify if you refined
+            the parameter bounds since the last run and want to resume
+            evaluations with the refined bounds. Each I{Individual} in
+            the new instance will have its values limited to the new
+            bounds with a call to L{Population.limit}.
+        
         @see: L{save} for the way to create compressed pickles of an
             instance of me.
         """
         filePath = os.path.expanduser(filePath)
         with bz2.BZ2File(filePath, 'r') as fh:
             p = pickle.load(fh)
-        p.func = func
-        p.reporter = Reporter(p, complaintCallback)
+        p.func = kw.get('func', None)
+        bounds = kw.get('bounds', None)
+        if bounds:
+            p.pm.setup(bounds)
+            for i in p:
+                p.limit(i)
+        p.reporter = Reporter(p, kw.get('complaintCallback', None))
         return p
         
     def __getstate__(self):
@@ -377,6 +401,7 @@ class Population(object):
         self.clear()
         for name in state:
             setattr(self, name, state[name])
+        self.kBest = self.iList.index(self.best())
         for i in self.iList:
             i.p = self
             self.dLocks.append(defer.DeferredLock())
