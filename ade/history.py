@@ -169,7 +169,7 @@ class Analysis(object):
                     sp(XY[0], XY[k+1])
         pt.showAll()
 
-    def plotXY(self, k1, k2, sp=None, useFraction=False):
+    def plotXY(self, arg1, arg2, sp=None, useFraction=False):
         """
         Plots the values of the parameter at column I{k2} of my I{X} array
         versus the values of the parameter at column I{k1}, with a
@@ -188,7 +188,9 @@ class Analysis(object):
                     kw['markersize'] = ms
                     ax.plot(self.X[K,k1], self.X[K,k2], **kw)
                 f1 = f2
-        
+
+        k1 = arg1 if isinstance(arg1, int) else self.names.index(arg1)
+        k2 = arg2 if isinstance(arg2, int) else self.names.index(arg2)
         if sp is None:
             pt = Plotter(1)
             pt.add_line(""); pt.use_grid()
