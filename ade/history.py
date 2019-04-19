@@ -233,7 +233,7 @@ class History(object):
         in I{X}, as referenced by the indices in I{K}.
     """
     N_max = 2000
-    minFracDiff = 0.005
+    minFracDiff = 0.01
     
     def __init__(self, names, N_max=None):
         self.names = names

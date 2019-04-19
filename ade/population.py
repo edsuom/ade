@@ -328,17 +328,18 @@ class Population(object):
         abort.callOnAbort(self.abort)
 
     @classmethod
-    def load(self, filePath, func=None):
+    def load(cls, filePath, func=None, complaintCallback=None):
         """
         Returns a new instance of me with values initialized from the
         original version that was pickled and written with BZ2
         compression to I{filePath}.
 
         The pickled version will not have a reference to the
-        evaluation function that was supplied to the original version
-        in its constructor. If you want to do further evaluations, you
-        can supply a reference to that function (or even a different
-        one, though that would be weird) with the I{func} keyword.
+        evaluation I{func} that was supplied to the original version
+        in its constructor, nor to any I{complaintCallback}. If you
+        want to do further evaluations, you can supply a reference to
+        those functions (or even a different one, though that would be
+        weird) with the I{func} and I{complaintCallback} keywords.
 
         @see: L{save} for the way to create compressed pickles of an
             instance of me.
@@ -347,12 +348,13 @@ class Population(object):
         with bz2.BZ2File(filePath, 'r') as fh:
             p = pickle.load(fh)
         p.func = func
+        p.reporter = Reporter(p, complaintCallback)
         return p
         
     def __getstate__(self):
         """
-        For pickling. Note that the user-supplied evaluation function is
-        not included.
+        For pickling. Note that neither the user-supplied evaluation
+        function nor any complaint callback function is included.
         """
         state = {}
         names = {
@@ -366,9 +368,6 @@ class Population(object):
         for name in names:
             if hasattr(self, name):
                 state[name] = getattr(self, name)
-        try:
-            state['_ccbPickle'] = pickle.dumps(self.reporter.complaintCallback)
-        except: pass
         return state
 
     def __setstate__(self, state):
@@ -376,11 +375,8 @@ class Population(object):
         For unpickling.
         """
         self.clear()
-        ccbPickle = state.pop('_ccbPickle', None)
         for name in state:
             setattr(self, name, state[name])
-        complaintCallback = pickle.loads(ccbPickle) if ccbPickle else None
-        self.reporter = Reporter(self, complaintCallback)
         for i in self.iList:
             i.p = self
             self.dLocks.append(defer.DeferredLock())
