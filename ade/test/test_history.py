@@ -55,6 +55,12 @@ class TestAnalysis(tb.TestCase):
         self.K = [0, 1, 2, 4, 3]
         self.a = history.Analysis(self.names, self.X, self.K, self.SSEs)
 
+    def test_valueVsSSE(self):
+        XY = self.a.value_vs_SSE('bar')
+        self.assertEqual(len(XY), 2)
+        self.assertTrue(np.all(XY[0] == self.SSEs))
+        self.assertTrue(np.all(XY[1] == [2, 3, 4, 6, 5]))
+
     def test_corr(self):
         self.assertAlmostEqual(self.a.corr(0, 1), +1)
         self.assertAlmostEqual(self.a.corr(0, 2), -1)
@@ -140,7 +146,7 @@ class TestHistory(tb.TestCase):
             i = tb.MockIndividual(values=[k,k+1,k+2])
             i.SSE = 10.0 + k
             self.h.add(i)
-        XY = self.h.value_vs_SSE('bar')
+        XY = self.h.a.value_vs_SSE('bar')
         self.assertEqual(len(XY), 2)
         self.assertTrue(np.all(XY[0] == np.linspace(10.0, 19.0, 10)))
         self.assertTrue(np.all(XY[1] == np.linspace(1.0, 10.0, 10)))

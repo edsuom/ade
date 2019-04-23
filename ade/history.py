@@ -28,6 +28,8 @@ A L{History} class for maintaining a history of L{Individual}
 objects.
 """
 
+from cStringIO import StringIO
+
 import numpy as np
 
 from yampex.plot import Plotter
@@ -37,7 +39,17 @@ from util import *
 
 class Analysis(object):
     """
+    I let you analyze the parameter values of a L{Population}.
     
+    Construct an instance of me with a sequence of parameter I{names},
+    a 2-D Numpy array I{X} of values (in columns) for each of those
+    parameters (in rows), a sequence I{K} of row indices, and a
+    sequence I{SSEs} of SSEs, one corresponding to each row index in
+    I{K}.
+
+    The values of I{SSEs} must be sorted in ascending order. Each
+    index in I{K} points to the row of I{X} with the parameter values
+    for that SSE.
     """
     fmms = (
         (0.05, 'o', 3.0),
@@ -201,6 +213,21 @@ class Analysis(object):
         plot(sp)
 
     def plotCorrelated(self, N=4):
+        """
+        Plots values of four pairs of parameters with the highest
+        correlation. The higher the SSE for a given combination of
+        values, the less prominent the point will be in the plot.
+
+        This actually has been of surprisingly little use in my own
+        work, which is probably a good sign that my parameters have
+        all been pretty independent and thus independently
+        worthwhile. Seeing a very high correlation in one of these
+        plots is an indication that you should somehow consolidate the
+        correlated parameters or at least make them explicitly
+        dependent on each other at the outset, so DE doesn't waste
+        effort searching all the deserted fitness landscape outside
+        the narrow ellipse of their correlated values.
+        """
         pt = Plotter(N)
         pt.add_line(""); pt.use_grid()
         with pt as sp:
@@ -218,9 +245,9 @@ class History(object):
     I{Individual} objects that a L{Population} has had and possibly
     replaced.
 
-    @keyword N_max: The most records I can have in my roster. If more
-        are added when it's full, the highest-SSE one is bumped to
-        make room.
+    @keyword N_max: The most records I can have in my roster. When the
+        roster is full, adding a non-duplicative I{Individual} will
+        bump the highest-SSE one currently in the roster to make room.
     
     @ivar names: A sequence of my individuals' parameter names,
         supplied as the sole constructor argument.
@@ -233,9 +260,17 @@ class History(object):
 
     @ivar SSEs: A list of SSEs, one for each row of parameter values
         in I{X}, as referenced by the indices in I{K}.
+
+    @cvar minFracDiff: The minimum fractional distance for an
+        I{Individual} to be considered non-duplicative of the
+        I{Individual} with the closest SSE. The figure is small, but
+        it actually represents a pretty high bar for disregarding an
+        addition to the history, considering that everything (SSE and
+        B{all} parameter values) has to be that close to the nearest
+        neighbor to not be added.
     """
-    N_max = 2000
-    minFracDiff = 0.01
+    N_max = 3000
+    minFracDiff = 0.02
     
     def __init__(self, names, N_max=None):
         self.names = names
@@ -243,18 +278,53 @@ class History(object):
         self.X = np.zeros((self.N_max, len(names)), dtype='f4')
         self.K = []; self.SSEs = []
 
+    @staticmethod
+    def seq2str(X, dtype=None):
+        """
+        Converts the supplied sequence I{X} to a string, returned. If the
+        sequence is not already a Numpy array, supply an efficient
+        I{dtype} for the array version that will be created for it.
+        """
+        if dtype: X = np.array(X, dtype=dtype)
+        fh = StringIO()
+        np.save(fh, X)
+        X = fh.getvalue()
+        fh.close()
+        return X
+
+    @staticmethod
+    def str2array(state, name):
+        """
+        Converts the string with key I{name} in I{state} into a Numpy
+        array, which gets returned.
+        """
+        text = state[name]
+        fh = StringIO(text)
+        X = np.load(fh)
+        fh.close()
+        return X
+        
     def __getstate__(self):
+        """
+        For storage-efficient pickling.
+        """
         return {
             'names': self.names,
             'N_max': self.N_max,
-            'X': self.X,
-            'K': self.K,
-            'SSEs': self.SSEs
+            'X': self.seq2str(self.X),
+            'K': self.seq2str(self.K, 'u2'),
+            'SSEs': self.seq2str(self.SSEs, 'f4')
         }
-        
+    
     def __setstate__(self, state):
-        for name in state:
-            setattr(self, name, state[name])
+        """
+        For unpickling.
+        """
+        self.names = state['names']
+        self.N_max = state['N_max']
+        self.X = self.str2array(state, 'X')
+        self.K = list(self.str2array(state, 'K'))
+        self.SSEs = list(self.str2array(state, 'SSEs'))
 
     @property
     def a(self):
@@ -269,10 +339,18 @@ class History(object):
         return len(self.SSEs)
 
     def __getitem__(self, k):
+        """
+        Access the parameter values corresponding to index I{k} of my
+        I{SSEs} list.
+        """
         k = self.K[k]
         return self.X[k,:]
 
     def __iter__(self):
+        """
+        I iterate over 1-D Numpy arrays of parameter values in ascending
+        order of the SSEs they resulted in.
+        """
         for k in self.K:
             yield self.X[k,:]
     
