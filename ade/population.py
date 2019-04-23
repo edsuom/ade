@@ -348,7 +348,9 @@ class Population(object):
         weird) with the I{func} and I{complaintCallback} keywords.
 
         @keyword func: Evaluation function, specify if you want to
-            resume evaluations.
+            resume evaluations. All individuals in the loaded
+            population should have their SSEs re-evaluated if anything
+            at all has changed about that function.
 
         @keyword complaintCallback: Callback function for complaining
             about new-best reports during resumed evaluations.

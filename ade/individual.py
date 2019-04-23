@@ -275,6 +275,9 @@ class Individual(object):
 
         Updates my I{dt} attribute with the elapsed time for this
         evaluation.
+
+        Returns a C{Deferred} that fires with a reference to my
+        instance when the evaluation is done, pass or fail.
         """
         def done(SSE):
             self.dt = time.time() - t0
