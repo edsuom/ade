@@ -269,8 +269,8 @@ class History(object):
         B{all} parameter values) has to be that close to the nearest
         neighbor to not be added.
     """
-    N_max = 3000
-    minFracDiff = 0.02
+    N_max = 2000
+    minFracDiff = 0.03
     
     def __init__(self, names, N_max=None):
         self.names = names
@@ -377,8 +377,11 @@ class History(object):
                     # neighbor's value
                     return True
         
-        kList = [k-1]
-        if k < len(self)-1: kList.append(k+1)
+        if k == 0:
+            kList = [0]
+        else:
+            kList = [k-1]
+            if k < len(self): kList.append(k)
         # Check if SSE is different enough from neighbors
         minMax = self.SSEs[0], self.SSEs[-1]
         for k in kList:
@@ -420,9 +423,18 @@ class History(object):
             trim = False
         # The new SSE entry would go here
         k = np.searchsorted(self.SSEs, SSE)
-        if k and self.isDuplicative(k, SSE, values):
-            # Except that it's not the best and is duplicative, so it
-            # doesn't
+        if k == 0 and trim:
+            # It's the best, so it will definitely be added. But the
+            # roster is full, so if the current best one is
+            # duplicative of it, that will get discarded.
+            if self.isDuplicative(0, SSE, values):
+                self.SSEs.pop(0)
+                self.K.pop(0)
+                # That takes care of the trimming
+                trim = False
+        elif k and self.isDuplicative(k, SSE, values):
+            # It's not the best and is duplicative, so it won't be
+            # added
             return
         self.SSEs.insert(k, SSE)
         self.K.insert(k, kr)

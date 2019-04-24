@@ -83,6 +83,39 @@ class TestHistory(tb.TestCase):
         self.names = ['foo', 'bar', 'zebra']
         self.h = history.History(self.names, N_max=10)
 
+    def test_isDuplicative_ofBest(self):
+        for k in range(10):
+            i = tb.MockIndividual(values=[k,k+1,k+2])
+            i.SSE = 1000.0 - k
+            self.h.add(i)
+        SSE = i.SSE * 1.00001
+        values = [x*1.00001 for x in i.values]
+        self.assertTrue(self.h.isDuplicative(0, SSE, values))
+
+    def test_isDuplicative_twoNeighbors(self):
+        for k in range(10):
+            i = tb.MockIndividual(values=[k,k+1,k+2])
+            i.SSE = 1000.0 - k
+            self.h.add(i)
+            if k == 5: i5 = i
+        SSE = i5.SSE * 1.00001
+        values = [x*1.00001 for x in i5.values]
+        for k in range(10):
+            yes = self.h.isDuplicative(k, SSE, values)
+            if k in (4, 5):
+                self.assertTrue(yes)
+            else: self.assertFalse(yes)
+                
+    def test_isDuplicative_ofWorst(self):
+        for k in range(10):
+            i = tb.MockIndividual(values=[k,k+1,k+2])
+            i.SSE = 1000.0 + k
+            self.h.add(i)
+        SSE = i.SSE * 1.00001
+        values = [x*1.00001 for x in i.values]
+        self.assertFalse(self.h.isDuplicative(8, SSE, values))
+        self.assertTrue(self.h.isDuplicative(9, SSE, values))
+
     def test_add(self):
         for k in range(5):
             i = tb.MockIndividual(values=[k,k+1,k+2])
@@ -126,7 +159,10 @@ class TestHistory(tb.TestCase):
         i.values[0] = value*1.01
         self.h.add(i)
         self.assertEqual(self.h[0][0], 20.0)
-        self.assertAlmostEqual(self.h[1][0], value*1.01, 5)
+        self.assertEqual(self.h[1][0], 19)
+        i.values[0] = value*1.05
+        self.h.add(i)
+        self.assertAlmostEqual(self.h[1][0], value*1.05, 5)
 
     def test_add_limitSize_duplicativeButBest(self):
         for k in range(21):
@@ -140,6 +176,7 @@ class TestHistory(tb.TestCase):
         i.values[0] = value*1.00001
         self.h.add(i)
         self.assertAlmostEqual(self.h[0][0], value*1.00001, 5)
+        self.assertEqual(self.h[1][0], 19)
         
     def test_valueVsSSE(self):
         for k in range(10):
