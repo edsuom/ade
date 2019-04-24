@@ -243,6 +243,20 @@ class TestPopulation(tb.TestCase):
         p = pickle.loads(text)
         self.assertEqual(repr(p), repr(self.p))
 
+    @defer.inlineCallbacks
+    def test_save_load(self):
+        yield self.p.setup()
+        fp = tb.fileInModuleDir("ade-test.dat", absolute=True, isTemp=True)
+        self.p.save(fp)
+        newBounds = [(-2, 2), (-2, 2)]
+        p = population.Population.load(fp, func=tb.ackley, bounds=newBounds)
+        for i in p:
+            for value in i.values:
+                self.assertLess(abs(value), 2)
+                SSE = i.SSE
+                i = yield i.evaluate()
+                self.assertLessEqual(i.SSE, SSE)
+
 
 class TestPopulation_Abort(tb.TestCase):
     def setUp(self):
