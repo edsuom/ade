@@ -403,6 +403,7 @@ class Population(object):
         self.clear()
         for name in state:
             setattr(self, name, state[name])
+        if self.running is False: self.running = True
         self.kBest = self.iList.index(self.best())
         for i in self.iList:
             i.p = self
