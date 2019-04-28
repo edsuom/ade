@@ -269,7 +269,7 @@ class History(object):
         B{all} parameter values) has to be that close to the nearest
         neighbor to not be added.
     """
-    N_max = 2000
+    N_max = 2500
     minFracDiff = 0.03
     
     def __init__(self, names, N_max=None):
