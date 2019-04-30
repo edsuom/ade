@@ -435,12 +435,14 @@ class Population(object):
         """
         if not isinstance(i, Individual):
             raise TypeError("You can only set me with Individuals")
+        iPrev = self.iList[k]
         self.iList[k] = i
         self._sortNeeded = True
         if self.kBest is None or i < self.iList[self.kBest]:
             # This one is now the best I have
             self.kBest = k
         self.history.add(i)
+        self.history.notInPop(iPrev)
         
     def __len__(self):
         """
@@ -852,9 +854,11 @@ class Population(object):
         """
         kWorst, self.kBest = [
             self.iList.index(self.iSorted[k]) for k in (-1, 0)]
+        iPrev = self[kWorst]
         self[kWorst] = i
         self._sortNeeded = True
         self.history.add(i)
+        self.history.notInPop(iPrev)
     
     def sample(self, N, *exclude):
         """
