@@ -53,8 +53,8 @@ class TestAnalysis(tb.TestCase):
             150.0,      # 3
         ]
         self.K = [0, 1, 2, 4, 3]
-        self.a = history.Analysis(self.names, self.X, self.K, self.SSEs, [])
- 
+        self.a = history.Analysis(self.names, self.X, self.K, self.SSEs)
+
     def test_valueVsSSE(self):
         XY = self.a.value_vs_SSE('bar')
         self.assertEqual(len(XY), 2)
@@ -177,24 +177,6 @@ class TestHistory(tb.TestCase):
         self.h.add(i)
         self.assertAlmostEqual(self.h[0][0], value*1.00001, 5)
         self.assertEqual(self.h[1][0], 19)
-
-    def test_notInPop(self):
-        fakePopulation = []
-        for k in range(10):
-            i = tb.MockIndividual(values=[k,k+1,k+2])
-            i.SSE = 100.0 + k
-            self.h.add(i)
-            fakePopulation.append(i)
-            if k > 5:
-                i = fakePopulation.pop(0)
-                self.h.notInPop(i)
-        self.assertEqual(len(self.h.Kp), len(fakePopulation))
-        kSet = set()
-        for i in fakePopulation:
-            k = self.h.SSEs.index(i.SSE)
-            self.assertTrue(k not in kSet)
-            kSet.add(k)
-        self.assertEqual(len(kSet), len(fakePopulation))
         
     def test_valueVsSSE(self):
         for k in range(10):

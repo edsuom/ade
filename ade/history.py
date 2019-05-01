@@ -60,12 +60,11 @@ class Analysis(object):
         (1.00, '.', 0.0),
     )
     
-    def __init__(self, names, X, K, SSEs, Kp):
+    def __init__(self, names, X, K, SSEs):
         self.names = names
         self.X = X
         self.K = np.array(K)
         self.SSEs = np.array(SSEs)
-        self.Kp = np.array(Kp)
 
     def corr(self, k1, k2):
         """
@@ -262,9 +261,6 @@ class History(object):
     @ivar SSEs: A list of SSEs, one for each row of parameter values
         in I{X}, as referenced by the indices in I{K}.
 
-    @ivar Kp: A list of indices to I{K} (and I{SSEs}) for individuals
-        currently in the L{Population} that I serve.
-
     @cvar minFracDiff: The minimum fractional distance for an
         I{Individual} to be considered non-duplicative of the
         I{Individual} with the closest SSE. The figure is small, but
@@ -280,7 +276,7 @@ class History(object):
         self.names = names
         if N_max: self.N_max = N_max
         self.X = np.zeros((self.N_max, len(names)), dtype='f4')
-        self.K = []; self.SSEs = []; self.Kp = []
+        self.K = []; self.SSEs = []
 
     @staticmethod
     def seq2str(X, dtype=None):
@@ -302,7 +298,6 @@ class History(object):
         Converts the string with key I{name} in I{state} into a Numpy
         array, which gets returned.
         """
-        if name not in state: return np.array([])
         text = state[name]
         fh = StringIO(text)
         X = np.load(fh)
@@ -318,8 +313,7 @@ class History(object):
             'N_max': self.N_max,
             'X': self.seq2str(self.X),
             'K': self.seq2str(self.K, 'u2'),
-            'SSEs': self.seq2str(self.SSEs, 'f4'),
-            'Kp': self.seq2str(self.Kp, 'u2'),
+            'SSEs': self.seq2str(self.SSEs, 'f4')
         }
     
     def __setstate__(self, state):
@@ -331,13 +325,11 @@ class History(object):
         self.X = self.str2array(state, 'X')
         self.K = list(self.str2array(state, 'K'))
         self.SSEs = list(self.str2array(state, 'SSEs'))
-        self.Kp = list(self.str2array(state, 'Kp'))
-    
+
     @property
     def a(self):
         if not hasattr(self, '_analysis'):
-            self._analysis = Analysis(
-                self.names, self.X, self.K, self.SSEs, self.Kp)
+            self._analysis = Analysis(self.names, self.X, self.K, self.SSEs)
         return self._analysis
             
     def __len__(self):
@@ -411,9 +403,8 @@ class History(object):
         N = len(self)
         if N == 0:
             # First item, addition is simple and guaranteed
-            self.K.append(0)
             self.SSEs.append(SSE)
-            self.Kp.append(0)
+            self.K.append(0)
             self.X[0,:] = values
             return
         if N >= self.N_max:
@@ -438,43 +429,19 @@ class History(object):
             # duplicative of it, that will get discarded.
             if self.isDuplicative(0, SSE, values):
                 self.SSEs.pop(0)
-                kk = self.K.pop(0)
-                if kk in self.Kp: self.Kp.remove(kk)
+                self.K.pop(0)
                 # That takes care of the trimming
                 trim = False
         elif k and self.isDuplicative(k, SSE, values):
             # It's not the best and is duplicative, so it won't be
             # added
             return
-        self.K.insert(k, kr)
         self.SSEs.insert(k, SSE)
-        self.Kp.append(k)
+        self.K.insert(k, kr)
         self.X[kr,:] = values
         # Trim off any excess
         if trim:
             self.SSEs.pop()
-            kk = self.K.pop()
-            if kk in self.Kp: self.Kp.remove(kk)
-
-    def notInPop(self, i):
-        """
-        Call this with a reference to an I{Individual} when it has been
-        removed from the L{Population} I serve.
-        """
-        iSSE = i.SSE
-        K = [k for k, SSE in enumerate(self.SSEs) if SSE == iSSE]
-        N = len(K)
-        if not N: return
-        if N == 1: k = K[0]
-        else:
-            iValues = np.array(i.values)
-            for k in K:
-                if np.all(np.equal(values, iValues)):
-                    break
-            else: return
-        if k in self.Kp: self.Kp.remove(k)
+            self.K.pop()
 
 
-    
-                
-        
