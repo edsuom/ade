@@ -289,9 +289,14 @@ class Reporter(object):
         def bogus(i):
             SSE = i.SSE
             if SSE is None: return True
-            try: isNan = np.isnan(SSE)
+            try:
+                isNan = np.isnan(SSE)
             except: isNan = False
-            return isNan or np.isinf(SSE)
+            if isNan: return True
+            try:
+                isInf = np.isinf(SSE)
+            except: isInf = False
+            return isInf
         
         if not iNumerator or not iDenominator:
             ratio = 0

@@ -165,28 +165,50 @@ class TestPopulation(tb.TestCase):
             constraints=self.positiveOnly, popsize=self.Np)
         return self.p.setup(uniform=True).addCallback(done)
 
+    def prob(self, N, func, *args):
+        count = 0
+        for k in range(N):
+            if func(*args): count += 1
+        return float(count) / N
+    
+    def test_keepStatusQuo(self):
+        def p(score):
+            return self.prob(1000, self.p._keepStatusQuo, score)
+
+        self.p.statusQuoScore = 1.0
+        self.assertEqual(p(0.0), 0.0)
+        self.assertEqual(p(1.0), 1.0)
+        self.assertBetween(p(0.2), 0.05, 0.14)
+        self.assertBetween(p(0.5), 0.43, 0.58)
+        self.assertBetween(p(0.8), 0.87, 0.94)
+        self.p.statusQuoScore = 0.1
+        self.assertEqual(p(0.0), 0.0)
+        self.assertEqual(p(1.0), 1.0)
+        self.assertEqual(p(0.1), 1.0)
+        self.assertBetween(p(0.02), 0.05, 0.14)
+        
     def test_replacement(self):
+        def doReplacements(*args):
+            for rir in args:
+                self.p.replacement(rir)
+            return self.p.replacement()
+
+        def checkReplacements(pMin, pMax, *args):
+            p = self.prob(500, doReplacements, *args)
+            self.assertBetween(p, pMin, pMax)
+        
         self.assertTrue(self.p.replacement())
         self.assertEqual(self.p.replacementScore, 0)
         self.assertFalse(self.p.replacement())
         self.assertAlmostEqual(self.p.statusQuoScore, self.p.Np*3.0/100)
         # 0 x 1
-        self.p.replacement(0)
-        self.assertEqual(self.p.replacementScore, 0)
-        self.assertFalse(self.p.replacement())
+        checkReplacements(0, 0, 0)
         # 1 x 1
-        self.p.replacement(1)
-        self.assertEqual(self.p.replacementScore, 0.25)
-        self.assertFalse(self.p.replacement())
+        checkReplacements(0.05, 0.16, 1)
         # 1 x 2
-        self.p.replacement(1)
-        self.p.replacement(1)
-        self.assertEqual(self.p.replacementScore, 0.50)
-        self.assertFalse(self.p.replacement())
+        checkReplacements(0.28, 0.45, 1, 1)
         # 2 x 1
-        self.p.replacement(2)
-        self.assertEqual(self.p.replacementScore, 1.25)
-        self.assertTrue(self.p.replacement())
+        checkReplacements(1.0, 1.0, 2)
         # 2 x 2
         self.p.replacement(2)
         self.p.replacement(2)

@@ -587,7 +587,7 @@ class Population(object):
         self.release()
         msg("Population object stopped")
     
-    def setup(self, uniform=False, blank=False, filePath=None):
+    def setup(self, uniform=False, blank=False):
         """
         Sets up my initial population using a Latin hypercube to
         initialize pseudorandom parameter values with minimal clustering.
@@ -599,8 +599,6 @@ class Population(object):
         that well. The initial values matrix must be refreshed,
         perhaps many times. But it may still be better than uniform
         initial population sampling.
-
-        TODO: Load from I{filePath}.
 
         Sets my I{running} flag C{True} and returns a C{Deferred} that
         fires when the population has been set up, with C{True} if
@@ -705,6 +703,18 @@ class Population(object):
         """
         self.reporter.addCallback(func, *args, **kw)
 
+    def _keepStatusQuo(self, score):
+        """
+        Returns C{True} with a probability that increases as I{score}
+        approaches my I{statusQuoteScore}.
+        """
+        x = score / self.statusQuoScore
+        if x > 1:
+            # Greater than status quo threshold, always remains
+            return True
+        prob = 0.5 + 0.5*np.sin(np.pi*(x-0.5))
+        return np.random.random_sample() < prob
+        
     def replacement(self, rir=None, sqs=None):
         """
         Records the replacement of an L{Individual} in this generation or
@@ -757,6 +767,12 @@ class Population(object):
             challenger had an SSE between 1.5x and 2.5x better than
             (2/5 to 2/3 as high as) the individual it replaced.
 
+            I give no weight at all to an I{rir} of zero, which
+            indicates that the challenger was better but still has an
+            equivalent SSE, i.e., is no more than 2% better with the
+            default value of I{Reporter.minDiff}. See
+            L{Reporter.isEquivSSE}.
+        
             I don't give much weight to an I{rir} of 1. The
             improvement is pretty modest and could be as little as 2%
             (assuming C{Reporter.minDiff}=0.02, the default). An
@@ -796,16 +812,7 @@ class Population(object):
                 # This is the first time ever called, so of course
                 # status quo should be maintained
                 return True
-            if score:
-                # Positive score, return True if greater than status
-                # quo threshold
-                return score >= self.statusQuoScore
-            if self.statusQuoScore < 1.0:
-                # A second chance for small populations with status
-                # quo thresholds < 1
-                return self.statusQuoScore < np.random.random_sample()
-            # No replacements were made at all, so of course no status quo
-            return False
+            return self._keepStatusQuo(score)
         # An adjustment call
         if rir and self.replacementScore is not None:
             # 1 has only 0.25 weight
