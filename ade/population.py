@@ -250,6 +250,15 @@ class Population(object):
     single float value. To shut down I{ade}, it can return a negative
     SSE value. If I{ade} is shutting down, it will use I{None} as the
     argument, and the callable should act accordingly.
+
+    My I{targetFraction} attribute determines how much success
+    challengers must have to maintain the status quo in adaptive
+    mode. In a population of 100, that is reached if eight challengers
+    winn with a rounded improvement ratio of 1; or one challenger wins
+    with an rir of 2 and three with an rir of 1; or just one
+    challenger winning with an rir of 3. (Or 40 challengers winning
+    with an rir of 0, if you're really straddling a ridge in the
+    fitness landscape.)
     
     @keyword constraints: A list of callables that enforce any
         constraints on your parameter values. See
@@ -287,7 +296,7 @@ class Population(object):
     @ivar targetFraction: The desired total score of improvements in
         each iteration in order for I{ade}'s adaptive algorithm to not
         change the current differential weight. See L{replacement} and
-        L{FManager} for details. The default is 3%.
+        L{FManager} for details. The default is 2%.
 
     @ivar debug: Set C{True} to show individuals getting
         replaced. (Results in a very messy log or console display.)
@@ -302,7 +311,7 @@ class Population(object):
     Np_min = 20
     Np_max = 500
     N_maxParallel = 12
-    targetFraction = 0.03
+    targetFraction = 0.02
     debug = False
     failedConstraintChar = " "
     
@@ -389,7 +398,7 @@ class Population(object):
             # Scalars
             'Nd', 'Np', 'popsize', 'targetFraction', 'statusQuoScore',
             # Other
-            'iList', 'pm', 'history',
+            'iList', 'kr', 'pm', 'history',
         }
         for name in names:
             if hasattr(self, name):
@@ -430,17 +439,25 @@ class Population(object):
         
     def __setitem__(self, k, i):
         """
-        Use only this method (item setting) and L{push} to replace
-        individuals.
+        Use only this method (item setting) to replace individuals in my
+        I{iList}.
+
+        The only other place my I{iList} is ever manipulated directly
+        is the C{addIndividual} function of L{setup}.
         """
         if not isinstance(i, Individual):
             raise TypeError("You can only set me with Individuals")
+        if len(self.iList) > k:
+            iPrev = self.iList[k]
+            if iPrev in self.kr:
+                self.history.notInPop(self.kr.pop(iPrev))
+        # Here is the only place iList should ever be set directly
         self.iList[k] = i
         self._sortNeeded = True
         if self.kBest is None or i < self.iList[self.kBest]:
             # This one is now the best I have
             self.kBest = k
-        self.history.add(i)
+        self.kr[i] = self.history.add(i)
         
     def __len__(self):
         """
@@ -543,6 +560,7 @@ class Population(object):
         """
         self.counter = 0
         self.iList = []
+        self.kr = {}
         self.dLocks = []
         if hasattr(self, 'history'): self.history.clear()
         self.running = None
@@ -586,7 +604,19 @@ class Population(object):
         msg("Releasing locks")
         self.release()
         msg("Population object stopped")
-    
+
+    def initialize(self):
+        """
+        Forces a sort of my individuals, sets my I{running} flag to
+        C{True}, prints/logs a representation of my populated
+        instance, and files a report of my best individual.
+        """
+        self._sortNeeded = True
+        self.kBest = self.iList.index(self.iSorted[0])
+        self.running = True
+        msg(0, repr(self))
+        self.report()
+        
     def setup(self, uniform=False, blank=False):
         """
         Sets up my initial population using a Latin hypercube to
@@ -642,9 +672,13 @@ class Population(object):
             return Individual(self, self.pm.limit(values))
 
         def addIndividual(i):
+            """
+            This is the only place other than L{__setitem__} where my I{iList}
+            is manipulated.
+            """
             self.iList.append(i)
             self.dLocks.append(defer.DeferredLock())
-            self.history.add(i)
+            self.kr[i] = self.history.add(i)
 
         def needMore():
             return len(self.iList) < self.Np
@@ -679,10 +713,7 @@ class Population(object):
 
         def done(null):
             if running():
-                msg(0, repr(self))
-                self._sortNeeded = True
-                self.kBest = self.iList.index(self.iSorted[0])
-                self.running = True
+                self.initialize()
                 return True
             
         if not running():
@@ -767,7 +798,7 @@ class Population(object):
             challenger had an SSE between 1.5x and 2.5x better than
             (2/5 to 2/3 as high as) the individual it replaced.
 
-            I give no weight at all to an I{rir} of zero, which
+            I give almost no weight to an I{rir} of zero, which
             indicates that the challenger was better but still has an
             equivalent SSE, i.e., is no more than 2% better with the
             default value of I{Reporter.minDiff}. See
@@ -814,11 +845,13 @@ class Population(object):
                 return True
             return self._keepStatusQuo(score)
         # An adjustment call
-        if rir and self.replacementScore is not None:
+        if self.replacementScore is not None:
+            # 0 has a tiny weight, just 0.05
             # 1 has only 0.25 weight
             # 2 has 1.25, or 5x as much as 1
             # 3 has 2.25, or nearly 2x as much as 2
-            self.replacementScore += (rir - 0.75)
+            addition = 0.05 if rir == 0 else rir - 0.75
+            self.replacementScore += addition
 
     def report(self, iNew=None, iOld=None):
         """

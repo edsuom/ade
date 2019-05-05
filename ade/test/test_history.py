@@ -35,164 +35,161 @@ from ade import history
 from ade.test import testbase as tb
 
 
-class TestAnalysis(tb.TestCase):
+class Test_Analysis(tb.TestCase):
     def setUp(self):
         self.names = ['foo', 'bar', 'zebra']
         self.X = np.array([
-            [1, 2, 5],
-            [2, 3, 4],
-            [3, 4, 3],
-            [4, 5, 2],
-            [5, 6, 1]
+            [110.0, 1, 2, 5], #0
+            [810.0, 2, 3, 4], #1
+            [270.0, 3, 4, 3], #2
+            [580.0, 4, 5, 2], #3
+            [999.0, 5, 6, 1], #4
         ])
-        self.SSEs = [
-            110.0,      # 0
-            120.0,      # 1
-            129.0,      # 2
-            140.0,      # 4
-            150.0,      # 3
-        ]
-        self.K = [0, 1, 2, 4, 3]
-        self.a = history.Analysis(self.names, self.X, self.K, self.SSEs)
+        self.K = [0, 3, 2, 1, 4]
+        self.a = history.Analysis(self.names, self.X, self.K)
 
     def test_valueVsSSE(self):
         XY = self.a.value_vs_SSE('bar')
         self.assertEqual(len(XY), 2)
-        self.assertTrue(np.all(XY[0] == self.SSEs))
-        self.assertTrue(np.all(XY[1] == [2, 3, 4, 6, 5]))
+        self.assertItemsEqual(XY[0], [110.0, 270.0, 580.0, 810.0, 999.0])
+        self.assertItemsEqual(XY[1], [2, 4, 5, 3, 6])
 
     def test_corr(self):
-        self.assertAlmostEqual(self.a.corr(0, 1), +1)
-        self.assertAlmostEqual(self.a.corr(0, 2), -1)
+        self.assertAlmostEqual(self.a.corr(1, 2), +1)
+        self.assertAlmostEqual(self.a.corr(1, 3), -1)
         
     def test_Kf12(self):
-        K = self.a.Kf12(0.0, 0.5)
-        self.assertTrue(np.all(K == [0, 1, 2]))
+        # 0.0           1.0
+        K = self.a.Kf12(0.0, 1.0)
+        self.assertItemsEqual(K, [0, 3, 2, 1])
+        # 0.0   0.6     1.01
+        K = self.a.Kf12(0.0, 0.6)
+        self.assertItemsEqual(K, [0, 3, 2])
+        K = self.a.Kf12(0.6, 1.01)
+        self.assertItemsEqual(K, [1, 4])
+        # 0.0   0.3     1.01
+        K = self.a.Kf12(0.0, 0.3)
+        self.assertItemsEqual(K, [0, 2])
+        K = self.a.Kf12(0.3, 1.01)
+        self.assertItemsEqual(K, [3, 1, 4])
 
     def test_Kp12(self):
         K = self.a.Kp12(0.0, 0.5)
-        self.assertTrue(np.all(K == [0, 1, 2]))
+        self.assertItemsEqual(K, [0, 3, 2])
         K = self.a.Kp12(0.2, 0.7)
-        self.assertTrue(np.all(K == [1, 2, 4]))
-        K = self.a.Kp12(0.5, 1.0)
-        self.assertTrue(np.all(K == [2, 4, 3]))
+        self.assertItemsEqual(K, [3, 2, 1])
+        K = self.a.Kp12(0.5, 1.01)
+        self.assertItemsEqual(K, [2, 1, 4])
 
 
-class TestHistory(tb.TestCase):
+class Test_History(tb.TestCase):
     def setUp(self):
         self.names = ['foo', 'bar', 'zebra']
         self.h = history.History(self.names, N_max=10)
+        self.kr = {}
 
-    def test_isDuplicative_ofBest(self):
-        for k in range(10):
-            i = tb.MockIndividual(values=[k,k+1,k+2])
-            i.SSE = 1000.0 - k
-            self.h.add(i)
-        SSE = i.SSE * 1.00001
-        values = [x*1.00001 for x in i.values]
-        self.assertTrue(self.h.isDuplicative(0, SSE, values))
-
-    def test_isDuplicative_twoNeighbors(self):
-        for k in range(10):
-            i = tb.MockIndividual(values=[k,k+1,k+2])
-            i.SSE = 1000.0 - k
-            self.h.add(i)
-            if k == 5: i5 = i
-        SSE = i5.SSE * 1.00001
-        values = [x*1.00001 for x in i5.values]
-        for k in range(10):
-            yes = self.h.isDuplicative(k, SSE, values)
-            if k in (4, 5):
-                self.assertTrue(yes)
-            else: self.assertFalse(yes)
-                
-    def test_isDuplicative_ofWorst(self):
-        for k in range(10):
-            i = tb.MockIndividual(values=[k,k+1,k+2])
-            i.SSE = 1000.0 + k
-            self.h.add(i)
-        SSE = i.SSE * 1.00001
-        values = [x*1.00001 for x in i.values]
-        self.assertFalse(self.h.isDuplicative(8, SSE, values))
-        self.assertTrue(self.h.isDuplicative(9, SSE, values))
-
-    def test_add(self):
+    def test_add_worsening(self):
         for k in range(5):
             i = tb.MockIndividual(values=[k,k+1,k+2])
             i.SSE = 100.0 + k
             self.h.add(i)
             self.assertEqual(len(self.h), k+1)
-            self.assertTrue(np.all(self.h[k] == i.values))
+            self.assertItemsEqual(self.h[k], i.values)
+        for k, values in enumerate(self.h):
+            self.assertItemsEqual(values, [k,k+1,k+2])
 
-    def test_add_limitSize_improving(self):
-        for k in range(15):
+    def test_add_improving(self):
+        for k in range(5):
             i = tb.MockIndividual(values=[k,k+1,k+2])
-            i.SSE = 1000.0 - k
+            i.SSE = 100.0 - k
             self.h.add(i)
-        self.assertEqual(len(self.h), 10)
-        self.assertEqual(self.h[0][0], 14)
-        self.assertEqual(self.h[1][0], 13)
-        self.assertEqual(self.h[9][0], 5)
-
+            self.assertEqual(len(self.h), k+1)
+        for k, values in enumerate(self.h):
+            self.assertItemsEqual(values, [4-k,4-k+1,4-k+2])
+            
     def test_add_limitSize_worsening(self):
+        krPopped = set()
         for k in range(15):
             i = tb.MockIndividual(values=[k,k+1,k+2])
             i.SSE = 1000.0 + k
-            self.h.add(i)
+            self.kr[i] = self.h.add(i)
+            if len(self.kr) == 10:
+                i, kr = self.kr.popitem()
+                self.h.notInPop(kr)
+                krPopped.add(kr)
         self.assertEqual(len(self.h), 10)
-        self.assertEqual(self.h[0][0], 0)
-        self.assertEqual(self.h[9][0], 9)
+        valuesPrev = None
+        for values in self.h:
+            if valuesPrev is not None:
+                for v, vp in zip(values, valuesPrev):
+                    self.assertGreater(v, vp)
+            valuesPrev = values
 
-    def test_add_limitSize_duplicative(self):
-        for k in range(21):
+    def test_add_limitSize_improving(self):
+        krPopped = set()
+        for k in range(15):
             i = tb.MockIndividual(values=[k,k+1,k+2])
             i.SSE = 1000.0 - k
-            self.h.add(i)
-        self.assertEqual(self.h[0][0], 20)
-        self.assertEqual(self.h[1][0], 19)
-        i.SSE += 0.00001
-        value = i.values[0]
-        i.values[0] = value*1.00001
-        self.h.add(i)
-        self.assertEqual(self.h[0][0], 20)
-        self.assertEqual(self.h[1][0], 19)
-        i.values[0] = value*1.01
-        self.h.add(i)
-        self.assertEqual(self.h[0][0], 20.0)
-        self.assertEqual(self.h[1][0], 19)
-        i.values[0] = value*1.05
-        self.h.add(i)
-        self.assertAlmostEqual(self.h[1][0], value*1.05, 5)
+            self.kr[i] = self.h.add(i)
+            if len(self.kr) == 10:
+                i, kr = self.kr.popitem()
+                self.h.notInPop(kr)
+                krPopped.add(kr)
+        self.assertEqual(len(self.h), 10)
+        valuesPrev = None
+        for values in self.h:
+            if valuesPrev is not None:
+                for v, vp in zip(values, valuesPrev):
+                    self.assertLess(v, vp)
+            valuesPrev = values
 
-    def test_add_limitSize_duplicativeButBest(self):
-        for k in range(21):
-            i = tb.MockIndividual(values=[k,k+1,k+2])
-            i.SSE = 1000.0 - k
-            self.h.add(i)
-        self.assertEqual(self.h[0][0], 20)
-        self.assertEqual(self.h[1][0], 19)
-        i.SSE -= 0.00001
-        value = i.values[0]
-        i.values[0] = value*1.00001
-        self.h.add(i)
-        self.assertAlmostEqual(self.h[0][0], value*1.00001, 5)
-        self.assertEqual(self.h[1][0], 19)
-        
-    def test_valueVsSSE(self):
+    def test_value_vs_SSE(self):
         for k in range(10):
             i = tb.MockIndividual(values=[k,k+1,k+2])
             i.SSE = 10.0 + k
             self.h.add(i)
         XY = self.h.a.value_vs_SSE('bar')
         self.assertEqual(len(XY), 2)
-        self.assertTrue(np.all(XY[0] == np.linspace(10.0, 19.0, 10)))
-        self.assertTrue(np.all(XY[1] == np.linspace(1.0, 10.0, 10)))
+        self.assertItemsEqual(XY[0], np.linspace(10.0, 19.0, 10))
+        self.assertItemsEqual(XY[1], np.linspace(1.0, 10.0, 10))
+
+    def test_value_vs_SSE_maxRatio(self):
+        for k in range(10):
+            i = tb.MockIndividual(values=[k,k+1,k+2])
+            i.SSE = 10.0 + k
+            self.h.add(i)
+        XY = self.h.a.value_vs_SSE('bar', maxRatio=1.5)
+        self.assertEqual(len(XY), 2)
+        self.assertItemsEqual(XY[0], np.linspace(10.0, 15.0, 6))
+        self.assertItemsEqual(XY[1], np.linspace(1.0, 6.0, 6))
+
+    def test_value_vs_SSE_inPop(self):
+        for k in range(10):
+            i = tb.MockIndividual(values=[k,k+1,k+2])
+            i.SSE = 10.0 + k
+            kr = self.h.add(i)
+        self.h.notInPop(kr)
+        XY = self.h.a.value_vs_SSE('bar', inPop=True)
+        self.assertEqual(len(XY), 2)
+        self.assertItemsEqual(XY[0], np.linspace(10.0, 18.0, 9))
+        self.assertItemsEqual(XY[1], np.linspace(1.0, 9.0, 9))
+
+    def test_value_vs_SSE_notInPop(self):
+        for k in range(10):
+            i = tb.MockIndividual(values=[k,k+1,k+2])
+            i.SSE = 10.0 + k
+            kr = self.h.add(i)
+            if k > 5: self.h.notInPop(kr)
+        XY = self.h.a.value_vs_SSE('bar', notInPop=True)
+        self.assertEqual(len(XY), 2)
+        self.assertItemsEqual(XY[0], np.linspace(16.0, 19.0, 4))
+        self.assertItemsEqual(XY[1], np.linspace(7.0, 10.0, 4))
 
     def test_pickle(self):
         def values(k):
             return [k, np.exp(-0.1*k), np.exp(-0.5*k)]
         
-        for k in range(15):
+        for k in range(10):
             i = tb.MockIndividual(values=values(k))
             i.SSE = 1000.0+k
             self.h.add(i)

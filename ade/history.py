@@ -42,14 +42,13 @@ class Analysis(object):
     I let you analyze the parameter values of a L{Population}.
     
     Construct an instance of me with a sequence of parameter I{names},
-    a 2-D Numpy array I{X} of values (in columns) for each of those
-    parameters (in rows), a sequence I{K} of row indices, and a
-    sequence I{SSEs} of SSEs, one corresponding to each row index in
-    I{K}.
+    a 2-D Numpy array I{X} of values (in columns) for the SSEs (first
+    column) and then each of those parameters (remaining columns), and
+    a sequence I{K} of row indices.
 
-    The values of I{SSEs} must be sorted in ascending order. Each
-    index in I{K} points to the row of I{X} with the parameter values
-    for that SSE.
+    Each index in I{K} points to a row of I{X} with one SSE and the
+    parameter values for that SSE, with the indices of I{K} sorted in
+    ascending order of the SSE they point to.
     """
     fmms = (
         (0.05, 'o', 3.0),
@@ -57,14 +56,14 @@ class Analysis(object):
         (0.20, '.', 1.5),
         (0.50, '.', 1.0),
         (0.70, '.', 0.5),
-        (1.00, '.', 0.0),
+        (1.01, '.', 0.0),
     )
     
-    def __init__(self, names, X, K, SSEs):
+    def __init__(self, names, X, K, Kp=set()):
         self.names = names
         self.X = X
         self.K = np.array(K)
-        self.SSEs = np.array(SSEs)
+        self.Kp = Kp
 
     def corr(self, k1, k2):
         """
@@ -83,8 +82,8 @@ class Analysis(object):
         kkR = []
         combos = []
         Nc = self.X.shape[1]
-        for k1 in range(Nc):
-            for k2 in range(Nc):
+        for k1 in range(1, Nc):
+            for k2 in range(1, Nc):
                 if k2 == k1: continue
                 combo = {k1, k2}
                 if combo in combos: continue
@@ -101,11 +100,12 @@ class Analysis(object):
         and maximum SSE.
         """
         def fSSE(f):
-            minSSE = self.SSEs[0]
-            maxSSE = self.SSEs[-1]
-            mmSSE = maxSSE - minSSE
-            return minSSE + f*mmSSE
-        I = np.logical_and(self.SSEs >= fSSE(f1), self.SSEs < fSSE(f2))
+            mmSSE = SS[-1] - SS[0]
+            return SS[0] + f*mmSSE
+
+        # 1-D array of SSEs, sorted
+        SS = self.X[self.K,0]
+        I = np.logical_and(SS >= fSSE(f1), SS < fSSE(f2))
         return self.K[np.flatnonzero(I)]
 
     def Kp12(self, p1, p2):
@@ -113,9 +113,13 @@ class Analysis(object):
         Returns a 1-D Numpy array of row indices to my I{X} array whose
         SSEs are from fractional portion I{p1} to I{p2} between
         minimum and maximum SSE.
+
+        The fractional portion is how far along the indices you are,
+        not how far along the values you are. If the SSEs increased
+        linearly, they would be the same.
         """
-        N = len(self.SSEs)
-        return self.K[slice(int(np.floor(p1*N)), int(np.ceil(p2*N)))]
+        N = len(self.K)
+        return self.K[slice(int(np.floor(p1*N)), int(np.floor(p2*N))+1)]
     
     def args2names(self, args):
         """
@@ -135,11 +139,24 @@ class Analysis(object):
             if not isinstance(arg, int): return args
         return sorted(self.names)[slice(*args)]
 
+    def name2k(self, name):
+        """
+        Returns the column index in my I{X} array for the values of
+        parameter I{name}.
+        """
+        return self.names.index(name) + 1
+    
     def value_vs_SSE(self, *names, **kw):
         """
         Returns a 1-D Numpy array of the SSEs of my individuals and
         matching 1-D Numpy arrays for each of the named parameter
         values.
+
+        @keyword inPop: Set C{True} to only include individuals in the
+            population.
+        
+        @keyword notInPop: Set C{True} to exclude individuals in the
+            population.
 
         @keyword maxRatio: Set this to specify a maximum ratio between
             an included individual's SSE and the best individual's
@@ -147,13 +164,17 @@ class Analysis(object):
         """
         names = self.args2names(names)
         maxRatio = kw.get('maxRatio', 1000)
-        SSE_best = self.SSEs[0]
-        K = np.flatnonzero(self.SSEs/SSE_best <= maxRatio)
-        result = [self.SSEs[K]]
-        K = self.K[K]
+        SSE_best = self.X[self.K[0],0]
+        if kw.get('inPop', False):
+            K = [k for k in self.K if k in self.Kp]
+        elif kw.get('notInPop', False):
+            K = [k for k in self.K if k not in self.Kp]
+        else: K = self.K
+        KK = np.flatnonzero(self.X[K,0]/SSE_best <= maxRatio)
+        K = np.array(K)[KK]
+        result = [self.X[K,0]]
         for name in names:
-            k = self.names.index(name)
-            result.append(self.X[K,k])
+            result.append(self.X[K,self.name2k(name)])
         return result
 
     def plot(self, *names, **kw):
@@ -165,20 +186,27 @@ class Analysis(object):
         of my I{names}.
         """
         names = self.args2names(names)
-        XY = self.value_vs_SSE(*names, **kw)
-        N = len(XY) - 1
+        kw['inPop'] = True
+        XYp = self.value_vs_SSE(*names, **kw)
+        kw['inPop'] = False
+        kw['notInPop'] = True
+        XYn = self.value_vs_SSE(*names, **kw)
+        N = len(XYp) - 1
         kList = range(N)
         while kList:
             N = min([9, len(kList)])
             kkList = kList[:N]; kList = kList[N:]
             Nc = 1 if N == 1 else 3 if N > 6 else 2
             pt = Plotter(N, Nc=Nc)
-            pt.add_marker('.', 2.0); pt.add_line(""); pt.use_grid()
+            pt.add_marker('.', 2.5); pt.add_color('red')
+            pt.add_marker('.', 2.0); pt.add_color('blue')
+            pt.add_line(""); pt.use_grid()
             with pt as sp:
                 for k in kkList:
                     name = names[k]
                     sp.set_title(name)
-                    sp(XY[0], XY[k+1])
+                    ax = sp(XYp[0], XYp[k+1])
+                    ax.plot(Xyn[0], XYn[k+1])
         pt.showAll()
 
     def plotXY(self, arg1, arg2, sp=None, useFraction=False):
@@ -201,8 +229,8 @@ class Analysis(object):
                     ax.plot(self.X[K,k1], self.X[K,k2], **kw)
                 f1 = f2
 
-        k1 = arg1 if isinstance(arg1, int) else self.names.index(arg1)
-        k2 = arg2 if isinstance(arg2, int) else self.names.index(arg2)
+        k1 = arg1 if isinstance(arg1, int) else self.name2k(arg1)
+        k2 = arg2 if isinstance(arg2, int) else self.name2k(arg2)
         if sp is None:
             pt = Plotter(1)
             pt.add_line(""); pt.use_grid()
@@ -252,31 +280,24 @@ class History(object):
     @ivar names: A sequence of my individuals' parameter names,
         supplied as the sole constructor argument.
     
-    @ivar X: A 2-D Numpy array of parameter values, each row being the
-        parameter values for one individual.
+    @ivar X: A 2-D Numpy array of SSEs (first column) and parameter
+        values (remaining columns) of one individual.
 
     @ivar K: A list of indices to rows of I{X}, each entry in the list
-        corresponding to an entry of I{SSEs}.
+        corresponding to a row of I{X}.
 
-    @ivar SSEs: A list of SSEs, one for each row of parameter values
-        in I{X}, as referenced by the indices in I{K}.
+    @ivar Kp: A set of the values (not indices) of I{K} that are for
+        individuals currently in the population.
 
-    @cvar minFracDiff: The minimum fractional distance for an
-        I{Individual} to be considered non-duplicative of the
-        I{Individual} with the closest SSE. The figure is small, but
-        it actually represents a pretty high bar for disregarding an
-        addition to the history, considering that everything (SSE and
-        B{all} parameter values) has to be that close to the nearest
-        neighbor to not be added.
     """
-    N_max = 2500
-    minFracDiff = 0.03
+    N_max = 2000
     
     def __init__(self, names, N_max=None):
         self.names = names
         if N_max: self.N_max = N_max
-        self.X = np.zeros((self.N_max, len(names)), dtype='f4')
-        self.K = []; self.SSEs = []
+        self.X = np.zeros((self.N_max, len(names)+1), dtype='f4')
+        self.K = []
+        self.Kp = set()
 
     @staticmethod
     def seq2str(X, dtype=None):
@@ -313,7 +334,7 @@ class History(object):
             'N_max': self.N_max,
             'X': self.seq2str(self.X),
             'K': self.seq2str(self.K, 'u2'),
-            'SSEs': self.seq2str(self.SSEs, 'f4')
+            'Kp': self.seq2str(list(self.Kp), 'u2'),
         }
     
     def __setstate__(self, state):
@@ -324,124 +345,121 @@ class History(object):
         self.N_max = state['N_max']
         self.X = self.str2array(state, 'X')
         self.K = list(self.str2array(state, 'K'))
-        self.SSEs = list(self.str2array(state, 'SSEs'))
-
+        self.Kp = set(self.str2array(state, 'Kp'))
+    
     @property
     def a(self):
         if not hasattr(self, '_analysis'):
-            self._analysis = Analysis(self.names, self.X, self.K, self.SSEs)
+            self._analysis = Analysis(self.names, self.X, self.K, self.Kp)
         return self._analysis
             
     def __len__(self):
         """
         My length is the number of records in my roster.
         """
-        return len(self.SSEs)
+        return len(self.K)
 
     def __getitem__(self, k):
         """
-        Access the parameter values corresponding to index I{k} of my
-        I{SSEs} list.
+        Access the parameter values corresponding to index I{k} of my I{K}
+        list.
         """
-        k = self.K[k]
-        return self.X[k,:]
+        kr = self.K[k]
+        return self.X[kr,1:]
 
     def __iter__(self):
         """
         I iterate over 1-D Numpy arrays of parameter values in ascending
         order of the SSEs they resulted in.
         """
-        for k in self.K:
-            yield self.X[k,:]
+        for kr in self.K:
+            yield self.X[kr,1:]
     
     def clear(self):
         del self.K[:]
-        del self.SSEs[:]
+        self.Kp.clear()
 
-    def isDuplicative(self, k, SSE, values):
+    def sim(self, a, b):
         """
-        Returns C{True} if the I{SSE} and I{values} being proposed for
-        insertion into to my roster are so close to those of an
-        adjacent entry as to not be meaningful.
+        Returns a scalar between 0.0 and 1.0 that indicates the similarity
+        between 1-D arrays I{a} and I{b}.
         """
-        def diffEnough(a, b, bMin, bMax):
-            minDiff = self.minFracDiff * (bMax-bMin)
-            return abs(a-b) > minDiff
+        dp = np.dot(a, b)
+        m = [np.sqrt(np.sum(np.square(x))) for x in [a, b]]
+        s = dp/np.prod(m)
+        s = min(m)/max(m)
+        return s
+        
+    def mostExpendable(self):
+        """
+        Returns the row index to my I{X} array of the SSE+values
+        combination that is most expendable (closest to another one,
+        and not currently in the population).
 
-        def valuesDifferent(k):
-            for kk, value in enumerate(values):
-                X = self.X[self.K,kk]
-                minMax = X.min(), X.max()
-                if diffEnough(value, X[k], *minMax):
-                    # This value was different enough from the
-                    # neighbor's value
-                    return True
-        
-        if k == 0:
-            kList = [0]
-        else:
-            kList = [k-1]
-            if k < len(self): kList.append(k)
-        # Check if SSE is different enough from neighbors
-        minMax = self.SSEs[0], self.SSEs[-1]
-        for k in kList:
-            if not diffEnough(SSE, self.SSEs[k], *minMax):
-                # The SSE wasn't different enough from this neighbor's
-                # to disregard values
-                if not valuesDifferent(k):
-                    # SSE and values not substantially different
-                    return True
-        
+        If all are currently in the population, something went wrong,
+        but returns the row index for the worst SSE as a fail-safe.
+
+        B{TODO}: Optimize by selecting a subset array from I{X} and
+        computing dot products and magnitudes of all its rows at once.
+        """
+        # TODO: Optimize
+        X = self.X / np.sum(self.X, axis=0, initial=1E-30)
+        # Weight of SSE column is equal to weight of all other columns
+        # put together
+        X[:,0] *= X.shape[1] - 1
+        sMost = 0
+        for kr in self.K:
+            for kr_other in self.K:
+                if kr == kr_other or kr in self.Kp:
+                    continue
+                s = self.sim(X[kr,:], X[kr_other,:])
+                if s > sMost:
+                    kMost = kr
+                    sMost = s
+        return kMost
+    
     def add(self, i):
         """
         Adds the SSE and parameter values of the supplied individual I{i}
-        to my roster, possibly bumping the worst one already there to
-        make room.
+        to my roster.
+
+        If the roster is already full, bumps the record deemed most
+        expendable by L{mostExpendable} before adding a record for
+        I{i}.
+
+        Returns the row index to my SSE+values array I{X} of the
+        record for I{i}.
         """
-        SSE = i.SSE
-        values = np.array(i.values)
-        N = len(self)
+        N = len(self.K)
+        SV = np.array([i.SSE] + list(i.values))
         if N == 0:
-            # First item, addition is simple and guaranteed
-            self.SSEs.append(SSE)
+            # First addition
+            self.X[0,:] = SV
             self.K.append(0)
-            self.X[0,:] = values
-            return
-        if N >= self.N_max:
-            # Roster is full...
-            if SSE > self.SSEs[-1]:
-                # ...and this is worse than any there, so no addition
-                return
-            # ...so this is the row index of what values might get
-            # replaced
-            kr = self.K[-1]
-            trim = True
-        else:
-            # Roster isn't yet full, so we will (probably) just add
-            # values at the next row index
-            kr = N
-            trim = False
-        # The new SSE entry would go here
-        k = np.searchsorted(self.SSEs, SSE)
-        if k == 0 and trim:
-            # It's the best, so it will definitely be added. But the
-            # roster is full, so if the current best one is
-            # duplicative of it, that will get discarded.
-            if self.isDuplicative(0, SSE, values):
-                self.SSEs.pop(0)
-                self.K.pop(0)
-                # That takes care of the trimming
-                trim = False
-        elif k and self.isDuplicative(k, SSE, values):
-            # It's not the best and is duplicative, so it won't be
-            # added
-            return
-        self.SSEs.insert(k, SSE)
+            self.Kp.add(0)
+            return 0
+        if N == self.N_max:
+            # Roster is full, we will need to bump somebody before adding
+            kr = self.mostExpendable()
+            self.K.remove(kr)
+        # Find the index in K of the row index for the closest
+        # recorded SSE above i.SSE
+        k = np.searchsorted(self.X[self.K,0], i.SSE)
+        # Pick a row index for the new record
+        for kr in self.K:
+            if kr > 0 and kr-1 not in self.K:
+                kr -= 1
+                break
+            if kr < N-1 and kr+1 not in self.K:
+                kr += 1
+                break
+        else: kr = N
+        self.X[kr,:] = SV
         self.K.insert(k, kr)
-        self.X[kr,:] = values
-        # Trim off any excess
-        if trim:
-            self.SSEs.pop()
-            self.K.pop()
+        self.Kp.add(kr)
+        return kr
+
+    def notInPop(self, kr):
+        self.Kp.remove(kr)
 
 
