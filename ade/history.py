@@ -37,6 +37,32 @@ from yampex.plot import Plotter
 from util import *
 
 
+def seq2str(X, dtype=None):
+    """
+    Converts the supplied sequence I{X} to a string, returned. If the
+    sequence is not already a Numpy array, supply an efficient
+    I{dtype} for the array version that will be created for it.
+    """
+    if dtype: X = np.array(X, dtype=dtype)
+    fh = StringIO()
+    np.save(fh, X)
+    X = fh.getvalue()
+    fh.close()
+    return X
+
+def str2array(state, name):
+    """
+    Converts the string with key I{name} in I{state} into a Numpy
+    array, which gets returned.
+    """
+    text = state[name]
+    fh = StringIO(text)
+    X = np.load(fh)
+    fh.close()
+    return X
+        
+
+
 class Analysis(object):
     """
     I let you analyze the parameter values of a L{Population}.
@@ -206,7 +232,7 @@ class Analysis(object):
                     name = names[k]
                     sp.set_title(name)
                     ax = sp(XYp[0], XYp[k+1])
-                    ax.plot(Xyn[0], XYn[k+1])
+                    ax.plot(XYn[0], XYn[k+1])
         pt.showAll()
 
     def plotXY(self, arg1, arg2, sp=None, useFraction=False):
@@ -267,6 +293,95 @@ class Analysis(object):
         pt.show()
         
 
+class ClosestPairFinder(object):
+    """
+    I determine which of two rows are most similar of a Numpy 1-D
+    array I{X} I maintain having I{Nr} rows and I{Nc} columns.
+
+    The array's first column contains the SSEs of individuals and the
+    remaining columns contain the parameter values that resulted in
+    each SSE. The array values are normalized such that the average of
+    the first column is 1x the number of parameter values, and the
+    average of each of the other columns is 1.0.
+
+    @ivar Nc: The number of columns, SSE + parameter values.
+
+    @ivar X: My Numpy 1-D array having up to I{Nr} active rows and
+        exactly I{Nc} columns of normalized values.
+
+    @ivar S: A Numpy 2-D array having I{Nr} by I{Nr} similarity values
+        between rows of I{X}. (Zero for not computed yet.)
+
+    @ivar M: A Numpy 1-D array having I{Nr} Euclidean lengths of the
+        active row vectors in I{X}.
+
+    @ivar K: A set of indices to the active rows in I{X}.
+    """
+    def __init__(self, Nr, Nc):
+        self.Nr = Nr
+        self.Nc = Nc
+        self.X = np.empty((Nr, Nc))
+        self.S = np.zeros((Nr, Nr), dtype='f4')
+        self.M = np.zeros(Nr)
+        self.K = set()
+    
+    def normalize(self):
+        K = list(self.K)
+        XK = self.X[K,:]
+        self.X[K,:] = XK / np.sum(XK, axis=0, initial=1E-30)
+        self.X[:,0] *= self.Nc - 1
+    
+    def setRow(self, k, Z, noNormalize=False):
+        self.X[k,:] = Z
+        self.K.add(k)
+        self.M[k] = np.sqrt(np.sum(np.square(Z)))
+        if noNormalize: return
+        self.normalize()
+
+    def clearRow(self, k):
+        if k in self.K:
+            self.K.remove(k)
+            self.S[k,:] = np.zeros(self.Nr)
+
+    def similarity(self, k1, k2):
+        """
+        Returns a scalar between 0.0 and 1.0 that indicates the similarity
+        between 1-D arrays in rows I{k1} and I{k2} of my 2-D array
+        I{X}.
+        """
+        s = self.S[k1,k2]
+        if s == 0:
+            dp = np.dot(self.X[k1,:], self.X[k2,:])
+            m1 = self.M[k1]
+            m2 = self.M[k2]
+            s = dp / (m1*m2)
+            s = s*m2/m1 if m1 > m2 else s*m1/m2
+            self.S[k1,k2] = s
+        return s
+            
+    def __call__(self):
+        """
+        Returns the row index to my I{X} array of the SSE+values
+        combination that is most expendable (closest to another one,
+        and not currently in the population).
+
+        If I have just a single SSE+value combination, returns its row
+        index in I{X}.
+        """
+        kMost = None
+        sMost = 0
+        for kr in self.K:
+            for kr_other in self.K:
+                if kr == kr_other: continue
+                s = self.similarity(kr, kr_other)
+                if s > sMost:
+                    kMost = kr
+                    sMost = s
+        if kMost is None:
+            return list(self.K)[0]
+        return kMost
+    
+        
 class History(object):
     """
     I maintain a roster of the parameter values and SSEs of
@@ -299,32 +414,6 @@ class History(object):
         self.K = []
         self.Kp = set()
 
-    @staticmethod
-    def seq2str(X, dtype=None):
-        """
-        Converts the supplied sequence I{X} to a string, returned. If the
-        sequence is not already a Numpy array, supply an efficient
-        I{dtype} for the array version that will be created for it.
-        """
-        if dtype: X = np.array(X, dtype=dtype)
-        fh = StringIO()
-        np.save(fh, X)
-        X = fh.getvalue()
-        fh.close()
-        return X
-
-    @staticmethod
-    def str2array(state, name):
-        """
-        Converts the string with key I{name} in I{state} into a Numpy
-        array, which gets returned.
-        """
-        text = state[name]
-        fh = StringIO(text)
-        X = np.load(fh)
-        fh.close()
-        return X
-        
     def __getstate__(self):
         """
         For storage-efficient pickling.
@@ -332,9 +421,9 @@ class History(object):
         return {
             'names': self.names,
             'N_max': self.N_max,
-            'X': self.seq2str(self.X),
-            'K': self.seq2str(self.K, 'u2'),
-            'Kp': self.seq2str(list(self.Kp), 'u2'),
+            'X': seq2str(self.X),
+            'K': seq2str(self.K, 'u2'),
+            'Kp': seq2str(list(self.Kp), 'u2'),
         }
     
     def __setstate__(self, state):
@@ -343,9 +432,9 @@ class History(object):
         """
         self.names = state['names']
         self.N_max = state['N_max']
-        self.X = self.str2array(state, 'X')
-        self.K = list(self.str2array(state, 'K'))
-        self.Kp = set(self.str2array(state, 'Kp'))
+        self.X = str2array(state, 'X')
+        self.K = list(str2array(state, 'K'))
+        self.Kp = set(str2array(state, 'Kp'))
     
     @property
     def a(self):
@@ -353,6 +442,16 @@ class History(object):
             self._analysis = Analysis(self.names, self.X, self.K, self.Kp)
         return self._analysis
             
+    @property
+    def cpf(self):
+        if not hasattr(self, '_cpf'):
+            self._cpf = ClosestPairFinder(self.N_max, len(self.names)+1)
+            for kr in self.K:
+                if kr in self.Kp: continue
+                self._cpf.setRow(kr, self.X[kr,:], noNormalize=True)
+            self._cpf.normalize()
+        return self._cpf
+    
     def __len__(self):
         """
         My length is the number of records in my roster.
@@ -361,11 +460,11 @@ class History(object):
 
     def __getitem__(self, k):
         """
-        Access the parameter values corresponding to index I{k} of my I{K}
+        Access the SSE and parameter values corresponding to index I{k} of my I{K}
         list.
         """
         kr = self.K[k]
-        return self.X[kr,1:]
+        return self.X[kr,:]
 
     def __iter__(self):
         """
@@ -379,45 +478,6 @@ class History(object):
         del self.K[:]
         self.Kp.clear()
 
-    def sim(self, a, b):
-        """
-        Returns a scalar between 0.0 and 1.0 that indicates the similarity
-        between 1-D arrays I{a} and I{b}.
-        """
-        dp = np.dot(a, b)
-        m = [np.sqrt(np.sum(np.square(x))) for x in [a, b]]
-        s = dp/np.prod(m)
-        s = min(m)/max(m)
-        return s
-        
-    def mostExpendable(self):
-        """
-        Returns the row index to my I{X} array of the SSE+values
-        combination that is most expendable (closest to another one,
-        and not currently in the population).
-
-        If all are currently in the population, something went wrong,
-        but returns the row index for the worst SSE as a fail-safe.
-
-        B{TODO}: Optimize by selecting a subset array from I{X} and
-        computing dot products and magnitudes of all its rows at once.
-        """
-        # TODO: Optimize
-        X = self.X / np.sum(self.X, axis=0, initial=1E-30)
-        # Weight of SSE column is equal to weight of all other columns
-        # put together
-        X[:,0] *= X.shape[1] - 1
-        sMost = 0
-        for kr in self.K:
-            for kr_other in self.K:
-                if kr == kr_other or kr in self.Kp:
-                    continue
-                s = self.sim(X[kr,:], X[kr_other,:])
-                if s > sMost:
-                    kMost = kr
-                    sMost = s
-        return kMost
-    
     def add(self, i):
         """
         Adds the SSE and parameter values of the supplied individual I{i}
@@ -440,8 +500,9 @@ class History(object):
             return 0
         if N == self.N_max:
             # Roster is full, we will need to bump somebody before adding
-            kr = self.mostExpendable()
+            kr = self.cpf()
             self.K.remove(kr)
+            self.cpf.clearRow(kr) # Have cpf disregard, because it's gone
         # Find the index in K of the row index for the closest
         # recorded SSE above i.SSE
         k = np.searchsorted(self.X[self.K,0], i.SSE)
@@ -457,9 +518,17 @@ class History(object):
         self.X[kr,:] = SV
         self.K.insert(k, kr)
         self.Kp.add(kr)
+        self.cpf.clearRow(kr) # This a population member, so have cpf disregard
         return kr
-
+    
     def notInPop(self, kr):
+        """
+        Call this when a row of my I{X} array no longer represents an
+        SSE+values combination presently in the population.
+        """
         self.Kp.remove(kr)
+        # No longer a population member and thus expendable, so have
+        # cpf start considering it
+        self.cpf.setRow(kr, self.X[kr,:])
 
 

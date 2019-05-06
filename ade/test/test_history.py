@@ -82,6 +82,25 @@ class Test_Analysis(tb.TestCase):
         self.assertItemsEqual(K, [2, 1, 4])
 
 
+class Test_ClosestPairFinder(tb.TestCase):
+    def setUp(self):
+        self.cpf = history.ClosestPairFinder(10, 4)
+
+    def test_setRow_noNormalize(self):
+        for k in range(10):
+            Z = [10.0+k] + [k,k+1,k+2]
+            self.cpf.setRow(k, Z, noNormalize=True)
+        self.assertItemsEqual(self.cpf.X[0,:], [10.0, 0, 1, 2])
+
+    def test_setRow(self):
+        for k in range(10):
+            Zr = [1.0] + [k,k+1,k+2]
+            self.cpf.setRow(k, Zr)
+        for kc, expected in enumerate([3.0, 1.0, 1.0, 1.0]):
+            Zc = self.cpf.X[:,kc]
+            self.assertAlmostEqual(sum(Zc), expected)
+
+        
 class Test_History(tb.TestCase):
     def setUp(self):
         self.names = ['foo', 'bar', 'zebra']
@@ -94,7 +113,7 @@ class Test_History(tb.TestCase):
             i.SSE = 100.0 + k
             self.h.add(i)
             self.assertEqual(len(self.h), k+1)
-            self.assertItemsEqual(self.h[k], i.values)
+            self.assertItemsEqual(self.h[k], [i.SSE] + i.values)
         for k, values in enumerate(self.h):
             self.assertItemsEqual(values, [k,k+1,k+2])
 
