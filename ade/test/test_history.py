@@ -86,19 +86,58 @@ class Test_ClosestPairFinder(tb.TestCase):
     def setUp(self):
         self.cpf = history.ClosestPairFinder(10, 4)
 
-    def test_setRow_noNormalize(self):
+    def test_setRow(self):
         for k in range(10):
             Z = [10.0+k] + [k,k+1,k+2]
-            self.cpf.setRow(k, Z, noNormalize=True)
+            self.cpf.setRow(k, Z)
+        self.assertEqual(self.cpf.Xchanged, True)
         self.assertItemsEqual(self.cpf.X[0,:], [10.0, 0, 1, 2])
 
-    def test_setRow(self):
+    def test_normalize(self):
         for k in range(10):
             Zr = [1.0] + [k,k+1,k+2]
             self.cpf.setRow(k, Zr)
+        self.cpf.S[0,0] = 1.0
+        self.cpf._normalize()
+        self.assertEqual(self.cpf.S[0,0], 0)
+        self.assertEqual(self.cpf.Xchanged, False)
         for kc, expected in enumerate([3.0, 1.0, 1.0, 1.0]):
             Zc = self.cpf.X[:,kc]
             self.assertAlmostEqual(sum(Zc), expected)
+
+    def test_clearRow(self):
+        self.cpf.setRow(0, [100.0, 2, 3, 4])
+        self.cpf._normalize()
+        self.cpf.clearRow(0)
+        self.assertEqual(self.cpf.Xchanged, True)
+        self.assertEqual(len(self.cpf.K), 0)
+
+    def test_similarity(self):
+        self.cpf.setRow(0, [100.0, 0.1, 0.2, 0.3])
+        self.cpf.setRow(1, [100.0, 0.11, 0.2, 0.3])
+        self.cpf.setRow(2, [110.0, 0.1, 0.2, 0.3])
+        self.cpf.setRow(3, [100.0, 0.1, 0.0, 0.0])
+        self.assertEqual(self.cpf.Xchanged, True)
+        s = self.cpf.similarity(0, 1)
+        self.assertEqual(self.cpf.Xchanged, False)
+        self.assertAlmostEqual(self.cpf.X[0,0], 3*100./410)
+        self.assertAlmostEqual(self.cpf.X[1,1], 0.11/0.41)
+        for k1, k2, se in (
+                (0, 1, 0.992),
+                (0, 2, 0.937),
+                (0, 3, 0.728),
+        ):
+            self.assertAlmostEqual(self.cpf.similarity(k1, k2), se, 3)
+            self.assertEqual(self.cpf.Xchanged, False)
+
+    def test_call(self):
+        self.cpf.setRow(0, [100.1, 0.1, 0.2, 0.3])
+        self.cpf.setRow(1, [100.0, 0.11, 0.2, 0.3])
+        self.cpf.setRow(2, [110.0, 0.1, 0.2, 0.3])
+        self.cpf.setRow(3, [100.0, 0.1, 0.0, 0.0])
+        self.assertEqual(self.cpf(), 1)
+        self.cpf.clearRow(1)
+        self.assertEqual(self.cpf(), 2)
 
         
 class Test_History(tb.TestCase):

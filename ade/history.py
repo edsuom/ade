@@ -62,7 +62,6 @@ def str2array(state, name):
     return X
         
 
-
 class Analysis(object):
     """
     I let you analyze the parameter values of a L{Population}.
@@ -316,49 +315,99 @@ class ClosestPairFinder(object):
         active row vectors in I{X}.
 
     @ivar K: A set of indices to the active rows in I{X}.
+
+    @cvar Nr_search: B{TODO}: The number of rows past the current one
+        to search during each outer loop iteration of L{__call__}.
     """
+    # TODO
+    Nr_search = 100
+    
     def __init__(self, Nr, Nc):
         self.Nr = Nr
         self.Nc = Nc
         self.X = np.empty((Nr, Nc))
-        self.S = np.zeros((Nr, Nr), dtype='f4')
-        self.M = np.zeros(Nr)
+        self.clear()
+
+    def clear(self):
+        """
+        Defines I{S} as zeros to force re-computation of similarities, and
+        defines I{K} as an empty set to unallocate everything in I{X}
+        and indicate an empty history.
+        """
+        self.Xchanged = True
+        self._invalidate()
         self.K = set()
+
+    def _invalidate(self):
+        """
+        Defines I{S} and I{M} as zeros to force re-computation of
+        similarities.
+        """
+        self.S = np.zeros((self.Nr, self.Nr), dtype='f4')
+        self.M = np.zeros(self.Nr, dtype='f4')
     
-    def normalize(self):
+    def _normalize(self):
+        """
+        Called (alas, somewhat computationally expensive) by L{similarity}
+        if a row has been set or cleared since its last computation to
+        normalize my I{X} array.
+
+        Normalization sets the first column (SSEs) values to an
+        average of 1x times the number of other columns, and the other
+        column averages to 1.0.
+
+        Unfortuately, re-normalizing the array invalidates cached
+        similarity metrics in I{S} and magnitudes in I{M}.
+        """
         K = list(self.K)
         XK = self.X[K,:]
         self.X[K,:] = XK / np.sum(XK, axis=0, initial=1E-30)
-        self.X[:,0] *= self.Nc - 1
+        self.X[K,0] *= self.Nc - 1
+        self.Xchanged = False
+        self._invalidate()
     
-    def setRow(self, k, Z, noNormalize=False):
+    def setRow(self, k, Z):
         self.X[k,:] = Z
         self.K.add(k)
-        self.M[k] = np.sqrt(np.sum(np.square(Z)))
-        if noNormalize: return
-        self.normalize()
-
+        self.M[k] = 0
+        self.Xchanged = True
+    
     def clearRow(self, k):
         if k in self.K:
             self.K.remove(k)
             self.S[k,:] = np.zeros(self.Nr)
-
+            self.Xchanged = True
+            self.M[k] = 0
+    
+    def mag(self, k):
+        m = self.M[k]
+        if m == 0:
+            Z = self.X[k,:]
+            m = self.M[k] =  np.sqrt(np.sum(np.square(Z)))
+        return m
+            
     def similarity(self, k1, k2):
         """
         Returns a scalar between 0.0 and 1.0 that indicates the similarity
         between 1-D arrays in rows I{k1} and I{k2} of my 2-D array
         I{X}.
+
+        If my I{X} array has changed, re-normalizes it with a call to
+        L{_normalize}.
         """
         s = self.S[k1,k2]
+        if self.Xchanged:
+            self._normalize()
+            s = 0
         if s == 0:
             dp = np.dot(self.X[k1,:], self.X[k2,:])
-            m1 = self.M[k1]
-            m2 = self.M[k2]
+            m1 = self.mag(k1)
+            m2 = self.mag(k2)
             s = dp / (m1*m2)
             s = s*m2/m1 if m1 > m2 else s*m1/m2
             self.S[k1,k2] = s
         return s
-            
+    
     def __call__(self):
         """
         Returns the row index to my I{X} array of the SSE+values
@@ -367,12 +416,17 @@ class ClosestPairFinder(object):
 
         If I have just a single SSE+value combination, returns its row
         index in I{X}.
+
+        Pretty CPU-intensive to search all 1/2 Nr*Nr upper-left
+        combinations of (kr,kr_other).
         """
         kMost = None
         sMost = 0
         for kr in self.K:
             for kr_other in self.K:
-                if kr == kr_other: continue
+                if kr <= kr_other: continue
+                # Search only (part of) the upper-right part of
+                # (kr,kr_other); mirrored in the lower-left part
                 s = self.similarity(kr, kr_other)
                 if s > sMost:
                     kMost = kr
@@ -380,8 +434,8 @@ class ClosestPairFinder(object):
         if kMost is None:
             return list(self.K)[0]
         return kMost
+
     
-        
 class History(object):
     """
     I maintain a roster of the parameter values and SSEs of
@@ -405,7 +459,7 @@ class History(object):
         individuals currently in the population.
 
     """
-    N_max = 2000
+    N_max = 1000
     
     def __init__(self, names, N_max=None):
         self.names = names
@@ -444,12 +498,15 @@ class History(object):
             
     @property
     def cpf(self):
+        """
+        Property: An instance of L{ClosestPairFinder}, newly constructed
+        and initialized with my current population if necessary.
+        """
         if not hasattr(self, '_cpf'):
             self._cpf = ClosestPairFinder(self.N_max, len(self.names)+1)
             for kr in self.K:
                 if kr in self.Kp: continue
-                self._cpf.setRow(kr, self.X[kr,:], noNormalize=True)
-            self._cpf.normalize()
+                self._cpf.setRow(kr, self.X[kr,:])
         return self._cpf
     
     def __len__(self):
@@ -477,6 +534,7 @@ class History(object):
     def clear(self):
         del self.K[:]
         self.Kp.clear()
+        self.cpf.clear()
 
     def add(self, i):
         """
@@ -530,5 +588,3 @@ class History(object):
         # No longer a population member and thus expendable, so have
         # cpf start considering it
         self.cpf.setRow(kr, self.X[kr,:])
-
-
