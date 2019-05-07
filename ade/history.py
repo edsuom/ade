@@ -28,6 +28,7 @@ A L{History} class for maintaining a history of L{Individual}
 objects.
 """
 
+import random
 from cStringIO import StringIO
 
 import numpy as np
@@ -300,8 +301,7 @@ class ClosestPairFinder(object):
     The array's first column contains the SSEs of individuals and the
     remaining columns contain the parameter values that resulted in
     each SSE. The array values are normalized such that the average of
-    the first column is 1x the number of parameter values, and the
-    average of each of the other columns is 1.0.
+    of each of the columns is 1.0.
 
     @ivar Nc: The number of columns, SSE + parameter values.
 
@@ -316,11 +316,16 @@ class ClosestPairFinder(object):
 
     @ivar K: A set of indices to the active rows in I{X}.
 
-    @cvar Nr_search: B{TODO}: The number of rows past the current one
-        to search during each outer loop iteration of L{__call__}.
+    @cvar dMin: The minimum sum-of-squared difference (multiplied by
+        the number of columns) between the (normalized) rows of I{X}
+        for them to be considered duplicative. No further searching is
+        done if a match this similar is found.
+
+    @cvar Nr_max: The maximum number of other rows to search for
+        differences between a row in the outer loop of L{__call__}.
     """
-    # TODO
-    Nr_search = 100
+    dMin = 1E-6
+    Nr_max = 100
     
     def __init__(self, Nr, Nc):
         self.Nr = Nr
@@ -351,9 +356,7 @@ class ClosestPairFinder(object):
         if a row has been set or cleared since its last computation to
         normalize my I{X} array.
 
-        Normalization sets the first column (SSEs) values to an
-        average of 1x times the number of other columns, and the other
-        column averages to 1.0.
+        Normalization sets the column averages to 1.0.
 
         Unfortuately, re-normalizing the array invalidates cached
         differences in I{D}.
@@ -361,7 +364,6 @@ class ClosestPairFinder(object):
         K = list(self.K)
         XK = self.X[K,:]
         self.X[K,:] = XK / np.sum(XK, axis=0, initial=1E-30)
-        self.X[K,0] *= self.Nc - 1
         self.Xchanged = False
         self._invalidate()
     
@@ -402,17 +404,30 @@ class ClosestPairFinder(object):
         If I have just a single SSE+value combination, returns its row
         index in I{X}.
 
-        Pretty CPU-intensive to search all 1/2 Nr*Nr upper-left
-        combinations of (kr,kr_other).
+        For each value of C{kr} in the outer loop, a random sample of
+        C{kr_other} greater C{kr} is searched. It's quite
+        CPU-intensive to search all 1/2 Nr*Nr upper-left combinations
+        of C{(kr,kr_other)}, so the random sample will be limited to
+        I{Nr_max} if there are more than that many C{kr_other} values
+        greater than a given C{kr}.
+
+        If a difference of less than C{Nc*dMin} is found, the search
+        stops with that.
         """
+        dMin = self.Nc * self.dMin
         kBest = None
         dBest = float('+inf')
         for kr in self.K:
-            for kr_other in self.K:
+            K = [k for k in self.K if k > kr]
+            N = min([len(K), self.Nr_max])
+            K = random.sample(K, N)
+            for kr_other in K:
                 if kr <= kr_other: continue
                 # Search only (part of) the upper-right part of
                 # (kr,kr_other); mirrored in the lower-left part
                 d = self.difference(kr, kr_other)
+                if d < dMin:
+                    return kr
                 if d < dBest:
                     kBest = kr
                     dBest = d

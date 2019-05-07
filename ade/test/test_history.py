@@ -101,7 +101,7 @@ class Test_ClosestPairFinder(tb.TestCase):
         self.cpf._normalize()
         self.assertEqual(self.cpf.D[0,0], -1)
         self.assertEqual(self.cpf.Xchanged, False)
-        for kc, expected in enumerate([3.0, 1.0, 1.0, 1.0]):
+        for kc, expected in enumerate([1.0, 1.0, 1.0, 1.0]):
             Zc = self.cpf.X[:,kc]
             self.assertAlmostEqual(sum(Zc), expected)
 
@@ -117,17 +117,19 @@ class Test_ClosestPairFinder(tb.TestCase):
         self.cpf.setRow(1, [100.0, 0.11, 0.2, 0.3])
         self.cpf.setRow(2, [110.0, 0.1, 0.2, 0.3])
         self.cpf.setRow(3, [100.0, 0.1, 0.0, 0.0])
+        self.cpf.setRow(4, [100.1, 0.1, 0.000001, 0.0])
         self.assertEqual(self.cpf.Xchanged, True)
         d = self.cpf.difference(0, 1)
         self.assertEqual(self.cpf.Xchanged, False)
-        self.assertAlmostEqual(self.cpf.X[0,0], 3*100./410)
-        self.assertAlmostEqual(self.cpf.X[1,1], 0.11/0.41)
+        self.assertAlmostEqual(self.cpf.X[0,0], 100./510.1)
+        self.assertAlmostEqual(self.cpf.X[1,1], 0.11/0.51)
         for k1, k2, de in (
-                (0, 1, 0.0005949),
-                (0, 2, 0.0053540),
-                (0, 3, 0.2222222),
+                (0, 1, 0.00038447),
+                (0, 2, 0.000384317),
+                (0, 3, 0.22222185),
+                (3, 4, 0.0000000384),
         ):
-            self.assertAlmostEqual(self.cpf.difference(k1, k2), de, 6)
+            self.assertAlmostEqual(self.cpf.difference(k1, k2), de, 8)
             self.assertEqual(self.cpf.Xchanged, False)
 
     def test_call(self):
@@ -135,9 +137,9 @@ class Test_ClosestPairFinder(tb.TestCase):
         self.cpf.setRow(1, [100.0, 0.11, 0.2, 0.3])
         self.cpf.setRow(2, [110.0, 0.1, 0.2, 0.3])
         self.cpf.setRow(3, [100.0, 0.1, 0.0, 0.0])
+        self.assertEqual(self.cpf(), 0)
+        self.cpf.clearRow(0)
         self.assertEqual(self.cpf(), 1)
-        self.cpf.clearRow(1)
-        self.assertEqual(self.cpf(), 2)
 
         
 class Test_History(tb.TestCase):
