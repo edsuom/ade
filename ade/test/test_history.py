@@ -97,9 +97,9 @@ class Test_ClosestPairFinder(tb.TestCase):
         for k in range(10):
             Zr = [1.0] + [k,k+1,k+2]
             self.cpf.setRow(k, Zr)
-        self.cpf.S[0,0] = 1.0
+        self.cpf.D[0,0] = 1.0
         self.cpf._normalize()
-        self.assertEqual(self.cpf.S[0,0], 0)
+        self.assertEqual(self.cpf.D[0,0], -1)
         self.assertEqual(self.cpf.Xchanged, False)
         for kc, expected in enumerate([3.0, 1.0, 1.0, 1.0]):
             Zc = self.cpf.X[:,kc]
@@ -112,22 +112,22 @@ class Test_ClosestPairFinder(tb.TestCase):
         self.assertEqual(self.cpf.Xchanged, True)
         self.assertEqual(len(self.cpf.K), 0)
 
-    def test_similarity(self):
+    def test_difference(self):
         self.cpf.setRow(0, [100.0, 0.1, 0.2, 0.3])
         self.cpf.setRow(1, [100.0, 0.11, 0.2, 0.3])
         self.cpf.setRow(2, [110.0, 0.1, 0.2, 0.3])
         self.cpf.setRow(3, [100.0, 0.1, 0.0, 0.0])
         self.assertEqual(self.cpf.Xchanged, True)
-        s = self.cpf.similarity(0, 1)
+        d = self.cpf.difference(0, 1)
         self.assertEqual(self.cpf.Xchanged, False)
         self.assertAlmostEqual(self.cpf.X[0,0], 3*100./410)
         self.assertAlmostEqual(self.cpf.X[1,1], 0.11/0.41)
-        for k1, k2, se in (
-                (0, 1, 0.992),
-                (0, 2, 0.937),
-                (0, 3, 0.728),
+        for k1, k2, de in (
+                (0, 1, 0.0005949),
+                (0, 2, 0.0053540),
+                (0, 3, 0.2222222),
         ):
-            self.assertAlmostEqual(self.cpf.similarity(k1, k2), se, 3)
+            self.assertAlmostEqual(self.cpf.difference(k1, k2), de, 6)
             self.assertEqual(self.cpf.Xchanged, False)
 
     def test_call(self):

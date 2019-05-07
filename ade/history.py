@@ -330,7 +330,7 @@ class ClosestPairFinder(object):
 
     def clear(self):
         """
-        Defines I{S} as zeros to force re-computation of similarities, and
+        Defines I{D} as -1 to force re-computation of differences, and
         defines I{K} as an empty set to unallocate everything in I{X}
         and indicate an empty history.
         """
@@ -340,15 +340,14 @@ class ClosestPairFinder(object):
 
     def _invalidate(self):
         """
-        Defines I{S} and I{M} as zeros to force re-computation of
-        similarities.
+        Defines I{D} as -1 to force re-computation of
+        differences.
         """
-        self.S = np.zeros((self.Nr, self.Nr), dtype='f4')
-        self.M = np.zeros(self.Nr, dtype='f4')
+        self.D = -1 * np.ones((self.Nr, self.Nr), dtype='f4')
     
     def _normalize(self):
         """
-        Called (alas, somewhat computationally expensive) by L{similarity}
+        Called (alas, somewhat computationally expensive) by L{difference}
         if a row has been set or cleared since its last computation to
         normalize my I{X} array.
 
@@ -357,7 +356,7 @@ class ClosestPairFinder(object):
         column averages to 1.0.
 
         Unfortuately, re-normalizing the array invalidates cached
-        similarity metrics in I{S} and magnitudes in I{M}.
+        differences in I{D}.
         """
         K = list(self.K)
         XK = self.X[K,:]
@@ -369,44 +368,30 @@ class ClosestPairFinder(object):
     def setRow(self, k, Z):
         self.X[k,:] = Z
         self.K.add(k)
-        self.M[k] = 0
         self.Xchanged = True
     
     def clearRow(self, k):
         if k in self.K:
             self.K.remove(k)
-            self.S[k,:] = np.zeros(self.Nr)
+            self.D[k,:] = -1 * np.ones(self.Nr)
             self.Xchanged = True
-            self.M[k] = 0
-    
-    def mag(self, k):
-        m = self.M[k]
-        if m == 0:
-            Z = self.X[k,:]
-            m = self.M[k] =  np.sqrt(np.sum(np.square(Z)))
-        return m
             
-    def similarity(self, k1, k2):
+    def difference(self, k1, k2):
         """
-        Returns a scalar between 0.0 and 1.0 that indicates the similarity
-        between 1-D arrays in rows I{k1} and I{k2} of my 2-D array
-        I{X}.
+        Returns the sum of squared differences between 1-D arrays in rows
+        I{k1} and I{k2} of my 2-D array I{X}.
 
         If my I{X} array has changed, re-normalizes it with a call to
         L{_normalize}.
         """
-        s = self.S[k1,k2]
+        d = self.D[k1,k2]
         if self.Xchanged:
             self._normalize()
-            s = 0
-        if s == 0:
-            dp = np.dot(self.X[k1,:], self.X[k2,:])
-            m1 = self.mag(k1)
-            m2 = self.mag(k2)
-            s = dp / (m1*m2)
-            s = s*m2/m1 if m1 > m2 else s*m1/m2
-            self.S[k1,k2] = s
-        return s
+            d = -1
+        if d == -1:
+            d = np.sum(np.square(self.X[k1,:] - self.X[k2,:]))
+            self.D[k1,k2] = d
+        return d
     
     def __call__(self):
         """
@@ -420,20 +405,20 @@ class ClosestPairFinder(object):
         Pretty CPU-intensive to search all 1/2 Nr*Nr upper-left
         combinations of (kr,kr_other).
         """
-        kMost = None
-        sMost = 0
+        kBest = None
+        dBest = float('+inf')
         for kr in self.K:
             for kr_other in self.K:
                 if kr <= kr_other: continue
                 # Search only (part of) the upper-right part of
                 # (kr,kr_other); mirrored in the lower-left part
-                s = self.similarity(kr, kr_other)
-                if s > sMost:
-                    kMost = kr
-                    sMost = s
-        if kMost is None:
+                d = self.difference(kr, kr_other)
+                if d < dBest:
+                    kBest = kr
+                    dBest = d
+        if kBest is None:
             return list(self.K)[0]
-        return kMost
+        return kBest
 
     
 class History(object):
