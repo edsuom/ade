@@ -332,9 +332,8 @@ class ClosestPairFinder(object):
 
     def clear(self):
         """
-        Defines I{D} as -1 to force re-computation of differences, and
-        defines I{K} as an empty set to unallocate everything in I{X}
-        and indicate an empty history.
+        Sets my I{K} to an empty set and I{Xchanged} to its startup value,
+        returning me to a virginal state.
         """
         self.Xchanged = True
         self.K = set()
@@ -392,12 +391,12 @@ class ClosestPairFinder(object):
         Nr = len(self.K)
         mult = 2.1*Nr/(Nr-1)
         Ns = int(mult*N)
-        KP = np.random.choice(list(self.K), (Ns, 2))
-        KP = KP[np.flatnonzero(KP[:,1] > KP[:,0]),:][:N]
-        Ns = KP.shape[0]
+        K = np.random.choice(list(self.K), (Ns, 2))
+        K = K[np.flatnonzero(K[:,1] > K[:,0]),:][:N]
+        Ns = K.shape[0]
         if Ns < N:
-            KP = np.row_stack([KP, self.pairs_sampled(N-Ns)])
-        return KP
+            K = np.row_stack([K, self.pairs_sampled(N-Ns)])
+        return K
 
     def pairs_all(self):
         """
@@ -412,15 +411,15 @@ class ClosestPairFinder(object):
         K12 = np.column_stack([K1.flatten(), K2.flatten()])
         return K12[np.flatnonzero(K12[:,1] > K12[:,0])]
     
-    def diffs(self, KP):
+    def diffs(self, K):
         """
         Returns, as a 1-D Numpy array, the sum of squared differences
         between each pair of rows specified in the supplied 2-D pair
-        array I{KP}.
+        array I{K}.
         """
         if self.Xchanged: self._normalize()
-        X1 = self.X[KP[:,0]]
-        X2 = self.X[KP[:,1]]
+        X1 = self.X[K[:,0]]
+        X2 = self.X[K[:,1]]
         return np.sum(np.square(X1 - X2), axis=1)
     
     def __call__(self, Np=None):
@@ -451,10 +450,10 @@ class ClosestPairFinder(object):
         Nr = len(self.K)
         if Nr == 1: return list(self.K)[0]
         if Np is None: Np = self.Np_max
-        KP = self.pairs_all() if Nr*(Nr-1)/2 < Np else self.pairs_sampled(Np)
-        D = self.diffs(KP)
+        K = self.pairs_all() if Nr*(Nr-1)/2 < Np else self.pairs_sampled(Np)
+        D = self.diffs(K)
         k = np.argmin(D)
-        return KP[k,0]
+        return K[k,0]
 
 
 class History(object):
@@ -465,7 +464,10 @@ class History(object):
 
     @keyword N_max: The most records I can have in my roster. When the
         roster is full, adding a non-duplicative I{Individual} will
-        bump the highest-SSE one currently in the roster to make room.
+        bump the highest-SSE one currently in the roster to make
+        room. The default of 1500 seems like a sensible compromise
+        between reasonably compact C{.dat} file size and informative
+        plots.
     
     @ivar names: A sequence of my individuals' parameter names,
         supplied as the sole constructor argument.
@@ -479,8 +481,10 @@ class History(object):
     @ivar Kp: A set of the values (not indices) of I{K} that are for
         individuals currently in the population.
 
+    @ivar kr: A dict containing row indices, keyed by the hashes of
+        I{Individual} instances.
     """
-    N_max = 1000
+    N_max = 1500
     
     def __init__(self, names, N_max=None):
         """
@@ -488,9 +492,10 @@ class History(object):
         """
         self.names = names
         if N_max: self.N_max = N_max
+        self.N_total = 0
         self.X = np.zeros((self.N_max, len(names)+1), dtype='f4')
-        self.K = []
-        self.Kp = set()
+        self.K = []; self.Kp = set()
+        self.kr = {}
 
     def __getstate__(self):
         """
@@ -499,9 +504,11 @@ class History(object):
         return {
             'names': self.names,
             'N_max': self.N_max,
+            'N_total': self.N_total,
             'X': seq2str(self.X),
             'K': seq2str(self.K, 'u2'),
             'Kp': seq2str(list(self.Kp), 'u2'),
+            'kr': self.kr,
         }
     
     def __setstate__(self, state):
@@ -510,9 +517,11 @@ class History(object):
         """
         self.names = state['names']
         self.N_max = state['N_max']
+        self.N_total = state['N_total']
         self.X = str2array(state, 'X')
         self.K = list(str2array(state, 'K'))
         self.Kp = set(str2array(state, 'Kp'))
+        self.kr = state['kr']
     
     @property
     def a(self):
@@ -563,12 +572,14 @@ class History(object):
     def clear(self):
         """
         Call to have me return to a virginal state with no SSE+values
-        combinations recorded or considered for removal, and an empty
-        population.
+        combinations recorded or considered for removal, an empty
+        population, and an I{N_total} of zero.
         """
         del self.K[:]
         self.Kp.clear()
         self.cpf.clear()
+        self.kr.clear()
+        self.N_total = 0
 
     def add(self, i):
         """
@@ -582,100 +593,64 @@ class History(object):
         Returns the row index to my SSE+values array I{X} of the
         record for I{i}.
         """
-        N = len(self.K)
-        SV = np.array([i.SSE] + list(i.values))
-        if N == 0:
-            # First addition
-            self.X[0,:] = SV
-            self.K.append(0)
-            self.Kp.add(0)
-            return 0
-        if N == self.N_max:
-            # Roster is full, we will need to bump somebody before adding
+        def maybeTrim():
+            if N < self.N_max: return
+            # Roster is full, we will need to bump somebody (those in
+            # the current population are protected and exempt) before
+            # adding
             kr = self.cpf()
             self.K.remove(kr)
             # Have cpf disregard this row, because it's now gone
             self.cpf.clearRow(kr)
-        # Find the index in K of the row index for the closest
-        # recorded SSE above i.SSE
-        k = np.searchsorted(self.X[self.K,0], i.SSE)
-        # Pick a row index for the new record
-        for kr in self.K:
-            if kr > 0 and kr-1 not in self.K:
-                kr -= 1
-                break
-            if kr < N-1 and kr+1 not in self.K:
-                kr += 1
-                break
-        else: kr = N
+        
+        def kkr():
+            # Find the index in K of the row index for the closest
+            # recorded SSE above i.SSE
+            k = np.searchsorted(self.X[self.K,0], i.SSE)
+            # Pick a row index for the new record
+            for kr in self.K:
+                if kr > 0 and kr-1 not in self.K:
+                    return k, kr-1
+                if kr < N-1 and kr+1 not in self.K:
+                    return k, kr+1
+            return k, N
+        
+        N = len(self.K)
+        if N == 0:
+            # First addition
+            k = 0
+            kr = 0
+        else:
+            maybeTrim()
+            k, kr = kkr()
+        SV = np.array([i.SSE] + list(i.values))
         self.X[kr,:] = SV
         self.K.insert(k, kr)
         self.Kp.add(kr)
         # This row is starting out as a population member, so have cpf
         # initially disregard it
         self.cpf.clearRow(kr)
+        # Add to the lifetime total count
+        self.N_total += 1
+        # Finally, add to the individual-row map
+        self.kr[hash(i)] = kr
         return kr
     
-    def notInPop(self, kr):
+    def notInPop(self, x):
         """
-        Call this when a row of my I{X} array no longer represents an
-        SSE+values combination presently in the population.
+        Call this with an integer row index or an I{Individual} instance
+        that was added via L{add} to remove its row of my I{X} array
+        from being considered part of the current population.
         """
+        if isinstance(x, int):
+            kr = x
+        else:
+            # Must be an Individual
+            key = hash(x)
+            if key in self.kr:
+                kr = self.kr.pop(key)
+            else: return
         self.Kp.remove(kr)
         # This row is no longer a population member and is thus
         # expendable, so have cpf start considering it
         self.cpf.setRow(kr, self.X[kr,:])
-
-
-class RowIndexer(object):
-    """
-    I maintain a mapping between I{Individual} objects and the row
-    indices of a L{History} array that contains their SSE+values.
-
-    The point of using this object instead of just a dict was to make
-    the code capable of asynchronously running the CPU-intensive call
-    to L{History.add} as the I{func} of L{set}. But making that call
-    in the main Twisted loop doesn't seem to noticeably impact
-    performance, even with an I{Np_max} of 10,000 in
-    L{ClosestPairFinder}, so it is just a B{TODO}.
-    """
-    def __init__(self):
-        """
-        C{RowIndexer()}
-        """
-        self.kr = {}
-
-    def __getstate__(self):
-        """
-        For pickling.
-        """
-        return {'kr': self.kr}
-
-    def __setstate__(self, state):
-        """
-        For unpickling.
-        """
-        self.kr = state['kr']
-        
-    def contains(self, i):
-        """
-        Returns True if the L{Individual} I{i} is in my map.
-        """
-        return i in self.kr
-
-    def pop(self, i, func):
-        """
-        Pops the L{Individual} I{i} from my map and calls the supplied
-        function I{func} with its row index as the sole argument.
-        """
-        kr = self.kr.pop(i)
-        func(kr)
-
-    def set(self, i, func):
-        """
-        Calls the supplied function I{func} with the L{Individual} I{i} as
-        the sole argument and stores the result in my map as the row
-        index.
-        """
-        kr = func(i)
-        self.kr[i] = kr

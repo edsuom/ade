@@ -506,7 +506,7 @@ class DifferentialEvolution(object):
         # Evolve!
         for kg in range(self.maxiter):
             self.p.reporter.progressChar()
-            info = sub("  F={}  N_hist={:d}", self.fm, len(self.p.history))
+            info = sub("  F={}  N_hist={:d}", self.fm, self.p.history.N_total)
             msg(-1, "Generation {:d}/{:d}{}", kg+1, self.maxiter, info , '-')
             yield self.p.waitForReports()
             if not self.running: break

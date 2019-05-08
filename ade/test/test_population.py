@@ -200,13 +200,13 @@ class TestPopulation(tb.TestCase):
         self.assertTrue(self.p.replacement())
         self.assertEqual(self.p.replacementScore, 0)
         self.assertFalse(self.p.replacement())
-        self.assertAlmostEqual(self.p.statusQuoScore, self.p.Np*2.0/100)
+        self.assertAlmostEqual(self.p.statusQuoScore, self.p.Np*2.5/100)
         # 0 x 1
-        checkReplacements(0.0, 0.1, 0)
+        checkReplacements(0.0, 0.03, 0)
         # 1 x 1
-        checkReplacements(0.15, 0.29, 1)
+        checkReplacements(0.09, 0.22, 1)
         # 1 x 2
-        checkReplacements(0.50, 0.78, 1, 1)
+        checkReplacements(0.40, 0.60, 1, 1)
         # 2 x 1
         checkReplacements(1.0, 1.0, 2)
         # 2 x 2

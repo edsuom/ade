@@ -174,7 +174,6 @@ class Test_History(tb.TestCase):
     def setUp(self):
         self.names = ['foo', 'bar', 'zebra']
         self.h = history.History(self.names, N_max=10)
-        self.kr = {}
 
     def test_add_worsening(self):
         for k in range(5):
@@ -200,9 +199,9 @@ class Test_History(tb.TestCase):
         for k in range(15):
             i = tb.MockIndividual(values=[k,k+1,k+2])
             i.SSE = 1000.0 + k
-            self.kr[i] = self.h.add(i)
-            if len(self.kr) == 10:
-                i, kr = self.kr.popitem()
+            self.h.add(i)
+            if len(self.h.kr) == 10:
+                iHash, kr = self.h.kr.popitem()
                 self.h.notInPop(kr)
                 krPopped.add(kr)
         self.assertEqual(len(self.h), 10)
@@ -218,9 +217,9 @@ class Test_History(tb.TestCase):
         for k in range(15):
             i = tb.MockIndividual(values=[k,k+1,k+2])
             i.SSE = 1000.0 - k
-            self.kr[i] = self.h.add(i)
-            if len(self.kr) == 10:
-                i, kr = self.kr.popitem()
+            self.h.add(i)
+            if len(self.h.kr) == 10:
+                iHash, kr = self.h.kr.popitem()
                 self.h.notInPop(kr)
                 krPopped.add(kr)
         self.assertEqual(len(self.h), 10)

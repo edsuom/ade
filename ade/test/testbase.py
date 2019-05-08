@@ -162,6 +162,9 @@ class MockIndividual(object):
         if self.SSE is None or np.isnan(self.SSE) or self.SSE >= 0:
             return True
         return False
+
+    def __hash__(self):
+        return hash(bytes(self.SSE) + np.array(self.values).tobytes())
     
     def __eq__(self, other):
         return self.SSE == other.SSE

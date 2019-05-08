@@ -115,3 +115,17 @@ class TestIndividual(tb.TestCase):
         self.assertTrue(i)
         i.SSE = -1
         self.assertFalse(i)
+
+    @defer.inlineCallbacks
+    def test_eq_and_hash(self):
+        iList = []
+        for k in range(2):
+            i = self.spawn([1.1, 2.2])
+            yield i.evaluate()
+            iList.append(i)
+        hashList = [hash(i) for i in iList]
+        self.assertEqual(iList[0], iList[1])
+        self.assertEqual(hashList[0], hashList[1])
+        
+        
+        

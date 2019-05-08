@@ -50,7 +50,7 @@ from asynqueue.util import DeferredTracker
 import abort
 from individual import Individual
 from report import Reporter
-from history import History, RowIndexer
+from history import History
 from util import *
 
 
@@ -253,12 +253,22 @@ class Population(object):
 
     My I{targetFraction} attribute determines how much success
     challengers must have to maintain the status quo in adaptive
-    mode. In a population of 100, that is reached if eight challengers
-    winn with a rounded improvement ratio of 1; or one challenger wins
-    with an rir of 2 and three with an rir of 1; or just one
-    challenger winning with an rir of 3. (Or 40 challengers winning
-    with an rir of 0, if you're really straddling a ridge in the
-    fitness landscape.)
+    mode. Consider the default of 2.5%: In a population of 100, that
+    is reached with a score of 2.5, which can be achieved, for
+    example, with
+
+        - ten challengers winning with a rounded improvement ratio
+          of 1; or
+
+        - one challenger winning with an I{rir} of 2 and five with an
+          I{rir} of 1; or
+
+        - just one challenger winning with an I{rir} of 3.
+
+        - Or, if you're somehow positioned at a subtle transition in
+          the fitness landscape along just the right multi-dimensional
+          angle, fully half of the challengers winning with an I{rir}
+          of 0. (Unlikely!)
     
     @keyword constraints: A list of callables that enforce any
         constraints on your parameter values. See
@@ -296,7 +306,7 @@ class Population(object):
     @ivar targetFraction: The desired total score of improvements in
         each iteration in order for I{ade}'s adaptive algorithm to not
         change the current differential weight. See L{replacement} and
-        L{FManager} for details. The default is 2%.
+        L{FManager} for details. The default is 2.5%.
 
     @ivar debug: Set C{True} to show individuals getting
         replaced. (Results in a very messy log or console display.)
@@ -311,7 +321,7 @@ class Population(object):
     Np_min = 20
     Np_max = 500
     N_maxParallel = 12
-    targetFraction = 0.02
+    targetFraction = 0.025
     debug = False
     failedConstraintChar = " "
     
@@ -449,15 +459,14 @@ class Population(object):
             raise TypeError("You can only set me with Individuals")
         if len(self.iList) > k:
             iPrev = self.iList[k]
-            if self.ri.contains(iPrev):
-                self.ri.pop(iPrev, self.history.notInPop)
+            self.history.notInPop(iPrev)
         # Here is the only place iList should ever be set directly
         self.iList[k] = i
         self._sortNeeded = True
         if self.kBest is None or i < self.iList[self.kBest]:
             # This one is now the best I have
             self.kBest = k
-        self.ri.set(i, self.history.add)
+        self.history.add(i)
         
     def __len__(self):
         """
@@ -560,7 +569,6 @@ class Population(object):
         """
         self.counter = 0
         self.iList = []
-        self.ri = RowIndexer()
         self.dLocks = []
         if hasattr(self, 'history'): self.history.clear()
         self.running = None
@@ -678,7 +686,7 @@ class Population(object):
             """
             self.iList.append(i)
             self.dLocks.append(defer.DeferredLock())
-            self.ri.set(i, self.history.add)
+            self.history.add(i)
 
         def needMore():
             return len(self.iList) < self.Np
@@ -894,7 +902,6 @@ class Population(object):
             self.iList.index(self.iSorted[k]) for k in (-1, 0)]
         self[kWorst] = i
         self._sortNeeded = True
-        self.history.add(i)
     
     def sample(self, N, *exclude):
         """

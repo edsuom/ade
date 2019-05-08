@@ -185,6 +185,9 @@ class Individual(object):
         SSE = float(self._SSE)
         if np.isnan(SSE): return True
         return SSE >= 0
+
+    def __hash__(self):
+        return hash(bytes(self.SSE) + self.values.tobytes())
     
     def __eq__(self, other):
         """
