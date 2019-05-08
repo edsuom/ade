@@ -29,6 +29,7 @@ Unit tests for L{ade.report}.
 import pickle
 
 import numpy as np
+from twisted.internet import defer
 
 from ade.util import *
 from ade import history
@@ -135,6 +136,7 @@ class Test_ClosestPairFinder(tb.TestCase):
             self.assertLess(k1, 10)
             self.assertLess(k2, 10)
         
+    @defer.inlineCallbacks
     def test_diffs(self):
         self.cpf.setRow(0, [ 90.0, 0.11, 0.2, 0.3])
         self.cpf.setRow(1, [ 90.0, 0.09, 0.2, 0.3])
@@ -142,8 +144,8 @@ class Test_ClosestPairFinder(tb.TestCase):
         self.cpf.setRow(3, [110.0, 0.11, 0.2, 0.3])
         self.cpf.setRow(4, [110.0, 0.10, 0.2, 0.3])
         self.assertEqual(self.cpf.Xchanged, True)
-        KP = np.array([[0, 1], [0, 2], [0, 3], [2, 3], [3, 4]])
-        D = self.cpf.diffs(KP)
+        K = np.array([[0, 1], [0, 2], [0, 3], [2, 3], [3, 4]])
+        D = yield self.cpf(K=K)
         self.assertEqual(self.cpf.Xchanged, False)
         self.assertAlmostEqual(self.cpf.X[0,0], 90.0/500)
         self.assertAlmostEqual(self.cpf.X[0,1], 0.11/0.5)
@@ -157,6 +159,7 @@ class Test_ClosestPairFinder(tb.TestCase):
                 ]):
             self.assertWithinOnePercent(D[k], de)
 
+    @defer.inlineCallbacks
     def test_call(self):
         self.cpf.setRow(0, [150.0, 0.10, 0.20, 0.3])
         self.cpf.setRow(1, [100.0, 0.10, 0.20, 0.3])
@@ -165,9 +168,11 @@ class Test_ClosestPairFinder(tb.TestCase):
         self.cpf.setRow(4, [100.0, 0.10, 0.30, 0.4])
         self.cpf.setRow(5, [100.0, 0.10, 0.30, 0.5])
         self.cpf.setRow(6, [100.0, 0.10, 0.30, 0.6])
-        self.assertEqual(self.cpf(), 1)
+        kr = yield self.cpf()
+        self.assertEqual(kr, 1)
         self.cpf.clearRow(1)
-        self.assertEqual(self.cpf(), 2)
+        kr = yield self.cpf()
+        self.assertEqual(kr, 2)
 
 
 class Test_History(tb.TestCase):
@@ -175,31 +180,37 @@ class Test_History(tb.TestCase):
         self.names = ['foo', 'bar', 'zebra']
         self.h = history.History(self.names, N_max=10)
 
+    def tearDown(self):
+        return self.h.shutdown()
+        
+    @defer.inlineCallbacks
     def test_add_worsening(self):
         for k in range(5):
             i = tb.MockIndividual(values=[k,k+1,k+2])
             i.SSE = 100.0 + k
-            self.h.add(i)
+            yield self.h.add(i)
             self.assertEqual(len(self.h), k+1)
             self.assertItemsEqual(self.h[k], [i.SSE] + i.values)
         for k, values in enumerate(self.h):
             self.assertItemsEqual(values, [k,k+1,k+2])
 
+    @defer.inlineCallbacks
     def test_add_improving(self):
         for k in range(5):
             i = tb.MockIndividual(values=[k,k+1,k+2])
             i.SSE = 100.0 - k
-            self.h.add(i)
+            yield self.h.add(i)
             self.assertEqual(len(self.h), k+1)
         for k, values in enumerate(self.h):
             self.assertItemsEqual(values, [4-k,4-k+1,4-k+2])
             
+    @defer.inlineCallbacks
     def test_add_limitSize_worsening(self):
         krPopped = set()
         for k in range(15):
             i = tb.MockIndividual(values=[k,k+1,k+2])
             i.SSE = 1000.0 + k
-            self.h.add(i)
+            yield self.h.add(i)
             if len(self.h.kr) == 10:
                 iHash, kr = self.h.kr.popitem()
                 self.h.notInPop(kr)
@@ -212,12 +223,13 @@ class Test_History(tb.TestCase):
                     self.assertGreater(v, vp)
             valuesPrev = values
 
+    @defer.inlineCallbacks
     def test_add_limitSize_improving(self):
         krPopped = set()
         for k in range(15):
             i = tb.MockIndividual(values=[k,k+1,k+2])
             i.SSE = 1000.0 - k
-            self.h.add(i)
+            yield self.h.add(i)
             if len(self.h.kr) == 10:
                 iHash, kr = self.h.kr.popitem()
                 self.h.notInPop(kr)
@@ -230,48 +242,53 @@ class Test_History(tb.TestCase):
                     self.assertLess(v, vp)
             valuesPrev = values
 
+    @defer.inlineCallbacks
     def test_value_vs_SSE(self):
         for k in range(10):
             i = tb.MockIndividual(values=[k,k+1,k+2])
             i.SSE = 10.0 + k
-            self.h.add(i)
-        XY = self.h.a.value_vs_SSE('bar')
+            yield self.h.add(i)
+        XY = yield self.h.value_vs_SSE('bar')
         self.assertEqual(len(XY), 2)
         self.assertItemsEqual(XY[0], np.linspace(10.0, 19.0, 10))
         self.assertItemsEqual(XY[1], np.linspace(1.0, 10.0, 10))
 
+    @defer.inlineCallbacks
     def test_value_vs_SSE_maxRatio(self):
         for k in range(10):
             i = tb.MockIndividual(values=[k,k+1,k+2])
             i.SSE = 10.0 + k
-            self.h.add(i)
-        XY = self.h.a.value_vs_SSE('bar', maxRatio=1.5)
+            yield self.h.add(i)
+        XY = yield self.h.value_vs_SSE('bar', maxRatio=1.5)
         self.assertEqual(len(XY), 2)
         self.assertItemsEqual(XY[0], np.linspace(10.0, 15.0, 6))
         self.assertItemsEqual(XY[1], np.linspace(1.0, 6.0, 6))
 
+    @defer.inlineCallbacks
     def test_value_vs_SSE_inPop(self):
         for k in range(10):
             i = tb.MockIndividual(values=[k,k+1,k+2])
             i.SSE = 10.0 + k
-            kr = self.h.add(i)
+            kr = yield self.h.add(i)
         self.h.notInPop(kr)
-        XY = self.h.a.value_vs_SSE('bar', inPop=True)
+        XY = yield self.h.value_vs_SSE('bar', inPop=True)
         self.assertEqual(len(XY), 2)
         self.assertItemsEqual(XY[0], np.linspace(10.0, 18.0, 9))
         self.assertItemsEqual(XY[1], np.linspace(1.0, 9.0, 9))
 
+    @defer.inlineCallbacks
     def test_value_vs_SSE_notInPop(self):
         for k in range(10):
             i = tb.MockIndividual(values=[k,k+1,k+2])
             i.SSE = 10.0 + k
-            kr = self.h.add(i)
+            kr = yield self.h.add(i)
             if k > 5: self.h.notInPop(kr)
-        XY = self.h.a.value_vs_SSE('bar', notInPop=True)
+        XY = yield self.h.value_vs_SSE('bar', notInPop=True)
         self.assertEqual(len(XY), 2)
         self.assertItemsEqual(XY[0], np.linspace(16.0, 19.0, 4))
         self.assertItemsEqual(XY[1], np.linspace(7.0, 10.0, 4))
 
+    @defer.inlineCallbacks
     def test_pickle(self):
         def values(k):
             return [k, np.exp(-0.1*k), np.exp(-0.5*k)]
@@ -279,7 +296,7 @@ class Test_History(tb.TestCase):
         for k in range(10):
             i = tb.MockIndividual(values=values(k))
             i.SSE = 1000.0+k
-            self.h.add(i)
+            yield self.h.add(i)
         s = pickle.dumps(self.h)
         h = pickle.loads(s)
         self.assertEqual(len(h), 10)

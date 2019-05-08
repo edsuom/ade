@@ -32,6 +32,7 @@ import random
 from cStringIO import StringIO
 
 import numpy as np
+from twisted.internet import defer, task
 
 from yampex.plot import Plotter
 
@@ -88,7 +89,7 @@ class Analysis(object):
     def __init__(self, names, X, K, Kp=set()):
         self.names = names
         self.X = X
-        self.K = np.array(K)
+        self.K = K
         self.Kp = Kp
 
     def corr(self, k1, k2):
@@ -132,7 +133,7 @@ class Analysis(object):
         # 1-D array of SSEs, sorted
         SS = self.X[self.K,0]
         I = np.logical_and(SS >= fSSE(f1), SS < fSSE(f2))
-        return self.K[np.flatnonzero(I)]
+        return np.array(self.K)[np.flatnonzero(I)]
 
     def Kp12(self, p1, p2):
         """
@@ -340,9 +341,9 @@ class ClosestPairFinder(object):
     
     def _normalize(self):
         """
-        Called (alas, somewhat computationally expensive) by L{diff}
-        if a row has been set or cleared since its last computation to
-        normalize my I{X} array.
+        Called (alas, somewhat computationally expensive) by L{__call__}
+        if a row has been set or cleared since it was lasted called,
+        to normalize my I{X} array.
 
         Normalization sets the column averages to 1.0.
         """
@@ -411,22 +412,11 @@ class ClosestPairFinder(object):
         K12 = np.column_stack([K1.flatten(), K2.flatten()])
         return K12[np.flatnonzero(K12[:,1] > K12[:,0])]
     
-    def diffs(self, K):
+    def __call__(self, Np=None, K=None):
         """
-        Returns, as a 1-D Numpy array, the sum of squared differences
-        between each pair of rows specified in the supplied 2-D pair
-        array I{K}.
-        """
-        if self.Xchanged: self._normalize()
-        X1 = self.X[K[:,0]]
-        X2 = self.X[K[:,1]]
-        return np.sum(np.square(X1 - X2), axis=1)
-    
-    def __call__(self, Np=None):
-        """
-        Returns the row index to my I{X} array of the SSE+values
-        combination that is most expendable (closest to another one,
-        and not currently in the population).
+        Returns a C{Deferred} that fires with the row index to my I{X}
+        array of the SSE+values combination that is most expendable
+        (closest to another one, and not currently in the population).
 
         If I have just a single SSE+value combination, returns its row
         index in I{X}.
@@ -446,14 +436,45 @@ class ClosestPairFinder(object):
 
         @keyword Np: Set to the maximum number of pairs to
             examine. Default is I{Np_max}.
+
+        @keyword K: For unit testing only: Supply a 2-D Numpy array of
+            pairs of row indices, and the C{Deferred} will fire with
+            just the sum-of-squares difference between each pair.
         """
+        def calcerator(K):
+            """
+            Iterates over computationally intensive chunks of processing.
+            """
+            if K is None:
+                if Nr*(Nr-1)/2 < Np:
+                    KK = self.pairs_all()
+                else: KK = self.pairs_sampled(Np)
+                yield
+            else: KK = K
+            if self.Xchanged:
+                self._normalize()
+                yield
+            X = self.X[KK[:,0]]
+            yield
+            X -= self.X[KK[:,1]]
+            yield
+            D = np.square(X)
+            yield
+            D = np.sum(D, axis=1)
+            yield
+            if K is None:
+                kr = KK[np.argmin(D),0]
+                result(kr)
+            else: result(D)
+            
+        result = Bag()
         Nr = len(self.K)
-        if Nr == 1: return list(self.K)[0]
+        if Nr == 1:
+            return defer.succeed(list(self.K)[0])
         if Np is None: Np = self.Np_max
-        K = self.pairs_all() if Nr*(Nr-1)/2 < Np else self.pairs_sampled(Np)
-        D = self.diffs(K)
-        k = np.argmin(D)
-        return K[k,0]
+        d = task.cooperate(calcerator(K)).whenDone()
+        d.addCallback(lambda _: result())
+        return d
 
 
 class History(object):
@@ -496,6 +517,7 @@ class History(object):
         self.X = np.zeros((self.N_max, len(names)+1), dtype='f4')
         self.K = []; self.Kp = set()
         self.kr = {}
+        self._initialize()
 
     def __getstate__(self):
         """
@@ -522,41 +544,33 @@ class History(object):
         self.K = list(str2array(state, 'K'))
         self.Kp = set(str2array(state, 'Kp'))
         self.kr = state['kr']
-    
-    @property
-    def a(self):
-        """
-        Property: An instance of L{Analysis}, newly constructed if
-        necessary with my parameter names, SSE+values combos, and
-        indices of those combos currently in the population.
-        """
-        if not hasattr(self, '_analysis'):
-            self._analysis = Analysis(self.names, self.X, self.K, self.Kp)
-        return self._analysis
-            
-    @property
-    def cpf(self):
-        """
-        Property: An instance of L{ClosestPairFinder}, newly constructed
-        and initialized with my current population if necessary.
-        """
-        if not hasattr(self, '_cpf'):
-            self._cpf = ClosestPairFinder(self.N_max, len(self.names)+1)
-            for kr in self.K:
-                if kr in self.Kp: continue
-                self._cpf.setRow(kr, self.X[kr,:])
-        return self._cpf
-    
+        self._initialize()
+
+    def _initialize(self):
+        self.a = Analysis(self.names, self.X, self.K, self.Kp)
+        self.cpf = ClosestPairFinder(self.N_max, len(self.names)+1)
+        for kr in self.K:
+            if kr in self.Kp: continue
+            self.cpf.setRow(kr, self.X[kr,:])
+        self.dLock = defer.DeferredLock()
+
+    def shutdown(self):
+        return self.dLock.acquire().addCallback(lambda _: self.dLock.release())
+
     def __len__(self):
         """
         My length is the number of records in my roster.
+
+        B{Note}: Immediate result, not locked! Mostly for unit testing.
         """
         return len(self.K)
 
     def __getitem__(self, k):
         """
-        Access the SSE and parameter values corresponding to index I{k} of my I{K}
-        list.
+        Access the SSE and parameter values corresponding to index I{k} of
+        my I{K} list.
+
+        B{Note}: Immediate result, not locked! Mostly for unit testing.
         """
         kr = self.K[k]
         return self.X[kr,:]
@@ -565,6 +579,8 @@ class History(object):
         """
         I iterate over 1-D Numpy arrays of parameter values in ascending
         order of the SSEs they resulted in.
+
+        B{Note}: Immediate result, not locked! Mostly for unit testing.
         """
         for kr in self.K:
             yield self.X[kr,1:]
@@ -575,12 +591,20 @@ class History(object):
         combinations recorded or considered for removal, an empty
         population, and an I{N_total} of zero.
         """
-        del self.K[:]
-        self.Kp.clear()
-        self.cpf.clear()
-        self.kr.clear()
-        self.N_total = 0
+        def gotLock():
+            del self.K[:]
+            self.Kp.clear()
+            self.cpf.clear()
+            self.kr.clear()
+            self.N_total = 0
+        return self.dLock.run(gotLock)
 
+    def value_vs_SSE(self, *args, **kw):
+        def gotLock():
+            return self.a.value_vs_SSE(*args, **kw)
+        return self.dLock.run(gotLock)
+        
+    @defer.inlineCallbacks
     def add(self, i):
         """
         Adds the SSE and parameter values of the supplied individual I{i}
@@ -590,19 +614,9 @@ class History(object):
         expendable by L{mostExpendable} before adding a record for
         I{i}.
 
-        Returns the row index to my SSE+values array I{X} of the
-        record for I{i}.
+        Returns a C{Deferred} that fires with the row index of the new
+        record when it has been written.
         """
-        def maybeTrim():
-            if N < self.N_max: return
-            # Roster is full, we will need to bump somebody (those in
-            # the current population are protected and exempt) before
-            # adding
-            kr = self.cpf()
-            self.K.remove(kr)
-            # Have cpf disregard this row, because it's now gone
-            self.cpf.clearRow(kr)
-        
         def kkr():
             # Find the index in K of the row index for the closest
             # recorded SSE above i.SSE
@@ -614,27 +628,41 @@ class History(object):
                 if kr < N-1 and kr+1 not in self.K:
                     return k, kr+1
             return k, N
+
+        def writeRecord(k, kr):
+            SV = np.array([i.SSE] + list(i.values))
+            self.X[kr,:] = SV
+            self.K.insert(k, kr)
+            self.Kp.add(kr)
+            # This row is starting out as a population member, so have
+            # cpf initially disregard it
+            self.cpf.clearRow(kr)
+            # Add to the lifetime total count
+            self.N_total += 1
+            # Finally, add to the individual-row map
+            self.kr[hash(i)] = kr
         
+        yield self.dLock.acquire()
         N = len(self.K)
         if N == 0:
             # First addition
-            k = 0
-            kr = 0
-        else:
-            maybeTrim()
+            k, kr = 0, 0
+        elif N < self.N_max:
+            # Roster not yet full, no need to search for somebody to
+            # bump first
             k, kr = kkr()
-        SV = np.array([i.SSE] + list(i.values))
-        self.X[kr,:] = SV
-        self.K.insert(k, kr)
-        self.Kp.add(kr)
-        # This row is starting out as a population member, so have cpf
-        # initially disregard it
-        self.cpf.clearRow(kr)
-        # Add to the lifetime total count
-        self.N_total += 1
-        # Finally, add to the individual-row map
-        self.kr[hash(i)] = kr
-        return kr
+        else:
+            # Roster is full, we will need to bump somebody (those in
+            # the current population are protected and exempt) before
+            # adding
+            kr = yield self.cpf()
+            self.K.remove(kr)
+            # Have cpf disregard this row, because it's now gone
+            self.cpf.clearRow(kr)
+            k, kr = kkr()
+        writeRecord(k, kr)
+        self.dLock.release()
+        defer.returnValue(kr)
     
     def notInPop(self, x):
         """
@@ -642,15 +670,15 @@ class History(object):
         that was added via L{add} to remove its row of my I{X} array
         from being considered part of the current population.
         """
-        if isinstance(x, int):
-            kr = x
-        else:
-            # Must be an Individual
-            key = hash(x)
-            if key in self.kr:
+        def gotLock():
+            if isinstance(x, int):
+                kr = x
+            else:
+                # Must be an Individual
+                key = hash(x)
                 kr = self.kr.pop(key)
-            else: return
-        self.Kp.remove(kr)
-        # This row is no longer a population member and is thus
-        # expendable, so have cpf start considering it
-        self.cpf.setRow(kr, self.X[kr,:])
+            self.Kp.remove(kr)
+            # This row is no longer a population member and is thus
+            # expendable, so have cpf start considering it
+            self.cpf.setRow(kr, self.X[kr,:])
+        return self.dLock.run(gotLock)

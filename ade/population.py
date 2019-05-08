@@ -881,11 +881,12 @@ class Population(object):
     def waitForReports(self):
         """
         Returns a C{Deferred} that fires when all reporter callbacks have
-        finished.
+        finished. (And also L{History} updates.)
         """
         if not self.running:
             return defer.succeed(None)
-        return self.reporter.waitForCallbacks()
+        return defer.DeferredList([
+            self.history.shutdown(), self.reporter.waitForCallbacks()])
 
     def showFailedConstraint(self):
         """
