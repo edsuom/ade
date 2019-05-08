@@ -316,18 +316,15 @@ class ClosestPairFinder(object):
 
     @ivar K: A set of indices to the active rows in I{X}.
 
-    @cvar dMin: The minimum sum-of-squared difference (multiplied by
-        the number of columns) between the (normalized) rows of I{X}
-        for them to be considered duplicative. No further searching is
-        done if a match this similar is found.
-
-    @cvar Nr_max: The maximum number of other rows to search for
-        differences between a row in the outer loop of L{__call__}.
+    @cvar Np_max: The maximum number of row pairs to examine for
+        differences in L{__call__}.
     """
-    dMin = 1E-6
-    Nr_max = 100
+    Np_max = 10000
     
     def __init__(self, Nr, Nc):
+        """
+        C{ClosestPairFinder(Nr, Nc)}
+        """
         self.Nr = Nr
         self.Nc = Nc
         self.X = np.empty((Nr, Nc))
@@ -340,62 +337,93 @@ class ClosestPairFinder(object):
         and indicate an empty history.
         """
         self.Xchanged = True
-        self._invalidate()
         self.K = set()
-
-    def _invalidate(self):
-        """
-        Defines I{D} as -1 to force re-computation of
-        differences.
-        """
-        self.D = -1 * np.ones((self.Nr, self.Nr), dtype='f4')
     
     def _normalize(self):
         """
-        Called (alas, somewhat computationally expensive) by L{difference}
+        Called (alas, somewhat computationally expensive) by L{diff}
         if a row has been set or cleared since its last computation to
         normalize my I{X} array.
 
         Normalization sets the column averages to 1.0.
-
-        Unfortuately, re-normalizing the array invalidates cached
-        differences in I{D}.
         """
         K = list(self.K)
         XK = self.X[K,:]
         self.X[K,:] = XK / np.sum(XK, axis=0, initial=1E-30)
         self.Xchanged = False
-        self._invalidate()
     
     def setRow(self, k, Z):
+        """
+        Call with the row index to my I{X} array and a 1-D array I{Z} with
+        the SSE+values that are to be stored in that row.
+
+        Sets my I{Xchanged} flag to force L{diffs} to normalize the
+        I{X} array when it's called next, because the new row entry
+        will change the column totals.
+        """
         self.X[k,:] = Z
         self.K.add(k)
         self.Xchanged = True
     
     def clearRow(self, k):
+        """
+        Call with the row index to my I{X} array to have me disregard the
+        SSE+values that are to be stored in that row.
+
+        Sets my I{Xchanged} flag to force L{diffs} to normalize the
+        I{X} array when it's called next, because disregarding the row
+        entry will change the column totals.
+        """
         if k in self.K:
             self.K.remove(k)
-            self.D[k,:] = -1 * np.ones(self.Nr)
             self.Xchanged = True
-            
-    def difference(self, k1, k2):
-        """
-        Returns the sum of squared differences between 1-D arrays in rows
-        I{k1} and I{k2} of my 2-D array I{X}.
 
-        If my I{X} array has changed, re-normalizes it with a call to
-        L{_normalize}.
+    def pairs_sampled(self, N):
         """
-        d = self.D[k1,k2]
-        if self.Xchanged:
-            self._normalize()
-            d = -1
-        if d == -1:
-            d = np.sum(np.square(self.X[k1,:] - self.X[k2,:]))
-            self.D[k1,k2] = d
-        return d
+        Returns a 2-D Numpy array of I{N} pairs of separate row indices to
+        my I{X} array, randomly sampled from my set I{K} with
+        replacement.
+
+        The second value in each row of the returned array must be
+        greater than the first value. (There may be duplicate rows,
+        however.) Sampling of I{K} continues until there are enough
+        suitable rows.
+        """
+        Nr = len(self.K)
+        mult = 2.1*Nr/(Nr-1)
+        Ns = int(mult*N)
+        KP = np.random.choice(list(self.K), (Ns, 2))
+        KP = KP[np.flatnonzero(KP[:,1] > KP[:,0]),:][:N]
+        Ns = KP.shape[0]
+        if Ns < N:
+            KP = np.row_stack([KP, self.pairs_sampled(N-Ns)])
+        return KP
+
+    def pairs_all(self):
+        """
+        Returns a 2-D Numpy array of all pairs of separate row indices to
+        my I{X} array where the second value in each pair is greater
+        than the first value.
+
+        The returned array will have M{N*(N-1)/2} rows and two
+        columns, where I{N} is the length of my I{K} set of row indices.
+        """
+        K1, K2 = np.meshgrid(list(self.K), list(self.K), indexing='ij')
+        K12 = np.column_stack([K1.flatten(), K2.flatten()])
+        return K12[np.flatnonzero(K12[:,1] > K12[:,0])]
     
-    def __call__(self):
+    def diffs(self, KP):
+        """
+        Returns, as a 1-D Numpy array, the sum of squared differences
+        between each pair of rows specified in the supplied 2-D pair
+        array I{KP}.
+        """
+        if self.Xchanged: self._normalize()
+        X1 = self.X[KP[:,0]]
+        X2 = self.X[KP[:,1]]
+        return np.sum(np.square(X1 - X2), axis=1)
+    
+    def __call__(self, Np=None):
         """
         Returns the row index to my I{X} array of the SSE+values
         combination that is most expendable (closest to another one,
@@ -404,38 +432,31 @@ class ClosestPairFinder(object):
         If I have just a single SSE+value combination, returns its row
         index in I{X}.
 
-        For each value of C{kr} in the outer loop, a random sample of
-        C{kr_other} greater C{kr} is searched. It's quite
-        CPU-intensive to search all 1/2 Nr*Nr upper-left combinations
-        of C{(kr,kr_other)}, so the random sample will be limited to
-        I{Nr_max} if there are more than that many C{kr_other} values
-        greater than a given C{kr}.
+        If the maximum number of pairs I{Np} to examine (default
+        I{Np_max}) is greater than M{N*(N-1)/2}, where I{N} is the
+        length of my I{K} set of row indices, L{pairs_all} is called
+        to examine all suitable pairs.
 
-        If a difference of less than C{Nc*dMin} is found, the search
-        stops with that.
+        Otherwise, L{pairs_sampled} is called instead and examination
+        is limited to a random sample of I{Np} suitable pairs. With
+        the default I{Np_max} of 10000, this occurs at I{N} >
+        142. With I{Np_max} of 1000, it occurs with I{N} > 45. Since
+        the I{N_max} of L{History} has a default of 1000,
+        L{pairs_sampled} is what's going to be used in all practical
+        situations.
+
+        @keyword Np: Set to the maximum number of pairs to
+            examine. Default is I{Np_max}.
         """
-        dMin = self.Nc * self.dMin
-        kBest = None
-        dBest = float('+inf')
-        for kr in self.K:
-            K = [k for k in self.K if k > kr]
-            N = min([len(K), self.Nr_max])
-            K = random.sample(K, N)
-            for kr_other in K:
-                if kr <= kr_other: continue
-                # Search only (part of) the upper-right part of
-                # (kr,kr_other); mirrored in the lower-left part
-                d = self.difference(kr, kr_other)
-                if d < dMin:
-                    return kr
-                if d < dBest:
-                    kBest = kr
-                    dBest = d
-        if kBest is None:
-            return list(self.K)[0]
-        return kBest
+        Nr = len(self.K)
+        if Nr == 1: return list(self.K)[0]
+        if Np is None: Np = self.Np_max
+        KP = self.pairs_all() if Nr*(Nr-1)/2 < Np else self.pairs_sampled(Np)
+        D = self.diffs(KP)
+        k = np.argmin(D)
+        return KP[k,0]
 
-    
+
 class History(object):
     """
     I maintain a roster of the parameter values and SSEs of
@@ -462,6 +483,9 @@ class History(object):
     N_max = 1000
     
     def __init__(self, names, N_max=None):
+        """
+        C{History(names, N_max=None)}
+        """
         self.names = names
         if N_max: self.N_max = N_max
         self.X = np.zeros((self.N_max, len(names)+1), dtype='f4')
@@ -492,6 +516,11 @@ class History(object):
     
     @property
     def a(self):
+        """
+        Property: An instance of L{Analysis}, newly constructed if
+        necessary with my parameter names, SSE+values combos, and
+        indices of those combos currently in the population.
+        """
         if not hasattr(self, '_analysis'):
             self._analysis = Analysis(self.names, self.X, self.K, self.Kp)
         return self._analysis
@@ -532,6 +561,11 @@ class History(object):
             yield self.X[kr,1:]
     
     def clear(self):
+        """
+        Call to have me return to a virginal state with no SSE+values
+        combinations recorded or considered for removal, and an empty
+        population.
+        """
         del self.K[:]
         self.Kp.clear()
         self.cpf.clear()
@@ -560,7 +594,8 @@ class History(object):
             # Roster is full, we will need to bump somebody before adding
             kr = self.cpf()
             self.K.remove(kr)
-            self.cpf.clearRow(kr) # Have cpf disregard, because it's gone
+            # Have cpf disregard this row, because it's now gone
+            self.cpf.clearRow(kr)
         # Find the index in K of the row index for the closest
         # recorded SSE above i.SSE
         k = np.searchsorted(self.X[self.K,0], i.SSE)
@@ -576,7 +611,9 @@ class History(object):
         self.X[kr,:] = SV
         self.K.insert(k, kr)
         self.Kp.add(kr)
-        self.cpf.clearRow(kr) # This a population member, so have cpf disregard
+        # This row is starting out as a population member, so have cpf
+        # initially disregard it
+        self.cpf.clearRow(kr)
         return kr
     
     def notInPop(self, kr):
@@ -585,6 +622,60 @@ class History(object):
         SSE+values combination presently in the population.
         """
         self.Kp.remove(kr)
-        # No longer a population member and thus expendable, so have
-        # cpf start considering it
+        # This row is no longer a population member and is thus
+        # expendable, so have cpf start considering it
         self.cpf.setRow(kr, self.X[kr,:])
+
+
+class RowIndexer(object):
+    """
+    I maintain a mapping between I{Individual} objects and the row
+    indices of a L{History} array that contains their SSE+values.
+
+    The point of using this object instead of just a dict was to make
+    the code capable of asynchronously running the CPU-intensive call
+    to L{History.add} as the I{func} of L{set}. But making that call
+    in the main Twisted loop doesn't seem to noticeably impact
+    performance, even with an I{Np_max} of 10,000 in
+    L{ClosestPairFinder}, so it is just a B{TODO}.
+    """
+    def __init__(self):
+        """
+        C{RowIndexer()}
+        """
+        self.kr = {}
+
+    def __getstate__(self):
+        """
+        For pickling.
+        """
+        return {'kr': self.kr}
+
+    def __setstate__(self, state):
+        """
+        For unpickling.
+        """
+        self.kr = state['kr']
+        
+    def contains(self, i):
+        """
+        Returns True if the L{Individual} I{i} is in my map.
+        """
+        return i in self.kr
+
+    def pop(self, i, func):
+        """
+        Pops the L{Individual} I{i} from my map and calls the supplied
+        function I{func} with its row index as the sole argument.
+        """
+        kr = self.kr.pop(i)
+        func(kr)
+
+    def set(self, i, func):
+        """
+        Calls the supplied function I{func} with the L{Individual} I{i} as
+        the sole argument and stores the result in my map as the row
+        index.
+        """
+        kr = func(i)
+        self.kr[i] = kr

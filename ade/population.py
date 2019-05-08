@@ -50,7 +50,7 @@ from asynqueue.util import DeferredTracker
 import abort
 from individual import Individual
 from report import Reporter
-from history import History
+from history import History, RowIndexer
 from util import *
 
 
@@ -449,15 +449,15 @@ class Population(object):
             raise TypeError("You can only set me with Individuals")
         if len(self.iList) > k:
             iPrev = self.iList[k]
-            if iPrev in self.kr:
-                self.history.notInPop(self.kr.pop(iPrev))
+            if self.ri.contains(iPrev):
+                self.ri.pop(iPrev, self.history.notInPop)
         # Here is the only place iList should ever be set directly
         self.iList[k] = i
         self._sortNeeded = True
         if self.kBest is None or i < self.iList[self.kBest]:
             # This one is now the best I have
             self.kBest = k
-        self.kr[i] = self.history.add(i)
+        self.ri.set(i, self.history.add)
         
     def __len__(self):
         """
@@ -560,7 +560,7 @@ class Population(object):
         """
         self.counter = 0
         self.iList = []
-        self.kr = {}
+        self.ri = RowIndexer()
         self.dLocks = []
         if hasattr(self, 'history'): self.history.clear()
         self.running = None
@@ -678,7 +678,7 @@ class Population(object):
             """
             self.iList.append(i)
             self.dLocks.append(defer.DeferredLock())
-            self.kr[i] = self.history.add(i)
+            self.ri.set(i, self.history.add)
 
         def needMore():
             return len(self.iList) < self.Np

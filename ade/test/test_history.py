@@ -97,9 +97,7 @@ class Test_ClosestPairFinder(tb.TestCase):
         for k in range(10):
             Zr = [1.0] + [k,k+1,k+2]
             self.cpf.setRow(k, Zr)
-        self.cpf.D[0,0] = 1.0
         self.cpf._normalize()
-        self.assertEqual(self.cpf.D[0,0], -1)
         self.assertEqual(self.cpf.Xchanged, False)
         for kc, expected in enumerate([1.0, 1.0, 1.0, 1.0]):
             Zc = self.cpf.X[:,kc]
@@ -112,36 +110,66 @@ class Test_ClosestPairFinder(tb.TestCase):
         self.assertEqual(self.cpf.Xchanged, True)
         self.assertEqual(len(self.cpf.K), 0)
 
-    def test_difference(self):
-        self.cpf.setRow(0, [100.0, 0.1, 0.2, 0.3])
-        self.cpf.setRow(1, [100.0, 0.11, 0.2, 0.3])
-        self.cpf.setRow(2, [110.0, 0.1, 0.2, 0.3])
-        self.cpf.setRow(3, [100.0, 0.1, 0.0, 0.0])
-        self.cpf.setRow(4, [100.1, 0.1, 0.000001, 0.0])
+    def test_pairs_sampled(self):
+        self.cpf.K = {3, 1, 4, 5, 9, 2}
+        for N in (2, 3, 4):
+            KP = self.cpf.pairs_sampled(N)
+            self.assertEqual(KP.shape, (N, 2))
+            for k1, k2 in KP:
+                self.assertGreater(k2, k1)
+                self.assertGreater(k1, 0)
+                self.assertGreater(k2, 0)
+                self.assertLess(k1, 10)
+                self.assertLess(k2, 10)
+        
+    def test_pairs_all(self):
+        self.cpf.K = {3, 1, 4, 5, 9, 2}
+        N = len(self.cpf.K)
+        Np = N*(N-1)/2
+        KP = self.cpf.pairs_all()
+        self.assertEqual(KP.shape, (Np, 2))
+        for k1, k2 in KP:
+            self.assertGreater(k2, k1)
+            self.assertGreater(k1, 0)
+            self.assertGreater(k2, 0)
+            self.assertLess(k1, 10)
+            self.assertLess(k2, 10)
+        
+    def test_diffs(self):
+        self.cpf.setRow(0, [ 90.0, 0.11, 0.2, 0.3])
+        self.cpf.setRow(1, [ 90.0, 0.09, 0.2, 0.3])
+        self.cpf.setRow(2, [100.0, 0.09, 0.2, 0.3])
+        self.cpf.setRow(3, [110.0, 0.11, 0.2, 0.3])
+        self.cpf.setRow(4, [110.0, 0.10, 0.2, 0.3])
         self.assertEqual(self.cpf.Xchanged, True)
-        d = self.cpf.difference(0, 1)
+        KP = np.array([[0, 1], [0, 2], [0, 3], [2, 3], [3, 4]])
+        D = self.cpf.diffs(KP)
         self.assertEqual(self.cpf.Xchanged, False)
-        self.assertAlmostEqual(self.cpf.X[0,0], 100./510.1)
-        self.assertAlmostEqual(self.cpf.X[1,1], 0.11/0.51)
-        for k1, k2, de in (
-                (0, 1, 0.00038447),
-                (0, 2, 0.000384317),
-                (0, 3, 0.22222185),
-                (3, 4, 0.0000000384),
-        ):
-            self.assertAlmostEqual(self.cpf.difference(k1, k2), de, 8)
-            self.assertEqual(self.cpf.Xchanged, False)
+        self.assertAlmostEqual(self.cpf.X[0,0], 90.0/500)
+        self.assertAlmostEqual(self.cpf.X[0,1], 0.11/0.5)
+        self.assertAlmostEqual(self.cpf.X[1,1], 0.09/0.5)
+        for k, de in enumerate(
+                [0.04**2,                       # 0, 1
+                 0.02**2 + 0.04**2,             # 0, 2
+                 0.04**2,                       # 0, 3
+                 0.02**2 + 0.04**2,             # 2, 3
+                 0.02**2,                       # 3, 4
+                ]):
+            self.assertWithinOnePercent(D[k], de)
 
     def test_call(self):
-        self.cpf.setRow(0, [100.1, 0.1, 0.2, 0.3])
-        self.cpf.setRow(1, [100.0, 0.11, 0.2, 0.3])
-        self.cpf.setRow(2, [110.0, 0.1, 0.2, 0.3])
-        self.cpf.setRow(3, [100.0, 0.1, 0.0, 0.0])
-        self.assertEqual(self.cpf(), 0)
-        self.cpf.clearRow(0)
+        self.cpf.setRow(0, [150.0, 0.10, 0.20, 0.3])
+        self.cpf.setRow(1, [100.0, 0.10, 0.20, 0.3])
+        self.cpf.setRow(2, [120.0, 0.11, 0.20, 0.3])
+        self.cpf.setRow(3, [100.0, 0.11, 0.21, 0.3])
+        self.cpf.setRow(4, [100.0, 0.10, 0.30, 0.4])
+        self.cpf.setRow(5, [100.0, 0.10, 0.30, 0.5])
+        self.cpf.setRow(6, [100.0, 0.10, 0.30, 0.6])
         self.assertEqual(self.cpf(), 1)
+        self.cpf.clearRow(1)
+        self.assertEqual(self.cpf(), 2)
 
-        
+
 class Test_History(tb.TestCase):
     def setUp(self):
         self.names = ['foo', 'bar', 'zebra']
