@@ -676,6 +676,7 @@ class History(object):
             else:
                 # Must be an Individual
                 key = hash(x)
+                if key not in self.kr: return
                 kr = self.kr.pop(key)
             self.Kp.remove(kr)
             # This row is no longer a population member and is thus

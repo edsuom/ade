@@ -620,7 +620,9 @@ class Population(object):
         instance, and files a report of my best individual.
         """
         self._sortNeeded = True
-        self.kBest = self.iList.index(self.iSorted[0])
+        if self.iSorted:
+            self.kBest = self.iList.index(self.iSorted[0])
+        else: self.kBest = None
         self.running = True
         msg(0, repr(self))
         self.report()
