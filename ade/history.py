@@ -307,13 +307,13 @@ class ClosestPairFinder(object):
     @ivar Nc: The number of columns, SSE + parameter values.
 
     @ivar X: My Numpy 1-D array having up to I{Nr} active rows and
-        exactly I{Nc} columns of normalized values.
+        exactly I{Nc} columns of SSE+values combinations.
 
-    @ivar S: A Numpy 2-D array having I{Nr} by I{Nr} similarity values
-        between rows of I{X}. (Zero for not computed yet.)
-
-    @ivar M: A Numpy 1-D array having I{Nr} Euclidean lengths of the
-        active row vectors in I{X}.
+    @ivar S: A Numpy 1-D array having a scaling factor for the
+        sum-of-squared-differences calculated by L{__call__}. The
+        scaling factor is reciprocal of the variance of all active
+        rows in I{X}, or C{None} if the variance needs to be
+        (re)computed.
 
     @ivar K: A set of indices to the active rows in I{X}.
 
@@ -333,50 +333,37 @@ class ClosestPairFinder(object):
 
     def clear(self):
         """
-        Sets my I{K} to an empty set and I{Xchanged} to its startup value,
-        returning me to a virginal state.
+        Sets my I{K} to an empty set and I{S} to C{None}, returning me to
+        a virginal state.
         """
-        self.Xchanged = True
         self.K = set()
-    
-    def _normalize(self):
-        """
-        Called (alas, somewhat computationally expensive) by L{__call__}
-        if a row has been set or cleared since it was lasted called,
-        to normalize my I{X} array.
-
-        Normalization sets the column averages to 1.0.
-        """
-        K = list(self.K)
-        XK = self.X[K,:]
-        self.X[K,:] = XK / np.sum(XK, axis=0, initial=1E-30)
-        self.Xchanged = False
+        self.S = None
     
     def setRow(self, k, Z):
         """
         Call with the row index to my I{X} array and a 1-D array I{Z} with
         the SSE+values that are to be stored in that row.
 
-        Sets my I{Xchanged} flag to force L{diffs} to normalize the
-        I{X} array when it's called next, because the new row entry
-        will change the column totals.
+        Nulls out my I{S} scaling array to force re-computation of the
+        column-wise variances when L{__call__} runs next, because the
+        new row entry will change them.
         """
         self.X[k,:] = Z
         self.K.add(k)
-        self.Xchanged = True
+        self.S = None
     
     def clearRow(self, k):
         """
         Call with the row index to my I{X} array to have me disregard the
         SSE+values that are to be stored in that row.
 
-        Sets my I{Xchanged} flag to force L{diffs} to normalize the
-        I{X} array when it's called next, because disregarding the row
-        entry will change the column totals.
+        Nulls out my I{S} scaling array to force re-computation of the
+        column-wise variances when L{__call__} runs next, because
+        disregarding the row entry.
         """
         if k in self.K:
             self.K.remove(k)
-            self.Xchanged = True
+            self.S = None
 
     def pairs_sampled(self, N):
         """
@@ -434,6 +421,10 @@ class ClosestPairFinder(object):
         L{pairs_sampled} is what's going to be used in all practical
         situations.
 
+        The similarity is determined from the sum of squared
+        differences between two rows, divided by the column-wise
+        variance of all (active) rows.
+
         @keyword Np: Set to the maximum number of pairs to
             examine. Default is I{Np_max}.
 
@@ -451,14 +442,17 @@ class ClosestPairFinder(object):
                 else: KK = self.pairs_sampled(Np)
                 yield
             else: KK = K
-            if self.Xchanged:
-                self._normalize()
+            if self.S is None:
+                XK = self.X[list(self.K),:]
+                self.S = 1.0 / (np.var(XK, axis=0) + 1E-20)
                 yield
             X = self.X[KK[:,0]]
             yield
             X -= self.X[KK[:,1]]
             yield
             D = np.square(X)
+            yield
+            D *= self.S
             yield
             D = np.sum(D, axis=1)
             yield

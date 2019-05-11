@@ -88,27 +88,18 @@ class Test_ClosestPairFinder(tb.TestCase):
         self.cpf = history.ClosestPairFinder(10, 4)
 
     def test_setRow(self):
+        self.cpf.S = True # Just not None, for testing
         for k in range(10):
             Z = [10.0+k] + [k,k+1,k+2]
             self.cpf.setRow(k, Z)
-        self.assertEqual(self.cpf.Xchanged, True)
+        self.assertEqual(self.cpf.S, None)
         self.assertItemsEqual(self.cpf.X[0,:], [10.0, 0, 1, 2])
-
-    def test_normalize(self):
-        for k in range(10):
-            Zr = [1.0] + [k,k+1,k+2]
-            self.cpf.setRow(k, Zr)
-        self.cpf._normalize()
-        self.assertEqual(self.cpf.Xchanged, False)
-        for kc, expected in enumerate([1.0, 1.0, 1.0, 1.0]):
-            Zc = self.cpf.X[:,kc]
-            self.assertAlmostEqual(sum(Zc), expected)
 
     def test_clearRow(self):
         self.cpf.setRow(0, [100.0, 2, 3, 4])
-        self.cpf._normalize()
+        self.cpf.S = True # Just not None, for testing
         self.cpf.clearRow(0)
-        self.assertEqual(self.cpf.Xchanged, True)
+        self.assertEqual(self.cpf.S, None)
         self.assertEqual(len(self.cpf.K), 0)
 
     def test_pairs_sampled(self):
@@ -143,36 +134,41 @@ class Test_ClosestPairFinder(tb.TestCase):
         self.cpf.setRow(2, [100.0, 0.09, 0.2, 0.3])
         self.cpf.setRow(3, [110.0, 0.11, 0.2, 0.3])
         self.cpf.setRow(4, [110.0, 0.10, 0.2, 0.3])
-        self.assertEqual(self.cpf.Xchanged, True)
+        self.assertEqual(self.cpf.S, None)
         K = np.array([[0, 1], [0, 2], [0, 3], [2, 3], [3, 4]])
         D = yield self.cpf(K=K)
-        self.assertEqual(self.cpf.Xchanged, False)
-        self.assertAlmostEqual(self.cpf.X[0,0], 90.0/500)
-        self.assertAlmostEqual(self.cpf.X[0,1], 0.11/0.5)
-        self.assertAlmostEqual(self.cpf.X[1,1], 0.09/0.5)
+        self.assertEqual(self.cpf.S.shape, (4,))
+        s0 = 1.0/np.var([90., 90., 100., 110., 110.])
+        self.assertAlmostEqual(self.cpf.S[0], s0)
+        s1 = 1.0/np.var([0.11, 0.09, 0.09, 0.11, 0.10])
+        self.assertAlmostEqual(self.cpf.S[1], s1)
         for k, de in enumerate(
-                [0.04**2,                       # 0, 1
-                 0.02**2 + 0.04**2,             # 0, 2
-                 0.04**2,                       # 0, 3
-                 0.02**2 + 0.04**2,             # 2, 3
-                 0.02**2,                       # 3, 4
+                [s1*0.02**2,                    # 0, 1
+                 s0*10.0**2 + s1*0.02**2,       # 0, 2
+                 s0*20.0**2,                    # 0, 3
+                 s0*10.0**2 + s1*0.02**2,       # 2, 3
+                 s1*0.01**2                     # 3, 4
                 ]):
             self.assertWithinOnePercent(D[k], de)
 
     @defer.inlineCallbacks
     def test_call(self):
-        self.cpf.setRow(0, [150.0, 0.10, 0.20, 0.3])
-        self.cpf.setRow(1, [100.0, 0.10, 0.20, 0.3])
-        self.cpf.setRow(2, [120.0, 0.11, 0.20, 0.3])
-        self.cpf.setRow(3, [100.0, 0.11, 0.21, 0.3])
-        self.cpf.setRow(4, [100.0, 0.10, 0.30, 0.4])
-        self.cpf.setRow(5, [100.0, 0.10, 0.30, 0.5])
-        self.cpf.setRow(6, [100.0, 0.10, 0.30, 0.6])
+        self.cpf.setRow(0, [ 90.0, 0.11, 0.2, 0.30])
+        self.cpf.setRow(1, [ 90.0, 0.09, 0.2, 0.30])
+        self.cpf.setRow(2, [100.0, 0.09, 0.2, 0.30])
+        self.cpf.setRow(3, [110.0, 0.11, 0.2, 0.30])
+        self.cpf.setRow(4, [110.0, 0.10, 0.2, 0.30])
+        self.cpf.setRow(5, [140.0, 0.10, 0.2, 0.30])
+        self.cpf.setRow(6, [140.0, 0.10, 0.2, 0.31])
+        self.cpf.setRow(7, [140.1, 0.10, 0.2, 0.31])
+        kr = yield self.cpf()
+        self.assertEqual(kr, 6)
+        self.cpf.clearRow(6)
         kr = yield self.cpf()
         self.assertEqual(kr, 1)
         self.cpf.clearRow(1)
         kr = yield self.cpf()
-        self.assertEqual(kr, 2)
+        self.assertEqual(kr, 0)
 
 
 class Test_History(tb.TestCase):
