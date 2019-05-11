@@ -44,7 +44,7 @@ from ade.test import testbase as tb
 #twisted.internet.base.DelayedCall.debug = True
 
 
-class TestConstraintChecking(tb.TestCase):
+class Test_ConstraintChecking(tb.TestCase):
     def setUp(self):
         abort.restart()
         self.pm = population.ParameterManager(
@@ -74,7 +74,7 @@ class TestConstraintChecking(tb.TestCase):
         self.assertFalse(self.pm.passesConstraints([4.0, 1.5]))
 
 
-class TestParameterManager(tb.TestCase):
+class Test_ParameterManager(tb.TestCase):
     N_trials = 100000
 
     verbose = False
@@ -115,7 +115,7 @@ class TestParameterManager(tb.TestCase):
             plt.show()
 
         
-class TestPopulation(tb.TestCase):
+class Test_Population(tb.TestCase):
     Np = 20
     verbose = False
     
@@ -166,6 +166,10 @@ class TestPopulation(tb.TestCase):
         return self.p.setup(uniform=True).addCallback(done)
 
     def prob(self, N, func, *args):
+        """
+        Returns an estimate of probability that C{func(*args)} will return
+        C{True} by calling it I{N} times.
+        """
         count = 0
         for k in range(N):
             if func(*args): count += 1
@@ -264,6 +268,8 @@ class TestPopulation(tb.TestCase):
         text = pickle.dumps(self.p)
         p = pickle.loads(text)
         self.assertEqual(repr(p), repr(self.p))
+        k = p.sample(1, randomBase=0.5)
+        self.assertLess(k, 2*self.Np)
 
     @defer.inlineCallbacks
     def test_save_load(self):
@@ -272,6 +278,8 @@ class TestPopulation(tb.TestCase):
         self.p.save(fp)
         newBounds = [(-2, 2), (-2, 2)]
         p = population.Population.load(fp, func=tb.ackley, bounds=newBounds)
+        k = p.sample(1, randomBase=0.5)
+        self.assertLess(k, 2*self.Np)
         for i in p:
             for value in i.values:
                 self.assertLess(abs(value), 2)
@@ -280,7 +288,51 @@ class TestPopulation(tb.TestCase):
                 self.assertLessEqual(i.SSE, SSE)
 
 
-class TestPopulation_Abort(tb.TestCase):
+class Test_ProbabilitySampler(tb.TestCase):
+    def setUp(self):
+        self.ps = population.ProbabilitySampler()
+    
+    def test_probSample_0r25(self):
+        K = np.arange(10)
+        counts = dict.fromkeys(K, 0)
+        for repeat in range(10000):
+            k = self.ps(K, 0.25)
+            counts[k] += 1
+        for k in range(1,10):
+            self.assertGreater(counts[0], counts[k])
+            if k > 4:
+                self.assertEqual(counts[k], 0)
+                continue
+            self.assertGreater(counts[k], max([0, 380*(9-2*k)-50]))
+            self.assertLess(counts[k], 420*(9-2*k)+50)
+
+    def test_probSample_0r50(self):
+        K = np.arange(10)
+        counts = dict.fromkeys(K, 0)
+        for repeat in range(10000):
+            k = self.ps(K, 0.5)
+            counts[k] += 1
+        for k in range(1,10):
+            self.assertGreater(counts[0], counts[k])
+            self.assertGreater(counts[k], max([0, 92*(19-2*k)-50]))
+            self.assertLess(counts[k], 108*(19-2*k)+50)
+
+    def test_probSample_0r75(self):
+        K = np.arange(10)
+        counts = dict.fromkeys(K, 0)
+        for repeat in range(10000):
+            k = self.ps(K, 0.75)
+            counts[k] += 1
+        for k in range(1,10):
+            if k < 5:
+                self.assertGreater(counts[k], 1250)
+                self.assertLess(counts[k], 1430)
+                continue
+            self.assertGreater(counts[k], max([0, 150+230*(9-k)-50]))
+            self.assertLess(counts[k], 150+270*(9-k)+50)
+
+
+class Test_Population_Abort(tb.TestCase):
     def setUp(self):
         self.p = population.Population(
             self.tenthSecond, ["x"], [(-5, 5)], popsize=100)

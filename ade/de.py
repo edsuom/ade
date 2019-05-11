@@ -282,9 +282,12 @@ class DifferentialEvolution(object):
 
     @keyword randomBase: Set C{True} to use DE/rand/1/bin where a
         random individual his chosen from the L{Population} instead of
-        the current best individual as the basis for mutants. this can
-        be useful if you think things are converging too fast to a
-        local minimum, although DE/BEST/1/bin is usually superior.
+        the current best individual as the basis for mutants. Or set
+        it to a float between 0.0 and 1.0 to use ADE's modified
+        version DE/prob/1/bin where the probability of an individual
+        being chosen increases with how close it is to being the best
+        one in the population; the higher the number, the closer to
+        uniformly random that probability will be.
 
     @keyword uniform: Set C{True} to initialize the population with
         uniform random variate's as the parameters instead of a Latin
@@ -514,7 +517,7 @@ class DifferentialEvolution(object):
             iBest = self.p.best()
             for kt in range(self.p.Np):
                 if self.randomBase or kt == self.p.kBest:
-                    kb = self.p.sample(1, kt)
+                    kb = self.p.sample(1, kt, randomBase=self.randomBase)
                 else: kb = self.p.kBest
                 if kb is None:
                     # We must be shutting down, abort loop now
@@ -591,7 +594,8 @@ class DifferentialEvolution(object):
         self.p.reporter()
         self.dwellCount = 0
         self.fm = FManager(self.F, self.CR, self.p.Np, self.adaptive)
-        desc = sub("DE/{}/1/bin", "rand" if self.randomBase else "best")
+        rb = self.randomBase
+        desc = sub("DE/{}/1/bin", sub("rand-{:.2f}", rb) if rb else "best")
         msg("Performing DE with CR={}, F={}, {}", self.CR, self.fm, desc, '-')
         msg("Press the 'Enter' key to abort.")
         return self._run()

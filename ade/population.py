@@ -224,6 +224,37 @@ class ParameterManager(object):
         values = np.where(values > self.maxs, 2*self.maxs - values, values)
         return np.clip(values, self.mins, self.maxs)
 
+
+class ProbabilitySampler(object):
+    """
+    """
+    N_chunk = 100
+    
+    def __init__(self):
+        self.rc = None
+        self.RV = None
+
+    def trapz(self, rc):
+        # TODO: Implement this much more efficiently with uniform &
+        # triangular
+        if rc != self.rc:
+            self.RV = stats.trapz.rvs(0, rc, size=self.N_chunk)
+            self.k = 0
+        rv = self.RV[self.k]
+        self.k += 1
+        if self.k == self.N_chunk:
+            self.rc = None
+        return rv
+    
+    def __call__(self, K, rb):
+        if rb > 0.5:
+            rc = 2*(rb - 0.5)
+            rv = self.trapz(rc)
+        else:
+            rc = 2*rb
+            rv = random.triangular(0, rc, 0)
+        return K[int(rv*len(K))]
+
     
 class Population(object):
     """
@@ -324,6 +355,8 @@ class Population(object):
     targetFraction = 0.025
     debug = False
     failedConstraintChar = " "
+    # Property placeholders
+    _KS = None; _iSorted = None
     
     def __init__(
             self, func, names, bounds,
@@ -423,7 +456,6 @@ class Population(object):
         for name in state:
             setattr(self, name, state[name])
         if self.running is False: self.running = True
-        self.kBest = self.iList.index(self.best())
         for i in self.iList:
             i.p = self
             self.dLocks.append(defer.DeferredLock())
@@ -462,10 +494,7 @@ class Population(object):
             self.history.notInPop(iPrev)
         # Here is the only place iList should ever be set directly
         self.iList[k] = i
-        self._sortNeeded = True
-        if self.kBest is None or i < self.iList[self.kBest]:
-            # This one is now the best I have
-            self.kBest = k
+        del self.KS
         self.history.add(i)
         
     def __len__(self):
@@ -496,6 +525,26 @@ class Population(object):
         any.
         """
         return bool(self.iList)
+
+    @property
+    def KS(self):
+        """
+        Property: A list of indices to I{iList}, sorted by increasing
+        (worsening) SSE of the individuals there. The best individual
+        will have the first index in I{KS}.
+        """
+        if self._KS is None and self.iList:
+            self._KS = np.argsort([float(i.SSE) for i in self.iList])
+        return self._KS
+    @KS.deleter
+    def KS(self):
+        """
+        Property: "Deleting" my SSE-sorted list of indices forces
+        regeneration of it the next time the I{KS} property is
+        accessed. It also "deletes" I{iSorted}.
+        """
+        self._KS = None
+        del self.iSorted
     
     @property
     def iSorted(self):
@@ -503,9 +552,9 @@ class Population(object):
         Property: A list of my individuals, sorted by increasing
         (worsening) SSE.
         """
-        if self._sortNeeded:
-            self._iSorted = sorted(self.iList, key=lambda i: i.SSE)
-            self._sortNeeded = False
+        if self._KS is None or self._iSorted is None:
+            if self.iList:
+                self._iSorted = [self.iList[k] for k in self.KS]
         return self._iSorted
     @iSorted.deleter
     def iSorted(self):
@@ -514,8 +563,17 @@ class Population(object):
         regeneration of the sorted list that will be returned next
         time the I{iSorted} property is accessed.
         """
-        self._iSorted = sorted(self.iList, key=lambda i: i.SSE)
-    
+        self._iSorted = None
+
+    @property
+    def kBest(self):
+        """
+        Property: The index to I{iList} of the best individual. C{None} if
+        I have no individuals yet.
+        """
+        if self.KS is not None:
+            return self.KS[0]
+        
     def __repr__(self):
         """
         An informative string representation with a text table of my best
@@ -572,15 +630,22 @@ class Population(object):
         self.dLocks = []
         if hasattr(self, 'history'): self.history.clear()
         self.running = None
-        self.kBest = None
         self.replacementScore = None
-        self._sortNeeded = True
+        del self.KS
+        # This is only here because clear is called by both __init__
+        # and __setstate__
+        self.ps = ProbabilitySampler()
     
     def limit(self, i):
         """
         Limits the individual's parameter values to the bounds in the way
         that my L{ParameterManager} is configured to do, modifying the
         individual in place.
+
+        B{Note}: The individual's population status is not considered
+        or affected. If it's a population member, you will want to
+        re-evaluate it and invalidate my sort with a C{del self.KS} or
+        C{del self.iSorted} if its SSE has changed.
         """
         values = self.pm.limit(i.values)
         i.update(values)
@@ -615,14 +680,11 @@ class Population(object):
 
     def initialize(self):
         """
-        Forces a sort of my individuals, sets my I{running} flag to
-        C{True}, prints/logs a representation of my populated
+        Invalidates the last sort of my individuals, sets my I{running}
+        flag to C{True}, prints/logs a representation of my populated
         instance, and files a report of my best individual.
         """
-        self._sortNeeded = True
-        if self.iSorted:
-            self.kBest = self.iList.index(self.iSorted[0])
-        else: self.kBest = None
+        del self.KS
         self.running = True
         msg(0, repr(self))
         self.report()
@@ -901,22 +963,69 @@ class Population(object):
         Pushes the supplied L{Individual} I{i} onto my population and
         kicks out the worst individual there to make room.
         """
-        kWorst, self.kBest = [
-            self.iList.index(self.iSorted[k]) for k in (-1, 0)]
+        kWorst = self.KS[-1]
         self[kWorst] = i
-        self._sortNeeded = True
-    
-    def sample(self, N, *exclude):
+        del self.KS
+
+    def sample(self, N, *exclude, **kw):
         """
         Returns a sample of I{N} indices from my population that are
         unique from each other and from any excluded indices supplied
         as additional arguments.
+
+        The I{randomBase} keyword lets you use a significant
+        improvement offered by ADE: Non-uniform probability of base
+        individual selection. Implementation is done by
+        L{_probsample}.
+
+        The traditional DE/best/1/bin and DE/rand/1/bin are really
+        opposite extremes of what can be a continuous range of base
+        individual selection regimes. By specifying a float value for
+        I{randomBase} between 0.0 and 1.0, you can select a regime
+        anywhere in that range.
+
+        The higher the value, the more uniform the probability
+        distribution is. Setting it to near 0.0 makes it much more
+        likely that the index of the best individual or one nearly as
+        good will be chosen. Setting it to near 1.0 makes the worst
+        individual nearly as likely to be chosen as the best.
+
+        A I{randomBase} value of 0.5 is a compromise between
+        DE/best/1/bin and DE/rand/1/bin. With that setting, the
+        probability of an individual having its index selected will
+        gradually drop as it gets worse in the SSE rankings. As
+        I{randomBase} goes above 0.5, the probability will take longer
+        to start dropping, until at 1.0 it doesn't drop at all. As
+        I{randomBase} goes below 0.5, the probability will start
+        dropping sooner, until at 0.0 it drops to zero for anything
+        but the best individual.
+
+        @keyword randomBase: Sample probability uniformity value
+            between 0.0 (only the best individual is ever selected)
+            and 1.0 (uniform probability). Setting it I{False} is
+            equivalent to 0.0, and setting it I{True} (the default) is
+            equivalent to 1.0.
         """
-        kRange = [k for k in range(self.Np) if k not in exclude]
-        result = random.sample(kRange, N)
-        if N == 1:
-            return result[0]
-        return result
+        K = [k for k in self.KS if k not in exclude]
+        rb = kw.get('randomBase', True)
+        if not rb:
+            if N > 1:
+                raise ValueError("Can't have > 1 unique best samples!")
+            result = [K[0]]
+        elif rb in (True, 1.0):
+            # Sampling without replacement, so all items of result
+            # will be unique
+            result = random.sample(K, N)
+        elif rb > 1.0:
+            raise ValueError(
+                "randomBase must be False, True, or between 0.0 and 1.0")
+        else:
+            result = []
+            while len(result) < N:
+                k = self.ps(K, rb)
+                if k in result: continue
+                result.append(k)
+        return result[0] if N == 1 else result
 
     def individuals(self, *indices):
         """
@@ -978,8 +1087,8 @@ class Population(object):
         """
         Returns my best individual, or C{None} if I have no individuals yet.
         """
-        if self.iSorted:
-            return self.iSorted[0]
+        if self.iList:
+            return self.iList[self.kBest]
 
     def evalTimes(self):
         """

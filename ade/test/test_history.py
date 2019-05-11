@@ -49,6 +49,11 @@ class Test_Analysis(tb.TestCase):
         self.K = [0, 3, 2, 1, 4]
         self.a = history.Analysis(self.names, self.X, self.K)
 
+    def test_name2k_k2name(self):
+        for k, name in enumerate(self.names):
+            self.assertEqual(self.a.name2k(name), k+1)
+            self.assertEqual(self.a.k2name(k+1), name)
+    
     def test_valueVsSSE(self):
         XY = self.a.value_vs_SSE('bar')
         self.assertEqual(len(XY), 2)

@@ -169,9 +169,16 @@ class Analysis(object):
     def name2k(self, name):
         """
         Returns the column index in my I{X} array for the values of
-        parameter I{name}.
+        the specified parameter I{name}. The reverse of L{k2name}.
         """
         return self.names.index(name) + 1
+
+    def k2name(self, k):
+        """
+        Returns the parameter I{name} for the the specified column index
+        I{k} in my I{X} array. The reverse of L{name2k}.
+        """
+        return self.names[k-1]
     
     def value_vs_SSE(self, *names, **kw):
         """
@@ -243,8 +250,8 @@ class Analysis(object):
         rough indication of the SSEs involved.
         """
         def plot(sp):
-            sp.set_xlabel(self.names[k1])
-            sp.set_ylabel(self.names[k2])
+            sp.set_xlabel(self.k2name(k1))
+            sp.set_ylabel(self.k2name(k2))
             ax = sp()
             f1 = 0.0
             kw = {'color': "blue"}

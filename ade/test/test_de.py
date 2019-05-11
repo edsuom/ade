@@ -146,7 +146,7 @@ class TestDifferentialEvolution(tb.TestCase):
         abort.restart()
     
     @defer.inlineCallbacks
-    def makeDE(self, Np, Nd, slow=False, blank=False):
+    def makeDE(self, Np, Nd, slow=False, blank=False, randomBase=False):
         def slowAckley(X):
             delay = np.random.sample()
             return self.deferToDelay(delay).addCallback(lambda _: tb.ackley(X))
@@ -154,7 +154,8 @@ class TestDifferentialEvolution(tb.TestCase):
             slowAckley if slow else tb.ackley,
             [sub("x{:d}", k) for k in range(Nd)],
             [(-5, 5)]*Nd, popsize=Np/Nd)
-        self.de = de.DifferentialEvolution(self.p, maxiter=35)
+        self.de = de.DifferentialEvolution(
+            self.p, maxiter=35, randomBase=randomBase)
         yield self.p.setup(blank=blank)
         tb.evals_reset()
 
@@ -239,6 +240,15 @@ class TestDifferentialEvolution(tb.TestCase):
         self.assertAlmostEqual(x[0], 0, 4)
         self.assertAlmostEqual(x[1], 0, 4)
 
+    @defer.inlineCallbacks
+    def test_call_rb_0r25(self):
+        yield self.makeDE(20, 2, randomBase=0.25)
+        p = yield self.de()
+        self.assertEqual(tb.EVAL_COUNT[0], 700)
+        x = p.best()
+        self.assertAlmostEqual(x[0], 0, 4)
+        self.assertAlmostEqual(x[1], 0, 4)
+        
     @defer.inlineCallbacks
     def test_call_challenge_failure(self):
         def challengeWrapper(kt, kb):

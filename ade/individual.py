@@ -246,7 +246,7 @@ class Individual(object):
         to update its sorting to account for my degraded status.
         """
         self.SSE = float('+inf')
-        del self.p.iSorted
+        del self.p.KS
     
     def update(self, values):
         """
