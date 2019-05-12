@@ -227,6 +227,9 @@ class ParameterManager(object):
 
 class ProbabilitySampler(object):
     """
+    Call an instance of me with a sequence of indices, sorted in
+    ascending order of the SSE of the individual they point to, and a
+    float version of I{randomBase} to get a best-biased index sample.
     """
     N_chunk = 100
     
@@ -235,16 +238,17 @@ class ProbabilitySampler(object):
         self.RV = None
 
     def trapz(self, rc):
-        # TODO: Implement this much more efficiently with uniform &
-        # triangular
-        if rc != self.rc:
-            self.RV = stats.trapz.rvs(0, rc, size=self.N_chunk)
-            self.k = 0
-        rv = self.RV[self.k]
-        self.k += 1
-        if self.k == self.N_chunk:
-            self.rc = None
-        return rv
+        """
+        Returns a random variate from a half-trapezoid distribution with
+        the start of the triangular portion I{rc} specified between
+        0.0 and 1.0.
+        """
+        pr_tri = 0.0 if rc >= 1.0 else (1.0 - rc) / (1.0 + rc)
+        if random.random() < pr_tri:
+            # Sample from triangular portion
+            return rc + random.triangular(0, 1.0-rc, 0)
+        # Sample from uniform (rectangular) portion
+        return random.uniform(0, rc)
     
     def __call__(self, K, rb):
         if rb > 0.5:
