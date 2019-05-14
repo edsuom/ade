@@ -685,13 +685,12 @@ class Population(object):
     def initialize(self):
         """
         Invalidates the last sort of my individuals, sets my I{running}
-        flag to C{True}, prints/logs a representation of my populated
-        instance, and files a report of my best individual.
+        flag to C{True}, and prints/logs a representation of my populated
+        instance.
         """
         del self.KS
         self.running = True
         msg(0, repr(self))
-        self.report()
         
     def setup(self, uniform=False, blank=False):
         """
@@ -929,21 +928,29 @@ class Population(object):
             addition = 0.05 if rir == 0 else rir - 0.75
             self.replacementScore += addition
 
-    def report(self, iNew=None, iOld=None):
+    def report(self, iNew=None, iOld=None, noProgress=False):
         """
         Provides a message via the log messenger about the supplied
-        Individual, optionally with a comparison to another
-        Individual.
+        L{Individual}, optionally with a comparison to another one.
 
         If no second individual is supplied, the comparison will be
         with the best individual thus far reported on.
+
+        If no individual at all is supplied, attempts to report on my
+        best one.
         
         Gets the ratio from a call to my L{Reporter} instance, and
         does a call to L{replacement} with it if the new individual is
         better.
+
+        @keyword noProgress: Set C{True} to suppress printing/logging
+            a progress character.
+
+        @see: L{Reporter}.
         """
         if self.running is False: return
-        ratio = self.reporter(iNew, iOld)
+        if iNew is None: iNew = self.best()
+        ratio = self.reporter(iNew, iOld, noProgress)
         if ratio: self.replacement(ratio)
 
     def waitForReports(self):

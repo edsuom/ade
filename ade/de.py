@@ -505,7 +505,10 @@ class DifferentialEvolution(object):
                 return
             info = failureObj.getTraceback()
             msg(-1, "Error during challenges:\n{}\n{}\n", '-'*40, info)
-        
+
+        # Start with a report of the best initial population member
+        self.p.report(noProgress=True)
+        yield self.p.waitForReports()
         # Evolve!
         for kg in range(self.maxiter):
             self.p.reporter.progressChar()
@@ -557,7 +560,7 @@ class DifferentialEvolution(object):
         else: msg(-1, "Maximum number of iterations reached.")
         if self.running:
             # File report for best individual and shutdown
-            self.p.report()
+            self.p.report(noProgress=True)
             yield self.p.waitForReports()
             self.shutdown()
         # "Return" value is the population object

@@ -230,61 +230,58 @@ class Reporter(object):
         print("Well, shit. New best wasn't actually best. Fix this!\n")
         import pdb; pdb.set_trace()
         
-    def msgRatio(self, iNumerator, iDenominator, bogus_char="!"):
+    def msgRatio(self, iNum, iDenom, bogus_char="!", noProgress=False):
         """
-        Returns 0 if I{iNumerator} is better (lower SSE) than
-        I{iDenominator}. Otherwise returns the rounded integer ratio
-        of numerator SSE divided by denominator SSE.
+        Returns 0 if I{iNum} is better (lower SSE) than
+        I{iDenom}. Otherwise returns the rounded integer ratio of
+        numerator SSE divided by denominator SSE.
 
-        I{iNumerator} is automatically better if the SSE of
-        I{iDenominator} is bogus, meaning C{None}, C{np.nan}, or
-        infinite. That is, unless its own SSE is also bogus, in which
-        case a ratio of zero is returned. If I{iNumerator} has a bogus
-        SSE but I{iDenominator} does not, a very high ratio is
-        returned; a bogus evaluation got successfully challenged, and
-        that's very significant.
+        I{iNum} is automatically better if the SSE of I{iDenom} is
+        bogus, meaning C{None}, C{np.nan}, or infinite. That is,
+        unless its own SSE is also bogus, in which case a ratio of
+        zero is returned. If I{iNum} has a bogus SSE but I{iDenom}
+        does not, a very high ratio is returned; a bogus evaluation
+        got successfully challenged, and that's very significant.
 
-        I{iNumerator} is not considered better if its SSE is
-        "equivalent" to that of I{iDenominator}, meaning that a call
-        to L{isEquivSSE} determines that the two individuals have SSEs
-        with a fractional difference less than my I{minDiff}
-        attribute. For example, if I{iDenominator} has an SSE=100.0,
-        returns 1 if I{iNumerator} has an SSE between 101.1 and 149.9.
+        I{iNum} is not considered better if its SSE is "equivalent" to
+        that of I{iDenom}, meaning that a call to L{isEquivSSE}
+        determines that the two individuals have SSEs with a
+        fractional difference less than my I{minDiff} attribute. For
+        example, if I{iDenom} has an SSE=100.0, returns 1 if I{iNum}
+        has an SSE between 101.1 and 149.9.
 
-        If I{iNumerator} has an SSE of 100.9, it is considered
-        equivalent to I{iDenominator} and 0 will be returned. If its
-        SSE is between 150.0 and 249.9, the return value is 2.
+        If I{iNum} has an SSE of 100.9, it is considered equivalent to
+        I{iDenom} and 0 will be returned. If its SSE is between 150.0
+        and 249.9, the return value is 2.
 
         Logs a progress character:
 
-            - B{?} if either I{iNumerator} or I{iDenominator} evaluates
-              as boolean C{False}. (This should only happen if there
-              was a fatal error during evaluation and shutdown is
-              imminent.)
+            - B{?} if either I{iNum} or I{iDenom} evaluates as boolean
+              C{False}. (This should only happen if there was a fatal
+              error during evaluation and shutdown is imminent.)
 
             - The character supplied with the I{bogus_char} keyword
-              (defaults to "!") if I{iNumerator} has a bogus SSE but
-              I{iDenominator} does not. (Successful challenge because
-              parent had error, or bogus new population candidate.)
+              (defaults to "!") if I{iNum} has a bogus SSE but
+              I{iDenom} does not. (Successful challenge because parent
+              had error, or bogus new population candidate.)
 
-            - B{%} if I{iNumerator} has a bogus SSE and so does
-              I{iDenominator}. (Everybody's fucked up.)
+            - B{%} if I{iNum} has a bogus SSE and so does
+              I{iDenom}. (Everybody's fucked up.)
 
-            - B{#} if I{iDenominator} has a bogus SSE but I{iNumerator}
-              does not. (Failed challenge due to error.)
+            - B{#} if I{iDenom} has a bogus SSE but I{iNum} does
+              not. (Failed challenge due to error.)
 
-            - B{X} if I{iNumerator} is better than I{iDenominator},
-              indicating a failed challenge.
+            - B{X} if I{iNum} is better than I{iDenom}, indicating a
+              failed challenge.
         
-            - The digit B{0} if I{iNumerator} is worse than
-              I{iDenominator} (challenger) but with an equivalent SSE.
+            - The digit B{0} if I{iNum} is worse than I{iDenom}
+              (challenger) but with an equivalent SSE.
 
-            - A digit from 1-9 if I{iNumerator} is worse than
-              I{iDenominator} (challenger), with the digit indicating
-              how much better (lower) the SSE of I{iDenominator} is
-              than that of I{iNumerator}. (A digit of "9" only
-              indicates that the ratio was at least nine and might be
-              much higher.)
+            - A digit from 1-9 if I{iNum} is worse than I{iDenom}
+              (challenger), with the digit indicating how much better
+              (lower) the SSE of I{iDenom} is than that of I{iNum}. (A
+              digit of "9" only indicates that the ratio was at least
+              nine and might be much higher.)
         """
         def bogus(i):
             SSE = i.SSE
@@ -298,33 +295,33 @@ class Reporter(object):
             except: isInf = False
             return isInf
         
-        if not iNumerator or not iDenominator:
+        if not iNum or not iDenom:
             ratio = 0
             sym = "?"
-        elif bogus(iNumerator):
-            if bogus(iDenominator):
+        elif bogus(iNum):
+            if bogus(iDenom):
                 ratio = 0
                 sym = "%"
             else:
                 ratio = 1000
                 sym = bogus_char
-        elif bogus(iDenominator):
+        elif bogus(iDenom):
             ratio = 0
             sym = "#"
-        elif iNumerator < iDenominator:
+        elif iNum < iDenom:
             ratio = 0
             sym = "X"
-        elif self.isEquivSSE(iDenominator, iNumerator):
+        elif self.isEquivSSE(iDenom, iNum):
             ratio = 0
             sym = "0"
         else:
-            if not iDenominator.SSE:
+            if not iDenom.SSE:
                 ratio = 1000
             else:
                 ratio = np.round(
-                    float(iNumerator.SSE) / float(iDenominator.SSE))
+                    float(iNum.SSE) / float(iDenom.SSE))
             sym = str(int(ratio)) if ratio < 10 else "9"
-        self.progressChar(sym)
+        if not noProgress: self.progressChar(sym)
         return ratio
 
     def progressChar(self, sym=None):
@@ -347,7 +344,7 @@ class Reporter(object):
             self._syms_on_line = 0
             msg("")
 
-    def _fileReport(self, i, iOther):
+    def _fileReport(self, i, iOther, noProgress=False):
         """
         Called by L{__call__}. Calls L{msgRatio} with I{iOther} vs I{i} to
         get the ratio of how much better I{i} is than I{other}, if not
@@ -357,43 +354,48 @@ class Reporter(object):
         L{Individual}, calls L{msgRatio} with I{i} vs. the best
         individual to get the ratio of how much worse I{i} is than it.
 
-        Prints a progress character to STDOUT or the log indicating
-        the improvement, adding a "+" if I{i} is a new best
-        individual. A new best individual, no matter how small the
-        ratio, adds a small bonus to my L{Population} object's
-        replacements score, equivalent to a rounded improvement ratio
-        of 1.
+        Unless the I{noProgress} keyword is set C{True}, prints a
+        progress character to STDOUT or the log indicating the
+        improvement, adding a "+" if I{i} is a new best individual. A
+        new best individual, no matter how small the ratio, adds a
+        small bonus to my L{Population} object's replacements score,
+        equivalent to a rounded improvement ratio of 1.
         """
+        def progressChar(x):
+            if noProgress: return
+            self.progressChar(x)
+        
         if iOther is None:
             if self.iBest is None:
                 # First, thus best
                 self.newBest(i)
-                self.progressChar("*")
+                progressChar("*")
                 result = 0
             elif i < self.iBest:
                 # Better than (former) best, so make best. The "ratio"
                 # of how much worse than best will be 0
                 self.newBest(i)
-                self.progressChar("!")
+                progressChar("!")
                 result = 0
             else:
                 # Worse than best (or same, unlikely), ratio is how
                 # much worse
-                result = self.msgRatio(i, self.iBest, bogus_char="#")
+                result = self.msgRatio(
+                    i, self.iBest, bogus_char="#", noProgress=noProgress)
         else:
             # Ratio is how much better this is than other. Thus,
             # numerator is other, because ratio is other SSE vs this
             # SSE
-            result = self.msgRatio(iOther, i)
+            result = self.msgRatio(iOther, i, noProgress=noProgress)
             # If better than best (or first), make new best
             if self.iBest is None or i < self.iBest:
                 self.newBest(i)
-                self.progressChar("+")
+                progressChar("+")
                 # Bonus rir
                 self.p.replacement(1)
         return result
     
-    def __call__(self, i=None, iOther=None):
+    def __call__(self, i=None, iOther=None, noProgress=False):
         """
         Files a report on the individual I{i}, perhaps vs. another
         individual I{iOther}.
@@ -421,6 +423,13 @@ class Reporter(object):
         than the best individual reported thus far. (A "better"
         individual has a lower SSE.)
 
+        Behaves a bit differently if no individual at all is
+        specified. In that case, if I have a best individual I{iBest}
+        on record, calls L{runCallbacks} with it and returns C{None}.
+
+        @keyword noProgress: Set C{True} to suppress printing/logging
+            a progress character.
+        
         @see: L{_fileReport}.
         """
         if i is None:
@@ -429,4 +438,4 @@ class Reporter(object):
             return
         if not i:
             return 0
-        return self._fileReport(i, iOther)
+        return self._fileReport(i, iOther, noProgress)
