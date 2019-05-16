@@ -901,9 +901,9 @@ class Population(object):
             the literature around "hopeful monsters.")
         
         @keyword rir: A rounded improvement ratio obtained from a call
-            to L{msgRatio}, where the numerator is the SSE of the
-            individual that was replaced and the denominator is the
-            SSE of its successful challenger.
+            to L{Reporter.msgRatio}, where the numerator is the SSE of
+            the individual that was replaced and the denominator is
+            the SSE of its successful challenger.
         
         @see: L{report}, which calls this.
         """
@@ -986,8 +986,8 @@ class Population(object):
 
         The I{randomBase} keyword lets you use a significant
         improvement offered by ADE: Non-uniform probability of base
-        individual selection. Implementation is done by
-        L{_probsample}.
+        individual selection. Implementation is done by an instance of
+        L{ProbabilitySampler}.
 
         The traditional DE/best/1/bin and DE/rand/1/bin are really
         opposite extremes of what can be a continuous range of base

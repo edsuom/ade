@@ -62,7 +62,7 @@ class Args(object):
     name is '__main__' (i.e., it's been called as a script) and the
     'h' option (for help) is not set.
 
-    The instance will look exactly like an L{argparse.ArgumentParser}
+    The instance will look exactly like an C{argparse.ArgumentParser}
     object, all set up and ready to have its attributes accessed.
     """
     def __init__(self, text):

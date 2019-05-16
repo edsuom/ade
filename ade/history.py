@@ -290,6 +290,10 @@ class Analysis(object):
         effort searching all the deserted fitness landscape outside
         the narrow ellipse of their correlated values.
         """
+        Np = self.X.shape[1] - 1
+        Ncombos = Np*(Np-1)/2
+        if Ncombos == 0: return
+        if Ncombos < N: N = Ncombos
         pt = Plotter(N)
         pt.add_line(""); pt.use_grid()
         with pt as sp:
@@ -422,11 +426,10 @@ class ClosestPairFinder(object):
 
         Otherwise, L{pairs_sampled} is called instead and examination
         is limited to a random sample of I{Np} suitable pairs. With
-        the default I{Np_max} of 10000, this occurs at I{N} >
-        142. With I{Np_max} of 1000, it occurs with I{N} > 45. Since
-        the I{N_max} of L{History} has a default of 1000,
-        L{pairs_sampled} is what's going to be used in all practical
-        situations.
+        the default I{Np_max} of 10000, this occurs at C{N>142}. With
+        I{Np_max} of 1000, it occurs with C{N>45}. Since the I{N_max}
+        of L{History} has a default of 1000, L{pairs_sampled} is
+        what's going to be used in all practical situations.
 
         The similarity is determined from the sum of squared
         differences between two rows, divided by the column-wise
@@ -612,8 +615,8 @@ class History(object):
         to my roster.
 
         If the roster is already full, bumps the record deemed most
-        expendable by L{mostExpendable} before adding a record for
-        I{i}.
+        expendable before adding a record for I{i}. That determination
+        is made by a call to my L{ClosestPairFinder} instance I{cpf}.
 
         Returns a C{Deferred} that fires with the row index of the new
         record when it has been written.
