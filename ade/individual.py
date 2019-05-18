@@ -130,7 +130,7 @@ class Individual(object):
     def spawn(self, values):
         """
         Returns another instance of my class with the same population and
-        values.
+        with the supplied I{values}.
         """
         return Individual(self.p, values)
     

@@ -140,12 +140,12 @@ class TestReporter(tb.TestCase):
         iPrev = yield self.p.spawn(np.array([1.001E-3, 1.001E-3])).evaluate()
         expectedRatios = [0, 2, 17, 3]
         for k, x in enumerate((1E-3, 5E-4, 3E-5, 1E-5)):
-            # Closer to (0,0), thus lower SSE
+            # Closer to (0,0) means lower SSE
             i = yield self.p.spawn(np.array([x, x])).evaluate()
             ratio = self.r.msgRatio(iPrev, i)
-            self.assertAlmostEqual(ratio, expectedRatios[k])
+            self.assertEqual(ratio, expectedRatios[k])
             ratio = self.r.msgRatio(i, iPrev)
-            self.assertEqual(ratio, 0)
+            self.assertEqual(ratio, None)
             iPrev = i
         text = fh.getvalue()
         msg(None)
@@ -193,28 +193,25 @@ class TestReporter(tb.TestCase):
         self.assertEqual(text, "#0123")
         
     @defer.inlineCallbacks
-    def test_fileReport_otherNone(self):
+    def test_call_otherNone(self):
         fh = StringIO()
         msg(fh)
         # First -> best
         i1 = yield self.p.spawn(np.array([0.1, 0.1])).evaluate()
-        ratio = yield self.r._fileReport(i1, None)
+        self.r(i1, None)
         self.assertEqual(self.r.iBest, i1)
-        self.assertEqual(ratio, 0)
         self.assertEqual(fh.getvalue()[-1], "*")
         # Second, 4x worse
         i2 = yield self.p.spawn(np.array([1.005, 1.005])).evaluate()
-        ratio = yield self.r._fileReport(i2, None)
+        self.r(i2, None)
         self.assertEqual(self.r.iBest, i1)
-        self.assertEqual(ratio, 4)
         self.assertEqual(fh.getvalue()[-1], "4")
         # Force it to be best, for further testing
         self.r.iBest = i2
         # Third, slightly better than second
         i3 = yield self.p.spawn(np.array([1.00, 1.00])).evaluate()
-        ratio = yield self.r._fileReport(i3, None)
+        self.r(i3, None)
         self.assertEqual(self.r.iBest, i3)
-        self.assertEqual(ratio, 0)
         self.assertEqual(fh.getvalue()[-1], "!")
     
     @defer.inlineCallbacks
@@ -222,11 +219,10 @@ class TestReporter(tb.TestCase):
         fh = StringIO()
         msg(fh)
         iPrev = yield self.p.spawn(np.array([1.005, 1.005])).evaluate()
-        ratiosExpected = [0, 4, 3, 0, 10]
+        ratiosExpected = [0, 4, 3, None, 10]
         for ratioExpected, x in zip(ratiosExpected, (1.0, 0.1, 0.05, 0.5, 0.06)):
-            #print "\n", ratioExpected, x
             i = yield self.p.spawn(np.array([x, x])).evaluate()
-            ratio = yield self.r(i, iPrev)
+            ratio = self.r(i, iPrev)
             self.assertEqual(ratio, ratioExpected)
             iPrev = i
         self.assertEqual(fh.getvalue(), "0+4+3+X9")
@@ -236,12 +232,28 @@ class TestReporter(tb.TestCase):
     def test_call_single(self):
         fh = StringIO()
         msg(fh)
-        ratiosExpected = [0, 0, 0, 13, 1]
-        for ratioExpected, x in zip(ratiosExpected, (1.0, 0.1, 0.05, 0.5, 0.06)):
-            #print "\n", ratioExpected, x
+        for x in (1.0, 0.1, 0.05, 0.5, 0.06):
             i = yield self.p.spawn(np.array([x, x])).evaluate()
-            ratio = yield self.r(i)
-            self.assertEqual(ratio, ratioExpected)
-            iPrev = i
+            self.r(i)
+            if x == 0.05: iBest = i
         self.assertEqual(fh.getvalue(), "*!!91")
+        self.assertEqual(self.r.iBest, iBest)
         msg(None)
+
+    @defer.inlineCallbacks
+    def test_call_single_forced(self):
+        i = yield self.p.spawn(np.array([1.0, 1.0])).evaluate()
+        self.r(i)
+        self.assertEqual(len(self.calls), 1)
+        self.assertAlmostEqual(self.calls[0][3], 3.62538494)
+        i = yield self.p.spawn(np.array([0.99999, 1.0])).evaluate()
+        self.r(i)
+        self.assertEqual(len(self.calls), 1)
+        i = yield self.p.spawn(np.array([0.99998, 1.0])).evaluate()
+        self.r(i, force=True)
+        self.assertEqual(len(self.calls), 2)
+        self.assertAlmostEqual(self.calls[1][3], 3.6253522)
+
+
+        
+        

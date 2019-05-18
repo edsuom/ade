@@ -68,6 +68,9 @@ class ImageViewer(object):
         C{ImageViewer(filePath, noComplain=False)}
         """
         self.transport = None
+        if not os.path.exists(filePath):
+            with open(filePath, 'wb'):
+                pass
         self.filePath = FilePath(filePath)
         self.noComplain = noComplain
         self._startNotifier()

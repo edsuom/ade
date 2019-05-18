@@ -287,7 +287,53 @@ class Test_Population(tb.TestCase):
                 i = yield i.evaluate()
                 self.assertLessEqual(i.SSE, SSE)
 
+    @defer.inlineCallbacks
+    def test_report_noarg(self):
+        def callback(*args):
+            cbList.append(args)
 
+        cbList = []
+        yield self.p.setup()
+        fh = StringIO()
+        msg(fh)
+        self.p.addCallback(callback)
+        self.p.report()
+        yield self.p.waitForReports()
+        self.assertEqual(len(cbList), 0)
+        iNew = Individual(self.p, np.array([0.0, 0.0]))
+        iNew.SSE = 0
+        self.p.push(iNew)
+        self.p.report()
+        yield self.p.waitForReports()
+        self.assertEqual(len(cbList), 1)
+        self.assertEqual(fh.getvalue(), "")
+        msg(None)
+
+    @defer.inlineCallbacks
+    def test_report_twoArgs(self):
+        def callback(*args):
+            cbList.append(args)
+
+        cbList = []
+        yield self.p.setup()
+        fh = StringIO()
+        msg(fh)
+        self.p.addCallback(callback)
+        iBest = self.p.best()
+        iEvenBetter = iBest.copy()
+        iEvenBetter.SSE *= 0.95
+        rir = self.p.report(iEvenBetter, iBest)
+        self.assertEqual(rir, 1)
+        yield self.p.waitForReports()
+        self.assertEqual(self.p.replacement(), True)
+        iWorse = iBest.copy()
+        iWorse.SSE *= 1.00000001
+        rir = self.p.report(iWorse, iBest)
+        self.assertIs(rir, None)
+        yield self.p.waitForReports()
+        self.assertEqual(self.p.replacement(), False)
+
+        
 class Test_ProbabilitySampler(tb.TestCase):
     def setUp(self):
         self.ps = population.ProbabilitySampler()
@@ -325,11 +371,11 @@ class Test_ProbabilitySampler(tb.TestCase):
             counts[k] += 1
         for k in range(1,10):
             if k < 5:
-                self.assertGreater(counts[k], 1250)
-                self.assertLess(counts[k], 1430)
+                self.assertGreater(counts[k], 1200)
+                self.assertLess(counts[k], 1480)
                 continue
-            self.assertGreater(counts[k], max([0, 150+230*(9-k)-50]))
-            self.assertLess(counts[k], 150+270*(9-k)+50)
+            self.assertGreater(counts[k], max([0, 150+220*(9-k)-55]))
+            self.assertLess(counts[k], 150+280*(9-k)+55)
 
 
 class Test_Population_Abort(tb.TestCase):

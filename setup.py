@@ -33,7 +33,7 @@ from setuptools import setup
 required = [
     'Twisted', 'numpy', 'scipy', 'matplotlib', 'pydoe',
     # Other EAS projects
-    'AsynQueue>=0.9.8', 'yampex>=0.9.2',
+    'AsynQueue>=0.9.8', 'yampex>=0.9.3',
 ]
 
 
@@ -109,9 +109,11 @@ chosen candidate or the best available candidate.
 
 You get a substantial multiprocessing speed-up and the
 well-understood, time-tested behavior of the classic DE/rand/1/bin or
-DE/best/1/bin algorithm. (You can pick which one to use.) The
-underlying numeric recipe is not altered at all, but everything runs a
-lot faster.
+DE/best/1/bin algorithm. (You can pick which one to use, or, thanks to
+a special *ade* feature, pick a probabilistic third version that
+effectively operates at a selected midpoint between the extremes of
+"random" and "best.") The underlying numeric recipe is not altered at
+all, but everything runs a lot faster.
 
 The *ade* package also does simple and smart population initialization,
 informative progress reporting, adaptation of the vector differential
@@ -124,7 +126,7 @@ files](http://edsuom.com/ade/ade.examples.html), which you can install
 to an *ade-examples* subdirectory of your home directory by typing
 `ade-examples` as a shell command.
 
-For a tutorial and usage examples, see the [project
+For a tutorial and more usage examples, see the [project
 page](http://edsuom.com/ade.html) at **edsuom.com**.
 
 """
@@ -135,4 +137,4 @@ print("\n" + '-'*79)
 print("To create a subdirectory 'ade-examples' of example files")
 print("in the current directory, you may run the command 'ade-examples'.")
 print("It's not required to use the ade package, but you might find")
-print("it instructive.")
+print("it instructive.\n")

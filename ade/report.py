@@ -144,6 +144,9 @@ class Reporter(object):
             msg(0, "FATAL ERROR in report callback {}:\n{}\n{}\n",
                 callback, info, '-'*40)
             return CallbackFailureToken()
+
+        def aborted():
+            return self.p.running is False
         
         @defer.inlineCallbacks
         def runUntilFree():
@@ -151,13 +154,13 @@ class Reporter(object):
             self.cbrInProgress = True
             msg.lineWritten()
             iPrev = None
-            while self.p.running and self.cbrScheduled:
+            while not aborted() and self.cbrScheduled:
                 i = self.cbrScheduled.pop()
                 if iPrev and i == iPrev:
                     continue
                 iPrev = i
                 for func, args, kw in self.callbacks:
-                    if not self.p.running: break
+                    if aborted(): break
                     d = defer.maybeDeferred(
                         func, i.values, counter, i.SSE, *args, **kw)
                     d.addErrback(failed, func)
@@ -165,7 +168,7 @@ class Reporter(object):
                     if isinstance(result, CallbackFailureToken):
                         self.abort()
                         break
-                    if result is not None and i and self.p.running:
+                    if result is not None and i and not aborted():
                         if self.complaintCallback:
                             yield defer.maybeDeferred(
                                 self.complaintCallback, i, result)
@@ -195,16 +198,18 @@ class Reporter(object):
         """
         return self.dt.deferToAll()
 
-    def newBest(self, i):
+    def newBest(self, i, force=False):
         """
-        Registers and reports a new best Individual. Calling this method
-        is the only safe way to update I{iBest}.
+        Registers and reports a new best L{Individual}. Calling this
+        method is the only safe way to update I{iBest}.
 
-        Triggers a run of callbacks with the best individual's 1-D
-        array of I{values} and the integer report count for any
-        callbacks that have been registered via my L{addCallback}
-        method. The primary use of this is displaying a plot of the
-        current best set of parameters.
+        If the new individual's SSE is not merely equivalent to the
+        last one (or if I{force} is set C{True}), triggers a run of
+        callbacks with the best individual's 1-D array of I{values}
+        and the integer report count for any callbacks that have been
+        registered via my L{addCallback} method. The primary use of
+        this is displaying a plot of the current best set of
+        parameters.
 
         If a callback run is currently in progress, another will be
         done as soon as the current one is finished. That next run
@@ -213,26 +218,44 @@ class Reporter(object):
         necessary to ensure that the best individual has been
         referenced in a callback run.
 
-        Returns a reference to the previous best value.
+        @keyword force: Set C{True} to force I{i} to be considered the
+            best, even if it's not. B{Caution}: Don't use unless
+            you're certain I{i} is better than (or the same as) my
+            I{iBest}.
         """
-        # Double-check that it's really better than my best, after we
-        # know a full evaluation has been done
+        def goAhead():
+            """
+            Only follow through with the report if this returns C{True}.
+            """
+            if self.iLastReported and i == self.iLastReported:
+                # Don't just repeat the exact same report, ever.
+                return False
+            if force:
+                # Unless the report would be an exact duplicate,
+                # always proceed if forced.
+                return True
+            if not isBest:
+                # Not best so nope.
+                return False
+            # Best and not forced, so reporting depends on whether SSE
+            # is considered equivalent.
+            return not self.isEquivSSE(i, self.iLastReported)
+        
         if self.iBest is None or i < self.iBest:
+            # Register new best, regardless of whether it gets reported
+            self.iBest = i
+            isBest = True
+        else: isBest = False
+        if goAhead():
             if self.p.debug:
                 msg(0, "{}\n\t--->\n{}\n", self.iBest, i)
-            iPrevBest = self.iBest
-            self.iBest = i
-            if self.iLastReported and self.isEquivSSE(i, self.iLastReported):
-                return
             self.iLastReported = i
-            self.runCallbacks(i, iPrevBest)
-            return
-        print("Well, shit. New best wasn't actually best. Fix this!\n")
-        import pdb; pdb.set_trace()
+            iBackupBest = self.iBest
+            self.runCallbacks(i, iBackupBest)
         
     def msgRatio(self, iNum, iDenom, bogus_char="!", noProgress=False):
         """
-        Returns 0 if I{iNum} is better (lower SSE) than
+        Returns C{None} if I{iNum} is better (lower SSE) than
         I{iDenom}. Otherwise returns the rounded integer ratio of
         numerator SSE divided by denominator SSE.
 
@@ -248,11 +271,13 @@ class Reporter(object):
         determines that the two individuals have SSEs with a
         fractional difference less than my I{minDiff} attribute. For
         example, if I{iDenom} has an SSE=100.0, returns 1 if I{iNum}
-        has an SSE between 101.1 and 149.9.
+        has an SSE between 101.1 and 149.9. If its SSE is between
+        150.0 and 249.9, the return value will be 2.
 
-        If I{iNum} has an SSE of 100.9, it is considered equivalent to
-        I{iDenom} and 0 will be returned. If its SSE is between 150.0
-        and 249.9, the return value is 2.
+        A slightly better but "equivalent" I{iDenom} results in a
+        return value of 0. (Not C{None}.) With an I{iDenom} SSE of
+        100.0, and I{iNum} SSE of 100.9, is considered equivalent to
+        I{iDenom} and 0 will be returned. 
 
         Logs a progress character:
 
@@ -296,7 +321,7 @@ class Reporter(object):
             return isInf
         
         if not iNum or not iDenom:
-            ratio = 0
+            ratio = None
             sym = "?"
         elif bogus(iNum):
             if bogus(iDenom):
@@ -309,7 +334,7 @@ class Reporter(object):
             ratio = 0
             sym = "#"
         elif iNum < iDenom:
-            ratio = 0
+            ratio = None
             sym = "X"
         elif self.isEquivSSE(iDenom, iNum):
             ratio = 0
@@ -344,98 +369,97 @@ class Reporter(object):
             self._syms_on_line = 0
             msg("")
 
-    def _fileReport(self, i, iOther, noProgress=False):
+    def __call__(self, i, iOther=None, noProgress=False, force=False):
         """
-        Called by L{__call__}. Calls L{msgRatio} with I{iOther} vs I{i} to
-        get the ratio of how much better I{i} is than I{other}, if not
-        C{None}.
+        Files a report on the L{Individual} I{i}, perhaps vs. another
+        individual I{iOther}.
 
-        If I{other} is C{None} and I{i} is worst than my best
-        L{Individual}, calls L{msgRatio} with I{i} vs. the best
-        individual to get the ratio of how much worse I{i} is than it.
+        The type of report depends on whether one or two individuals
+        are supplied. In any event, if the report results in my
+        I{iBest} being replaced with a better individual, I will run
+        any callbacks registered with me.
 
-        Unless the I{noProgress} keyword is set C{True}, prints a
-        progress character to STDOUT or the log indicating the
-        improvement, adding a "+" if I{i} is a new best individual. A
-        new best individual, no matter how small the ratio, adds a
-        small bonus to my L{Population} object's replacements score,
-        equivalent to a rounded improvement ratio of 1.
+        One individual
+        ==============
+        
+            With just I{i} supplied and not I{iOther}, the report is a
+            lower-is-better SSE comparison between I{i} and my current
+            best individual I{iBest}.
+    
+            If there isn't yet a best individual, then I{i}
+            automatically becomes my first I{iBest} and a progress
+            character of "*" is printed or logged.
+    
+            If there already is a best individual, I{i} only takes
+            over as I{iBest} if it has a lower SSE, in which case the
+            progress character is "!". Otherwise the progress
+            character indicates how much worse I{i} is than I{iBest},
+            and is "#" if evaluation of I{i} produced an error.
+
+            With this call pattern, nothing is returned.
+
+        Two individuals
+        ===============
+
+            When I{iOther} is supplied, I call L{msgRatio} with
+            I{iOther} vs I{i} to get the rounded improvement ratio
+            (0-9) of how much better I{i} is than I{other}, i.e., how
+            much lower its SSE is. I then print or log a progress
+            character that indicates how much better I{i} is than
+            I{iOther}.
+
+            Unless, of course, I{i} is actually worse than I{iOther}
+            (higher SSE), in which case the progress character is "X",
+            denoting a failed challenge and the ratio will be C{None}.
+
+            If I{i} is also better than my I{iBest}, then there will
+            be an additional progress character of "+", and a small
+            bonus added to my L{Population} object's replacements
+            score, equivalent to a rounded improvement ratio of 1.
+
+            With this call pattern, the rounded improvement ratio is
+            returned, or C{None} if I{i} was worse than I{iOther}.
+
+        @keyword noProgress: Set C{True} to suppress printing/logging
+            a progress character.
+
+        @keyword force: Set C{True} to force callbacks to run even if
+            the reported SSE is considered equivalent to the previous
+            best one.
+        
+        @see: L{newBest}, L{progressChar}, and L{msgRatio}.
         """
         def progressChar(x):
             if noProgress: return
             self.progressChar(x)
-        
+
         if iOther is None:
+            if not i:
+                # Sole individual, and with an error.
+                progressChar("%")
+                return
             if self.iBest is None:
                 # First, thus best
-                self.newBest(i)
+                self.newBest(i, force)
                 progressChar("*")
-                result = 0
-            elif i < self.iBest:
+                return
+            if i < self.iBest or force:
                 # Better than (former) best, so make best. The "ratio"
                 # of how much worse than best will be 0
-                self.newBest(i)
+                self.newBest(i, force)
                 progressChar("!")
-                result = 0
-            else:
-                # Worse than best (or same, unlikely), ratio is how
-                # much worse
-                result = self.msgRatio(
-                    i, self.iBest, bogus_char="#", noProgress=noProgress)
-        else:
-            # Ratio is how much better this is than other. Thus,
-            # numerator is other, because ratio is other SSE vs this
-            # SSE
-            result = self.msgRatio(iOther, i, noProgress=noProgress)
-            # If better than best (or first), make new best
-            if self.iBest is None or i < self.iBest:
-                self.newBest(i)
-                progressChar("+")
-                # Bonus rir
-                self.p.replacement(1)
-        return result
-    
-    def __call__(self, i=None, iOther=None, noProgress=False):
-        """
-        Files a report on the individual I{i}, perhaps vs. another
-        individual I{iOther}.
-
-        Logs (to STDOUT or a logfile) a single numeric digit 1-9
-        indicating how much worse (higher SSE) the new individual is
-        than the best one, or an "X" if the new individual becomes the
-        best one. The integer ratio will be returned, or 0 if if the
-        new individual became best.
-    
-        Call with two individuals to report on the SSE of the first
-        one compared to the second. A single numeric digit 1-9 will be
-        logged indicating how much B{better} (lower SSE) the first
-        individual is than the second one, or an "X" if the first
-        individual is actually worse. The integer ratio will be
-        returned, or 0 if the first individual was worse.
-    
-        In either case, whenever the first- or only-supplied
-        Individual is better than the best one I reported on thus far,
-        and thus becomes the new best one, I will run any callbacks
-        registered with me.
-
-        Returns the ratio of how much better I{i} is than I{iOther},
-        or, if I{iOther} isn't specified, how much B{worse} I{i} is
-        than the best individual reported thus far. (A "better"
-        individual has a lower SSE.)
-
-        Behaves a bit differently if no individual at all is
-        specified. In that case, if I have a best individual I{iBest}
-        on record, calls L{runCallbacks} with it and returns C{None}.
-
-        @keyword noProgress: Set C{True} to suppress printing/logging
-            a progress character.
-        
-        @see: L{_fileReport}.
-        """
-        if i is None:
-            if self.iBest:
-                self.runCallbacks(self.iBest)
+                return
+            # Worse than best (or same, unlikely), ratio is how
+            # much worse
+            self.msgRatio(i, self.iBest, bogus_char="#", noProgress=noProgress)
             return
-        if not i:
-            return 0
-        return self._fileReport(i, iOther, noProgress)
+        # Ratio is how much better this is than other. Thus, numerator
+        # is other, because ratio is other SSE vs this SSE
+        rir = self.msgRatio(iOther, i, noProgress=noProgress)
+        # If better than best (or first), make new best
+        if self.iBest is None or i < self.iBest:
+            self.newBest(i, force)
+            progressChar("+")
+            # Bonus rir
+            self.p.replacement(1)
+        return rir

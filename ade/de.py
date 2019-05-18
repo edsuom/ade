@@ -506,9 +506,6 @@ class DifferentialEvolution(object):
             info = failureObj.getTraceback()
             msg(-1, "Error during challenges:\n{}\n{}\n", '-'*40, info)
 
-        # Start with a report of the best initial population member
-        self.p.report(noProgress=True)
-        yield self.p.waitForReports()
         # Evolve!
         for kg in range(self.maxiter):
             self.p.reporter.progressChar()
@@ -560,7 +557,7 @@ class DifferentialEvolution(object):
         else: msg(-1, "Maximum number of iterations reached.")
         if self.running:
             # File report for best individual and shutdown
-            self.p.report(noProgress=True)
+            self.p.report()
             yield self.p.waitForReports()
             self.shutdown()
         # "Return" value is the population object
@@ -590,15 +587,18 @@ class DifferentialEvolution(object):
         better with each generation, I will continue to run, even with
         tiny overall improvements.
         """
+        def ready(null):
+            msg("Press the 'Enter' key to abort.")
+            return self._run()
+        
         if self.p.running is False:
             # Population setup got aborted
             return defer.succeed(self.p)
-        # Report on initial population
-        self.p.reporter()
         self.dwellCount = 0
         self.fm = FManager(self.F, self.CR, self.p.Np, self.adaptive)
-        rb = self.randomBase
-        desc = sub("DE/{}/1/bin", sub("rand-{:.2f}", rb) if rb else "best")
+        desc = sub("DE/{}/1/bin", sub(
+            "rand-{:.2f}", self.randomBase) if self.randomBase else "best")
         msg("Performing DE with CR={}, F={}, {}", self.CR, self.fm, desc, '-')
-        msg("Press the 'Enter' key to abort.")
-        return self._run()
+        self.p.report()
+        return self.p.waitForReports().addCallback(ready)
+

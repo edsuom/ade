@@ -928,7 +928,7 @@ class Population(object):
             addition = 0.05 if rir == 0 else rir - 0.75
             self.replacementScore += addition
 
-    def report(self, iNew=None, iOld=None, noProgress=False):
+    def report(self, iNew=None, iOld=None, noProgress=False, force=False):
         """
         Provides a message via the log messenger about the supplied
         L{Individual}, optionally with a comparison to another one.
@@ -936,22 +936,31 @@ class Population(object):
         If no second individual is supplied, the comparison will be
         with the best individual thus far reported on.
 
-        If no individual at all is supplied, attempts to report on my
-        best one.
+        If no individual at all is supplied, reports on my best one,
+        forcing callbacks to run even if the best individual's SSE is
+        equivalent to the last-reported one's.
         
         Gets the ratio from a call to my L{Reporter} instance, and
         does a call to L{replacement} with it if the new individual is
-        better.
+        better. Returns (for unit testing convenience) the ratio.
 
         @keyword noProgress: Set C{True} to suppress printing/logging
             a progress character.
 
+        @keyword force: Set C{True} to force callbacks to run even if
+            the reported SSE is considered equivalent to the previous
+            best one.
+
         @see: L{Reporter}.
         """
         if self.running is False: return
-        if iNew is None: iNew = self.best()
-        ratio = self.reporter(iNew, iOld, noProgress)
-        if ratio: self.replacement(ratio)
+        if iNew is None and iOld is None:
+            iNew = self.best()
+            noProgress = True
+            force = True
+        ratio = self.reporter(iNew, iOld, noProgress, force)
+        if ratio is not None: self.replacement(ratio)
+        return ratio
 
     def waitForReports(self):
         """

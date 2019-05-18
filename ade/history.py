@@ -94,8 +94,10 @@ class Analysis(object):
 
     def corr(self, k1, k2):
         """
-        Returns the Pearson correlation coefficient between parameter
-        values of column I{k1} and column I{k2} in my I{X} array.
+        Returns the correlation coefficient between parameter values of
+        column I{k1} and column I{k2} in my I{X} array.
+
+        B{TODO}: Make SSE-weighted (lower=more weight).
         """
         kk = [k1, k2]
         return np.corrcoef(np.transpose(self.X[self.K][:,kk]))[0,1]
@@ -668,13 +670,20 @@ class History(object):
         self.dLock.release()
         defer.returnValue(kr)
     
-    def notInPop(self, x):
+    def notInPop(self, x=None):
         """
         Call this with an integer row index or an I{Individual} instance
         that was added via L{add} to remove its row of my I{X} array
         from being considered part of the current population.
+
+        If called with nothing, removes all rows from being considered
+        part of the current population.
         """
         def gotLock():
+            if x is None:
+                self.Kp.clear()
+                self.kr.clear()
+                return
             if isinstance(x, int):
                 kr = x
             else:

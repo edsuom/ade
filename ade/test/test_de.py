@@ -146,7 +146,9 @@ class TestDifferentialEvolution(tb.TestCase):
         abort.restart()
     
     @defer.inlineCallbacks
-    def makeDE(self, Np, Nd, slow=False, blank=False, randomBase=False):
+    def makeDE(
+            self, Np, Nd,
+            slow=False, blank=False, randomBase=False, callback=None):
         def slowAckley(X):
             delay = np.random.sample()
             return self.deferToDelay(delay).addCallback(lambda _: tb.ackley(X))
@@ -154,6 +156,7 @@ class TestDifferentialEvolution(tb.TestCase):
             slowAckley if slow else tb.ackley,
             [sub("x{:d}", k) for k in range(Nd)],
             [(-5, 5)]*Nd, popsize=Np/Nd)
+        if callback: self.p.addCallback(callback)
         self.de = de.DifferentialEvolution(
             self.p, maxiter=35, randomBase=randomBase)
         yield self.p.setup(blank=blank)
@@ -233,9 +236,16 @@ class TestDifferentialEvolution(tb.TestCase):
         
     @defer.inlineCallbacks
     def test_call(self):
-        yield self.makeDE(20, 2)
+        def callback(values, counter, SSE):
+            cbList.append((values, counter, SSE))
+
+        cbList = []
+        yield self.makeDE(20, 2, callback=callback)
+        self.assertEqual(cbList[0][1], 1)
+        self.assertGreater(len(cbList), 1)
         p = yield self.de()
         self.assertEqual(tb.EVAL_COUNT[0], 700)
+        self.assertGreater(cbList[-1][1], 600)
         x = p.best()
         self.assertAlmostEqual(x[0], 0, 4)
         self.assertAlmostEqual(x[1], 0, 4)
