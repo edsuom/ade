@@ -312,7 +312,12 @@ class DifferentialEvolution(object):
         accomplished. if you think there really is some progress being
         with occasional marginally better replacements but don't want
         to go until the I{bitterEnd}, feel free to increase this from
-        the default.
+        the default. Be aware that increasing it too much, e.g., to
+        40, can effectively force the iterations to continue until the
+        I{bitterEnd}, because a single adaptive increase in I{F} will
+        reset the count and you'll need all those continuous
+        no-progress iterations to happen all over again for it to
+        quit.
 
     @keyword goalSSE: You can set a goal for SSE to indicate that any
         further iterations are pointless if that goal is reached.  If
