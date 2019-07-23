@@ -764,8 +764,8 @@ class Population(object):
                 self.abort()
                 return
             self.reporter(i)
-            if not np.isinf(i.SSE) and needMore():
-                addIndividual(i)
+            isFinite = not np.isinf(float(i.SSE))
+            if isFinite and needMore(): addIndividual(i)
 
         @defer.inlineCallbacks
         def populate():

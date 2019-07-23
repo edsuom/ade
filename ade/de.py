@@ -269,7 +269,7 @@ class DifferentialEvolution(object):
         basis) and mutant (i.e., candidate, offspring).
     @type CR: float
 
-    @keyword F: A scaler or two-element sequence defining the
+    @keyword F: A scalar or two-element sequence defining the
         I{differential weight}, or a range of possible weights from
         which one is obtained as a uniform random variate.
 
@@ -496,9 +496,11 @@ class DifferentialEvolution(object):
                 self.p.release(kt)
     
     @defer.inlineCallbacks
-    def _run(self):
+    def _run(self, func):
         """
-        Called by L{__call__} to do most of the work.
+        Called by L{__call__} to do most of the work. I{func} is a
+        callback function that gets called after each generation with
+        the generation number as the sole argument.
         """
         def failed(failureObj):
             if failureObj.type == abort.AbortError:
@@ -554,6 +556,7 @@ class DifferentialEvolution(object):
                     if self.dwellCount > self.dwellByGrave:
                         msg(-1, "Challengers failing too much, stopped.")
                         break
+            if func: func(kg)
         else: msg(-1, "Maximum number of iterations reached.")
         if self.running:
             # File report for best individual and shutdown
@@ -564,7 +567,7 @@ class DifferentialEvolution(object):
         msg("DE shutdown complete.")
         defer.returnValue(self.p)
 
-    def __call__(self):
+    def __call__(self, func=None):
         """
         Here is what you call to run differential evolution on my
         L{Population} I{p} of individuals.
@@ -586,10 +589,14 @@ class DifferentialEvolution(object):
         So long as the best individual in the population keeps getting
         better with each generation, I will continue to run, even with
         tiny overall improvements.
+
+        @keyword func: Supply a callback function to have it called
+            after each generation, with the generation number as the
+            sole argument.
         """
         def ready(null):
             msg("Press the 'Enter' key to abort.")
-            return self._run()
+            return self._run(func)
         
         if self.p.running is False:
             # Population setup got aborted

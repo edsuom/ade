@@ -107,17 +107,19 @@ class Analysis(object):
         Iterates over combinations of parameters, from most correlated to
         least. Each iteration yields column indices of the parameter
         pair and their correlation coefficient.
+
+        Only combinations where the first column index is lower than
+        the second are yielded. This avoids duplication by limiting
+        the iteration to the upper right triangle in a 2-D combination
+        matrix where the first index is for rows and the second is for
+        columns.
         """
         kkR = []
-        combos = []
         Nc = self.X.shape[1]
         for k1 in range(1, Nc):
             for k2 in range(1, Nc):
-                if k2 == k1: continue
-                combo = {k1, k2}
-                if combo in combos: continue
-                combos.append(combo)
-                kkR.append([k1, k2, self.corr(k1, k2)])
+                if k2 > k1: 
+                    kkR.append([k1, k2, self.corr(k1, k2)])
         kkR.sort(key=lambda row: abs(row[2]), reverse=True)
         for k1, k2, R in kkR:
             yield k1, k2, R
@@ -276,12 +278,15 @@ class Analysis(object):
             return
         plot(sp)
 
-    def plotCorrelated(self, N=4):
+    def plotCorrelated(self, name=None, N=4):
         """
         Plots values of four pairs of parameters with the highest
         correlation. The higher the SSE for a given combination of
         values, the less prominent the point will be in the plot.
 
+        You can specify one parameter that must be included. Then the
+        correlations checked are with everything else.
+        
         This actually has been of surprisingly little use in my own
         work, which is probably a good sign that my parameters have
         all been pretty independent and thus independently
@@ -299,11 +304,14 @@ class Analysis(object):
         pt = Plotter(N)
         pt.add_line(""); pt.use_grid()
         with pt as sp:
-            for k, stuff in enumerate(self.correlator()):
-                if k == N: break
+            count = 0
+            for stuff in self.correlator():
                 k1, k2, R = stuff
+                if name and name != self.k2name(k1): continue
                 sp.add_textBox("SE" if R > 0 else "NE", "R={:+.3f}", R)
                 self.plotXY(k1, k2, sp)
+                count += 1
+                if count == N: break
         pt.show()
         
 

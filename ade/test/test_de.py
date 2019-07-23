@@ -251,6 +251,18 @@ class TestDifferentialEvolution(tb.TestCase):
         self.assertAlmostEqual(x[1], 0, 4)
 
     @defer.inlineCallbacks
+    def test_call_genFunc(self):
+        def func(kg):
+            cbList.append(kg)
+
+        cbList = []
+        yield self.makeDE(20, 2)
+        yield self.de(func)
+        self.assertEqual(tb.EVAL_COUNT[0], 700)
+        self.assertEqual(len(np.unique(cbList)), len(cbList))
+        self.assertEqual(len(cbList), 35)
+        
+    @defer.inlineCallbacks
     def test_call_rb_0r25(self):
         yield self.makeDE(20, 2, randomBase=0.25)
         p = yield self.de()
