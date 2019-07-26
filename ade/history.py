@@ -32,6 +32,7 @@ import random
 from cStringIO import StringIO
 
 import numpy as np
+from numpy.polynomial import polynomial as poly
 from twisted.internet import defer, task
 
 from yampex.plot import Plotter
@@ -131,12 +132,12 @@ class Analysis(object):
         and maximum SSE.
         """
         def fSSE(f):
-            mmSSE = SS[-1] - SS[0]
-            return SS[0] + f*mmSSE
+            mmSSE = SSE[-1] - SSE[0]
+            return SSE[0] + f*mmSSE
 
         # 1-D array of SSEs, sorted
-        SS = self.X[self.K,0]
-        I = np.logical_and(SS >= fSSE(f1), SS < fSSE(f2))
+        SSE = self.X[self.K,0]
+        I = np.logical_and(SSE >= fSSE(f1), SSE < fSSE(f2))
         return np.array(self.K)[np.flatnonzero(I)]
 
     def Kp12(self, p1, p2):
@@ -215,6 +216,38 @@ class Analysis(object):
             result.append(self.X[K,self.name2k(name)])
         return result
 
+    def lineFit(self, k1, k2, K):
+        """
+        Returns the slope and y-intercept of a line that has a best fit to
+        the SSE-weighted data in column vectors of my I{X} array at
+        I{k1} (x) and I{k2} (y), with elements in I{K} selected.
+
+        For the best (lowest SSE) pair, the weight is 1.0. If the
+        worst SSE is many times larger, the worst pair's weight is
+        approximately M{2*SSE_best/SSE_worst}.
+        """
+        SSE = self.X[K,0]
+        SSE_min = SSE.min()
+        W = 2*SSE_min / (SSE + SSE_min)
+        b, m = poly.polyfit(self.X[K,k1], self.X[K,k2], 1, w=W)
+        return m, b
+
+    def pick_N(self, kList):
+        """
+        Returns a sensible number of subplots to show in the next figure,
+        given a supplied list I{kList} of column indices of remaining
+        parameters to show.
+
+        Favors 2x2 and 3x3 plots. Single-subplot figures have too much
+        empty space and are visually confusing.
+        """
+        N_left = len(kList)
+        if N_left in (8, 10):
+            return 4
+        if N_left > 8:
+            return 9
+        return N_left
+    
     def plot(self, *names, **kw):
         """
         Plots the values versus SSE for each of the named
@@ -232,7 +265,7 @@ class Analysis(object):
         N = len(XYp) - 1
         kList = range(N)
         while kList:
-            N = min([9, len(kList)])
+            N = self.pick_N(kList)
             kkList = kList[:N]; kList = kList[N:]
             Nc = 1 if N == 1 else 3 if N > 6 else 2
             pt = Plotter(N, Nc=Nc)
@@ -252,11 +285,20 @@ class Analysis(object):
         Plots the values of the parameter at column I{k2} of my I{X} array
         versus the values of the parameter at column I{k1}, with a
         rough indication of the SSEs involved.
+
+        Also plots a best-fit line determined by I{lineFit} with the
+        pairs having the best 50% of the SSEs.
         """
         def plot(sp):
             sp.set_xlabel(self.k2name(k1))
             sp.set_ylabel(self.k2name(k2))
-            ax = sp()
+            K =  self.Kp12(0, 0.5)
+            m, b = self.lineFit(k1, k2, K)
+            sp.add_annotation(
+                0, "Y={:+.3f}*X {} {:.3f}", m, "-" if b < 0 else "+", abs(b))
+            X = self.X[K,k1]
+            X = np.array([X.min(), X.max()])
+            ax = sp(X, m*X+b, '-r')
             f1 = 0.0
             kw = {'color': "blue"}
             for f2, m, ms in self.fmms:
@@ -264,7 +306,8 @@ class Analysis(object):
                     K = self.Kf12(f1, f2) if useFraction else self.Kp12(f1, f2)
                     kw['marker'] = m
                     kw['markersize'] = ms
-                    ax.plot(self.X[K,k1], self.X[K,k2], **kw)
+                    X, Y = [self.X[K,x] for x in (k1, k2)]
+                    ax.plot(X, Y, **kw)
                 f1 = f2
 
         k1 = arg1 if isinstance(arg1, int) else self.name2k(arg1)
