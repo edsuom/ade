@@ -57,8 +57,13 @@ def str2array(state, name):
     """
     Converts the string with key I{name} in I{state} into a Numpy
     array, which gets returned.
+
+    If no such string is present, an empty array is constructed and
+    returned.
     """
-    text = state[name]
+    text = state.get(name, None)
+    if text is None:
+        return np.array([])
     fh = StringIO(text)
     X = np.load(fh)
     fh.close()
@@ -87,11 +92,12 @@ class Analysis(object):
         (1.01, '.', 0.0),
     )
     
-    def __init__(self, names, X, K, Kp=set()):
+    def __init__(self, names, X, K, Kp=set(), Kn=set()):
         self.names = names
         self.X = X
         self.K = K
         self.Kp = Kp
+        self.Kn = Kn
 
     def corr(self, k1, k2):
         """
@@ -194,8 +200,11 @@ class Analysis(object):
         @keyword inPop: Set C{True} to only include individuals in the
             population.
         
-        @keyword notInPop: Set C{True} to exclude individuals in the
-            population.
+        @keyword notInPop: Set C{True} to only include individuals who
+            were once but no longer are in the population.
+
+        @keyword neverInPop: Set C{True} to only include individuals
+            who were never in the population.
 
         @keyword maxRatio: Set this to specify a maximum ratio between
             an included individual's SSE and the best individual's
@@ -207,7 +216,9 @@ class Analysis(object):
         if kw.get('inPop', False):
             K = [k for k in self.K if k in self.Kp]
         elif kw.get('notInPop', False):
-            K = [k for k in self.K if k not in self.Kp]
+            K = [k for k in self.K if k not in self.Kp and k not in self.Kn]
+        elif kw.get('neverInPop', False):
+            K = [k for k in self.K if k in self.Kn]
         else: K = self.K
         KK = np.flatnonzero(self.X[K,0]/SSE_best <= maxRatio)
         K = np.array(K)[KK]
@@ -262,6 +273,11 @@ class Analysis(object):
         kw['inPop'] = False
         kw['notInPop'] = True
         XYn = self.value_vs_SSE(*names, **kw)
+        kw['notInPop'] = False
+        kw['neverInPop'] = True
+        XYr = self.value_vs_SSE(*names, **kw)
+        # kList is a range of indices to the XYp, XYn, and XYr lists
+        # of 1-D Numpy arrays
         N = len(XYp) - 1
         kList = range(N)
         while kList:
@@ -271,6 +287,7 @@ class Analysis(object):
             pt = Plotter(N, Nc=Nc)
             pt.add_marker('.', 2.5); pt.add_color('red')
             pt.add_marker('.', 2.0); pt.add_color('blue')
+            pt.add_marker('.', 1.0); pt.add_color('grey')
             pt.add_line(""); pt.use_grid()
             with pt as sp:
                 for k in kkList:
@@ -278,6 +295,7 @@ class Analysis(object):
                     sp.set_title(name)
                     ax = sp(XYp[0], XYp[k+1])
                     ax.plot(XYn[0], XYn[k+1])
+                    ax.plot(XYr[0], XYr[k+1])
         pt.showAll()
 
     def plotXY(self, arg1, arg2, sp=None, useFraction=False):
@@ -383,8 +401,13 @@ class ClosestPairFinder(object):
 
     @cvar Np_max: The maximum number of row pairs to examine for
         differences in L{__call__}.
+
+    @cvar Kn_penalty: The multiplicative penalty to impose on the
+        computed difference to favor pairs where at least one member
+        has been a population member.
     """
     Np_max = 10000
+    Kn_penalty = 2.0
     
     def __init__(self, Nr, Nc):
         """
@@ -397,13 +420,14 @@ class ClosestPairFinder(object):
 
     def clear(self):
         """
-        Sets my I{K} to an empty set and I{S} to C{None}, returning me to
-        a virginal state.
+        Sets my I{K} and I{Kn} to empty sets and I{S} to C{None},
+        returning me to a virginal state.
         """
         self.K = set()
+        self.Kn = set()
         self.S = None
     
-    def setRow(self, k, Z):
+    def setRow(self, k, Z, neverInPop=False):
         """
         Call with the row index to my I{X} array and a 1-D array I{Z} with
         the SSE+values that are to be stored in that row.
@@ -411,15 +435,22 @@ class ClosestPairFinder(object):
         Nulls out my I{S} scaling array to force re-computation of the
         column-wise variances when L{__call__} runs next, because the
         new row entry will change them.
+
+        @keyword neverInPop: Set C{True} to indicate that this
+            SSE+value was never in the population and thus should be
+            less more to be bumped in favor of a newcomer during size
+            limiting.
         """
         self.X[k,:] = Z
         self.K.add(k)
+        if neverInPop: self.Kn.add(k)
         self.S = None
     
     def clearRow(self, k):
         """
         Call with the row index to my I{X} array to have me disregard the
-        SSE+values that are to be stored in that row.
+        SSE+values that are to be stored in that row. If the index is
+        in my I{Kn} set, discards it from there.
 
         Nulls out my I{S} scaling array to force re-computation of the
         column-wise variances when L{__call__} runs next, because
@@ -427,6 +458,7 @@ class ClosestPairFinder(object):
         """
         if k in self.K:
             self.K.remove(k)
+            self.Kn.discard(k)
             self.S = None
 
     def pairs_sampled(self, N):
@@ -462,6 +494,17 @@ class ClosestPairFinder(object):
         K1, K2 = np.meshgrid(list(self.K), list(self.K), indexing='ij')
         K12 = np.column_stack([K1.flatten(), K2.flatten()])
         return K12[np.flatnonzero(K12[:,1] > K12[:,0])]
+
+    def onlyLegit(self, K):
+        """
+        Given a 2-D array of indices to my I{X} array, returns a trimmed
+        array with any rows removed that have either index referencing
+        a bogus value.
+        """
+        B_both = np.all(np.isfinite(self.X[K]), axis=1)
+        B_both_row = np.all(B_both, axis=1)
+        K_ok = np.flatnonzero(B_both_row)
+        return K[K_ok,:]
     
     def __call__(self, Np=None, K=None):
         """
@@ -501,17 +544,19 @@ class ClosestPairFinder(object):
             """
             if K is None:
                 if Nr*(Nr-1)/2 < Np:
-                    KK = self.pairs_all()
-                else: KK = self.pairs_sampled(Np)
+                    K1 = self.pairs_all()
+                else: K1 = self.pairs_sampled(Np)
                 yield
-            else: KK = K
+            else: K1 = K
             if self.S is None:
                 XK = self.X[list(self.K),:]
                 self.S = 1.0 / (np.var(XK, axis=0) + 1E-20)
                 yield
-            X = self.X[KK[:,0]]
+            K1 = self.onlyLegit(K1)
+            # Calculate difference
+            X = self.X[K1[:,0]]
             yield
-            X -= self.X[KK[:,1]]
+            X -= self.X[K1[:,1]]
             yield
             D = np.square(X)
             yield
@@ -519,8 +564,18 @@ class ClosestPairFinder(object):
             yield
             D = np.sum(D, axis=1)
             yield
+            # Divide difference by square root of mean SSE to favor
+            # lower-SSE history
+            SSEs = [self.X[K2,0] for K2 in [K1[:,k] for k in (0, 1)]]
+            D /= np.sqrt(np.mean(np.column_stack(SSEs), axis=1))
+            yield
+            # Divide difference by a fixed amount when the first item
+            # was never in the population, to favor those who were
+            penalize = [k1 in self.Kn and k2 in self.Kn for k1, k2 in K1]
+            D /= np.choose(penalize, [1, self.Kn_penalty])
+            yield
             if K is None:
-                kr = KK[np.argmin(D),0]
+                kr = K1[np.argmin(D),0]
                 result(kr)
             else: result(D)
             
@@ -559,6 +614,9 @@ class History(object):
     @ivar Kp: A set of the values (not indices) of I{K} that are for
         individuals currently in the population.
 
+    @ivar Kn: A set of the values (not indices) of I{K} that are for
+        individuals who never were in the population.
+    
     @ivar kr: A dict containing row indices, keyed by the hashes of
         I{Individual} instances.
     """
@@ -572,7 +630,7 @@ class History(object):
         if N_max: self.N_max = N_max
         self.N_total = 0
         self.X = np.zeros((self.N_max, len(names)+1), dtype='f4')
-        self.K = []; self.Kp = set()
+        self.K = []; self.Kp = set(); self.Kn = set()
         self.kr = {}
         self._initialize()
 
@@ -587,6 +645,7 @@ class History(object):
             'X': seq2str(self.X),
             'K': seq2str(self.K, 'u2'),
             'Kp': seq2str(list(self.Kp), 'u2'),
+            'Kn': seq2str(list(self.Kn), 'u2'),
             'kr': self.kr,
         }
     
@@ -600,15 +659,16 @@ class History(object):
         self.X = str2array(state, 'X')
         self.K = list(str2array(state, 'K'))
         self.Kp = set(str2array(state, 'Kp'))
+        self.Kn = set(str2array(state, 'Kn'))
         self.kr = state['kr']
         self._initialize()
 
     def _initialize(self):
-        self.a = Analysis(self.names, self.X, self.K, self.Kp)
+        self.a = Analysis(self.names, self.X, self.K, self.Kp, self.Kn)
         self.cpf = ClosestPairFinder(self.N_max, len(self.names)+1)
         for kr in self.K:
             if kr in self.Kp: continue
-            self.cpf.setRow(kr, self.X[kr,:])
+            self.cpf.setRow(kr, self.X[kr,:], neverInPop=(kr in self.Kn))
         self.dLock = defer.DeferredLock()
 
     def shutdown(self):
@@ -651,6 +711,7 @@ class History(object):
         def gotLock():
             del self.K[:]
             self.Kp.clear()
+            self.Kn.clear()
             self.cpf.clear()
             self.kr.clear()
             self.N_total = 0
@@ -662,7 +723,7 @@ class History(object):
         return self.dLock.run(gotLock)
         
     @defer.inlineCallbacks
-    def add(self, i):
+    def add(self, i, neverInPop=False):
         """
         Adds the SSE and parameter values of the supplied individual I{i}
         to my roster.
@@ -673,6 +734,9 @@ class History(object):
 
         Returns a C{Deferred} that fires with the row index of the new
         record when it has been written.
+
+        @keyword neverInPop: Set C{True} to have the individual added
+            without ever having been part of the population.
         """
         def kkr():
             # Find the index in K of the row index for the closest
@@ -690,14 +754,21 @@ class History(object):
             SV = np.array([i.SSE] + list(i.values))
             self.X[kr,:] = SV
             self.K.insert(k, kr)
-            self.Kp.add(kr)
-            # This row is starting out as a population member, so have
-            # cpf initially disregard it
-            self.cpf.clearRow(kr)
-            # Add to the lifetime total count
-            self.N_total += 1
-            # Finally, add to the individual-row map
-            self.kr[hash(i)] = kr
+            self.N_total += 1           # Add to the lifetime total count
+            if neverInPop:
+                # This row has been added without ever being a
+                # population member, so cpf considers it along with
+                # the other non-population entries
+                self.cpf.setRow(kr, self.X[kr,:], neverInPop=True)
+                self.Kn.add(kr)
+            else:
+                self.Kp.add(kr)
+                # This row is starting out as a population member, so
+                # have cpf initially disregard it
+                self.cpf.clearRow(kr)
+                # Add to the individual-row map so it can be removed
+                # from the population later
+                self.kr[hash(i)] = kr
         
         yield self.dLock.acquire()
         N = len(self.K)
@@ -713,28 +784,36 @@ class History(object):
             # the current population are protected and exempt) before
             # adding
             kr = yield self.cpf()
-            self.K.remove(kr)
-            # Have cpf disregard this row, because it's now gone
-            self.cpf.clearRow(kr)
+            self.purge(kr)
             k, kr = kkr()
         writeRecord(k, kr)
         self.dLock.release()
         defer.returnValue(kr)
-    
-    def notInPop(self, x=None):
+
+    def purge(self, kr):
+        """
+        Purges my history of the record at row index I{kr}.
+
+        Removes the row index from my I{K} list and has my I{cpf}
+        instance of L{ClosestPairFinder} disregard the row, because
+        it's now gone.
+
+        B{Note}: Does not remove the index from the values of my I{kr}
+        dict, as that is a time-consuming process and the caller can
+        likely just clear the whole thing anyhow.
+        """
+        self.K.remove(kr)
+        self.cpf.clearRow(kr)
+        self.Kp.discard(kr)     # May already have been discarded with .pop
+        self.Kn.discard(kr)
+        
+    def notInPop(self, x):
         """
         Call this with an integer row index or an I{Individual} instance
         that was added via L{add} to remove its row of my I{X} array
         from being considered part of the current population.
-
-        If called with nothing, removes all rows from being considered
-        part of the current population.
         """
         def gotLock():
-            if x is None:
-                self.Kp.clear()
-                self.kr.clear()
-                return
             if isinstance(x, int):
                 kr = x
             else:
@@ -747,3 +826,17 @@ class History(object):
             # expendable, so have cpf start considering it
             self.cpf.setRow(kr, self.X[kr,:])
         return self.dLock.run(gotLock)
+
+    def purgePop(self):
+        """
+        Purges the history of all members of the current
+        population. (Presumably, they will get added back again after
+        re-evaluation.)
+        """
+        def gotLock():
+            while self.Kp:
+                kr = self.Kp.pop()
+                self.purge(kr)
+            self.kr.clear()
+        return self.dLock.run(gotLock)
+        

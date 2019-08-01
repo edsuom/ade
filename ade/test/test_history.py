@@ -131,7 +131,16 @@ class Test_ClosestPairFinder(tb.TestCase):
             self.assertGreater(k2, 0)
             self.assertLess(k1, 10)
             self.assertLess(k2, 10)
-        
+
+    def test_onlyLegit(self):
+        self.cpf.setRow(0, [90.0,               0.11, 0.2, 0.3])
+        self.cpf.setRow(1, [float('+inf'),      0.09, 0.2, 0.3])
+        self.cpf.setRow(2, [np.nan,             0.09, 0.2, 0.3])
+        self.cpf.setRow(3, [91.0,               0.11, 0.21, 0.3])
+        K = np.array([[0, 1], [0, 2], [0, 3], [1, 2], [2, 3]])
+        K1 = self.cpf.onlyLegit(K)
+        self.assertTrue(np.all(K1 == np.array([[0, 3]])))
+
     @defer.inlineCallbacks
     def test_diffs(self):
         self.cpf.setRow(0, [ 90.0, 0.11, 0.2, 0.3])
@@ -147,6 +156,8 @@ class Test_ClosestPairFinder(tb.TestCase):
         self.assertAlmostEqual(self.cpf.S[0], s0)
         s1 = 1.0/np.var([0.11, 0.09, 0.09, 0.11, 0.10])
         self.assertAlmostEqual(self.cpf.S[1], s1)
+        #        0-1   0-2    0-3    2-3    3-4
+        SSEs = [90.0, 95.0, 100.0, 105.0, 110.0]
         for k, de in enumerate(
                 [s1*0.02**2,                    # 0, 1
                  s0*10.0**2 + s1*0.02**2,       # 0, 2
@@ -154,8 +165,23 @@ class Test_ClosestPairFinder(tb.TestCase):
                  s0*10.0**2 + s1*0.02**2,       # 2, 3
                  s1*0.01**2                     # 3, 4
                 ]):
-            self.assertWithinOnePercent(D[k], de)
+            #print k, D[k], de/np.sqrt(SSEs[k]),
+            self.assertWithinOnePercent(D[k], de/np.sqrt(SSEs[k]))
 
+    @defer.inlineCallbacks
+    def test_diffs_someNeverpops(self):
+        self.cpf.setRow(0, [100.001, 0.114, 0.200, 0.30], 1)
+        self.cpf.setRow(1, [100.002, 0.090, 0.200, 0.30], 1)
+        self.cpf.setRow(2, [100.001, 0.100, 0.211, 0.31], 0)
+        self.cpf.setRow(3, [100.002, 0.109, 0.221, 0.30], 1)
+        self.cpf.setRow(4, [100.001, 0.091, 0.220, 0.30], 0)
+        K = np.array([[0, 1], [0, 2], [0, 3]])
+        D = yield self.cpf(K=K)
+        penalty = [self.cpf.Kn_penalty if x else 1.0 for x in (1, 0, 1)]
+        for k, p in enumerate(penalty):
+            #print k, p
+            self.assertWithinTenPercent(D[k], 1.0/p)
+            
     @defer.inlineCallbacks
     def test_call(self):
         self.cpf.setRow(0, [ 90.0, 0.11, 0.2, 0.30])
@@ -243,6 +269,35 @@ class Test_History(tb.TestCase):
                     self.assertLess(v, vp)
             valuesPrev = values
 
+    @defer.inlineCallbacks
+    def test_add_limitSize_improving_neverInPop(self):
+        for k in range(15):
+            i = tb.MockIndividual(values=[k,k+1,k+2])
+            i.SSE = 1000.0 - k
+            yield self.h.add(i, neverInPop=True)
+        self.assertEqual(len(self.h), 10)
+        self.assertEqual(len(self.h.Kp), 0)
+        self.assertEqual(len(self.h.Kn), 10)
+        valuesPrev = None
+        for values in self.h:
+            if valuesPrev is not None:
+                for v, vp in zip(values, valuesPrev):
+                    self.assertLess(v, vp)
+            valuesPrev = values
+
+    @defer.inlineCallbacks
+    def test_add_then_purge(self):
+        for k in range(5):
+            i = tb.MockIndividual(values=[k,k+1,k+2])
+            i.SSE = 100.0 - k
+            yield self.h.add(i)
+            self.assertEqual(len(self.h), k+1)
+        self.assertEqual(len(self.h), 5)
+        self.assertEqual(len(self.h.Kp), 5)
+        self.h.purgePop()
+        self.assertEqual(len(self.h), 0)
+        self.assertEqual(len(self.h.Kp), 0)
+            
     @defer.inlineCallbacks
     def test_value_vs_SSE(self):
         for k in range(10):

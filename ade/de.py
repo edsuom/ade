@@ -488,6 +488,12 @@ class DifferentialEvolution(object):
                             # The challenger won the tournament, replace
                             # the target
                             self.p[kt] = iChallenger
+                        elif not self.xSSE:
+                            # Not doing partial evaluations with xSSE,
+                            # so can make some use of failed challenge
+                            # by recording its SSE in history
+                            yield self.p.history.add(
+                                iChallenger, neverInPop=True)
                         self.p.report(iChallenger, iTarget)
                     else:
                         # Oops! Fatal error occurred!

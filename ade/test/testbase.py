@@ -414,6 +414,11 @@ class TestCase(MsgBase, unittest.TestCase):
         msg = sub("{} not within 5% of {}", x, xExpected)
         self.assertAlmostEqual(0.2*ratio, 0.2, 2, msg)
 
+    def assertWithinTenPercent(self, x, xExpected):
+        ratio = x / xExpected
+        msg = sub("{} not within 10% of {}", x, xExpected)
+        self.assertAlmostEqual(0.1*ratio, 0.1, 2, msg)
+        
     def assertBetween(self, x, xMin, xMax):
         self.assertGreaterEqual(x, xMin)
         self.assertLessEqual(x, xMax)
