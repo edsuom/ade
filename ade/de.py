@@ -221,29 +221,80 @@ class DifferentialEvolution(object):
     target in the population, just as it is with a DE algorithm that
     blocks during fitness evaluation.
 
-    My magic lies in the use of Twisted's C{DeferredLock}. There's one
-    for each index of the population list. Because the number of
-    population members is usually far greater than the number of CPU
-    cores available, almost all of the time the asynchronous
-    processing will find a target it can work on without disturbing
-    the operation sequence.
+    Lots of Lock
+    ============
+    
+        My magic lies in the use of Twisted's C{DeferredLock}. There's
+        one for each index of the population list. Because the number
+        of population members is usually far greater than the number
+        of CPU cores available, almost all of the time the
+        asynchronous processing will find a target it can work on
+        without disturbing the operation sequence.
 
-    Construct me with a L{Population} instance and any keywords that
-    set my runtime configuration different than my default
-    I{attributes}. Before running my instance with L{__call__}, you
-    must call the L{Population.setup} method. That initializes it with
-    a population of L{Individual} objects that can be evaluated
-    according to the population object's evaluation function.
+    Population & Individuals
+    ========================
+    
+        Construct me with a L{Population} instance and any keywords
+        that set my runtime configuration different than my default
+        I{attributes}. Before running my instance with L{__call__},
+        you must call the L{Population.setup} method. That initializes
+        it with a population of L{Individual} objects that can be
+        evaluated according to the population object's evaluation
+        function.
+    
+        The evaluation function must return a fitness metric where
+        lower values indicate better fitness, C{None} or C{inf}
+        represents an invalid or failing individual and thus
+        worst-possible fitness, and a negative number represents a
+        fatal error that will terminate operations. It must except
+        either a 1-D Numpy array of parameter values or, if I am
+        shutting down, a C{None} object.
 
-    The evaluation function must return a fitness metric where lower
-    values indicate better fitness, C{None} or C{inf} represents an
-    invalid or failing individual and thus worst-possible fitness, and
-    a negative number represents a fatal error that will terminate
-    operations. It must except either a 1-D Numpy array of parameter
-    values or, if I am shutting down, a C{None} object.
+    Darwin, Interrupted
+    ===================
+    
+        When running in a console Python application, my L{shutdown}
+        method gets called when the Enter key is pressed. It took
+        quite a bit of work to implement that user-abort capability in
+        a clean, Twisted-friendly manner, but it was worth it. Serious
+        evolution of stuff with DE involves a lot of observing the
+        distributions of parameter values vs SSE, stopping evolution,
+        tweaking the parameter ranges, and resuming evolution again.
 
-    When running in a console Python application, my L{shutdown}
-    method gets called when the Enter key is pressed.
+    Crossover Rate
+    ==============
+    
+        My I{CR} attribute determines the B{c}rossover B{r}ate, the
+        probability of the mutant's value being used for a given
+        parameter instead of just copying the parent's value. A low
+        I{CR} means less mutation and thus innovation. But the less
+        drastic, lower-dimensional movement in the search space that a
+        low I{CR} results in ultimately may be more productive.
+    
+        Montgomery & Chen, "An Analysis of the Operation of
+        Differential Evolution at High and Low Crossover Rates"
+        (2010): "Small values of I{CR} result in exploratory moves
+        parallel to a small number of axes of the search space, while
+        large values of I{CR} produce moves at angles to the search
+        space’s axes. Consequently, the general consensus, supported
+        by some empirical studies, is that small I{CR} is useful when
+        solving separable problems while large I{CR} is more useful
+        when solving non-separable problems."
+    
+        Despite the simplicity of I{CR} being proportional to
+        exploration dimensionality, selecting a value for I{CR} is not
+        terribly intuitive. Montgomery & Chen show that, for some
+        well-known competition problems, performance is best when CR
+        is near but not at either extreme of 0.0 or 1.0. The ranges
+        0.1-0.2 and 0.8-0.9 look promising. They note that
+        "characteristics and convergence rates are all highly
+        different" at each end of the overall I{CR} range: "While DE
+        with I{CR} = 0.9 relies on the population converging so that
+        its moves may be scaled for finer-grained search, DE with
+        I{CR} ≤ 0.1 maintains a highly diverse population throughout
+        its course, especially in complex landscapes, as individual
+        solutions conduct largely independent searches of the solution
+        space."
 
     @cvar attributes: Default values for attributes I{CR}, I{F},
         I{maxiter}, I{randomBase}, I{uniform}, I{adaptive},
@@ -265,8 +316,13 @@ class DifferentialEvolution(object):
         log output to STDOUT or C{None} to suppress logging. Default
         is STDOUT.
 
-    @keyword CR: The I{crossover probability} between parent (i.e.,
-        basis) and mutant (i.e., candidate, offspring).
+    @keyword CR: The I{crossover rate} between parent (i.e., basis)
+        and mutant (i.e., candidate, offspring). CR is the probability
+        of the mutant's value being used for a given parameter. Only
+        if a U[0,1] random variate is bigger than CR (as it seldom
+        will be with typical CR around 0.8), and only if the parameter
+        is not a reserved random one that B{must} be mutated, is the
+        mutant's value discarded and the parent's used.
     @type CR: float
 
     @keyword F: A scalar or two-element sequence defining the
@@ -619,4 +675,3 @@ class DifferentialEvolution(object):
         msg("Performing DE with CR={}, F={}, {}", self.CR, self.fm, desc, '-')
         self.p.report()
         return self.p.waitForReports().addCallback(ready)
-

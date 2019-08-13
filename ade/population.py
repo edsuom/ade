@@ -352,6 +352,8 @@ class Population(object):
 
     @see: U{asynqueue.util.DeferredTracker<http://edsuom.com/AsynQueue/asynqueue.util.DeferredTracker.html>}, used to limit concurrency during population L{setup}.
     """
+    maxTries = 2000
+    
     popsize = 10
     Np_min = 20
     Np_max = 500
@@ -493,13 +495,18 @@ class Population(object):
         """
         if not isinstance(i, Individual):
             raise TypeError("You can only set me with Individuals")
+        # The history object uses a DeferredLock to ensure that it
+        # updates its internals properly, so no need to keep track of
+        # the deferreds that get returned from the notInPop and add
+        # method calls.
         if len(self.iList) > k:
             iPrev = self.iList[k]
             self.history.notInPop(iPrev)
+        self.history.add(i)
         # Here is the only place iList should ever be set directly
         self.iList[k] = i
+        # Invalidate sorting
         del self.KS
-        self.history.add(i)
         
     def __len__(self):
         """
@@ -736,7 +743,7 @@ class Population(object):
             return IV[k,:]
         
         def getIndividual():
-            for k in range(1000):
+            for k in range(self.maxTries):
                 values = getNextIV()
                 if self.pm.passesConstraints(values):
                     break
