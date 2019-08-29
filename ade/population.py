@@ -341,7 +341,9 @@ class Population(object):
     @ivar targetFraction: The desired total score of improvements in
         each iteration in order for I{ade}'s adaptive algorithm to not
         change the current differential weight. See L{replacement} and
-        L{FManager} for details. The default is 2.5%.
+        L{FManager} for details. The default is 2%. (Previously, it
+        was 2.5% but that seemed too strict for the application the
+        author is mostly using ADE for.)
 
     @ivar debug: Set C{True} to show individuals getting
         replaced. (Results in a very messy log or console display.)
@@ -358,7 +360,7 @@ class Population(object):
     Np_min = 20
     Np_max = 500
     N_maxParallel = 12
-    targetFraction = 0.025
+    targetFraction = 0.02
     debug = False
     failedConstraintChar = " "
     # Property placeholders
@@ -880,30 +882,31 @@ class Population(object):
             challenger had an SSE between 1.5x and 2.5x better than
             (2/5 to 2/3 as high as) the individual it replaced.
 
-            I give almost no weight to an I{rir} of zero, which
+            I give very little weight to an I{rir} of zero, which
             indicates that the challenger was better but still has an
             equivalent SSE, i.e., is no more than 2% better with the
             default value of I{Reporter.minDiff}. See
             L{Reporter.isEquivSSE}.
         
-            I don't give much weight to an I{rir} of 1. The
-            improvement is pretty modest and could be as little as 2%
-            (assuming C{Reporter.minDiff}=0.02, the default). An
-            I{rir} of 2 gets five times as much weight as that.
+            I give five times much weight to an I{rir} of 1, though
+            it's still pretty small. The improvement is modest and
+            could be as little as 2% (assuming
+            C{Reporter.minDiff}=0.02, the default). An I{rir} of 2
+            gets three times as much weight as that.
 
             An I{rir} of 3 also gets disproportionately more weight,
-            nearly twice as much as I{rir}=2. Beyond that, though, the
+            five times as much as I{rir}=1. Beyond that, though, the
             weight scales in a nearly linear fashion. For example, an
             I{rir} of 9 adds just a little more than three times to
-            the score (3.67x) as I{rir}=3 does.
+            the score (3.4x) as I{rir}=3 does.
 
             Here's a practical example, with a population of 100
             individuals: If you see 10 "1" characters on the screen
             for one iteration with other 90 being "X," your ratio
-            score for that iteration will be 2.5. But if you see just
+            score for that iteration will be 5.0. But if you see just
             one non-X individual with a "8" character, the score will
-            be 7.25. That one amazing success story counts far more in
-            a sea of failures than a bunch of marginal improvements,
+            be 7.5. That one amazing success story counts more in a
+            sea of failures than a bunch of marginal improvements,
             which is kind of how evolution works in real life. (See
             the literature around "hopeful monsters.")
         
@@ -928,11 +931,11 @@ class Population(object):
             return self._keepStatusQuo(score)
         # An adjustment call
         if self.replacementScore is not None:
-            # 0 has a tiny weight, just 0.05
-            # 1 has only 0.25 weight
-            # 2 has 1.25, or 5x as much as 1
-            # 3 has 2.25, or nearly 2x as much as 2
-            addition = 0.05 if rir == 0 else rir - 0.75
+            # 0 has a tiny weight, just 0.1
+            # 1 has only 0.5 weight
+            # 2 has 1.5, or 3x as much as 1
+            # 3 has 2.5, or 5x as much as 1
+            addition = 0.1 if rir == 0 else rir - 0.5
             self.replacementScore += addition
 
     def report(self, iNew=None, iOld=None, noProgress=False, force=False):

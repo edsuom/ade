@@ -316,7 +316,7 @@ class Analysis(object):
             K =  self.Kp12(0, 0.5)
             m, b = self.lineFit(k1, k2, K)
             sp.add_annotation(
-                0, "Y={:+.4f}*X {} {:.4f}", m, "-" if b < 0 else "+", abs(b))
+                0, "Y={:+.6g}*X {} {:.6g}", m, "-" if b < 0 else "+", abs(b))
             X = self.X[K,k1]
             X = np.array([X.min(), X.max()])
             ax = sp(X, m*X+b, '-r')
