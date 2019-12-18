@@ -568,6 +568,9 @@ class DifferentialEvolution(object):
         Called by L{__call__} to do most of the work. I{func} is a
         callback function that gets called after each generation with
         the generation number as the sole argument.
+
+        Returns a C{Deferred} that fires with my L{Population} object
+        I{p} when the DE run is completed.
         """
         def failed(failureObj):
             if failureObj.type == abort.AbortError:
@@ -656,6 +659,9 @@ class DifferentialEvolution(object):
         So long as the best individual in the population keeps getting
         better with each generation, I will continue to run, even with
         tiny overall improvements.
+
+        Returns a C{Deferred} that fires with my L{Population} object
+        I{p} when the DE run is completed.
 
         @keyword func: Supply a callback function to have it called
             after each generation, with the generation number as the

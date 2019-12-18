@@ -116,7 +116,7 @@ class Test_ParameterManager(tb.TestCase):
 
         
 class Test_Population(tb.TestCase):
-    Np = 20
+    Np = 50
     verbose = False
     
     def setUp(self):
@@ -204,19 +204,19 @@ class Test_Population(tb.TestCase):
         self.assertTrue(self.p.replacement())
         self.assertEqual(self.p.replacementScore, 0)
         self.assertFalse(self.p.replacement())
-        self.assertAlmostEqual(self.p.statusQuoScore, self.p.Np*2.5/100)
+        self.assertAlmostEqual(self.p.statusQuoScore, self.p.Np*2.0/100)
         # 0 x 1
         checkReplacements(0.0, 0.03, 0)
         # 1 x 1
-        checkReplacements(0.09, 0.22, 1)
+        checkReplacements(0.08, 0.22, 1)
         # 1 x 2
-        checkReplacements(0.40, 0.60, 1, 1)
+        checkReplacements(0.4, 0.6, 1, 1)
         # 2 x 1
-        checkReplacements(1.0, 1.0, 2)
+        checkReplacements(0.78, 0.92, 2)
         # 2 x 2
         self.p.replacement(2)
         self.p.replacement(2)
-        self.assertEqual(self.p.replacementScore, 2.5)
+        self.assertEqual(self.p.replacementScore, 3.0)
         self.assertTrue(self.p.replacement())
         
     @defer.inlineCallbacks

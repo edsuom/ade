@@ -82,6 +82,8 @@ class Analysis(object):
     Each index in I{K} points to a row of I{X} with one SSE and the
     parameter values for that SSE, with the indices of I{K} sorted in
     ascending order of the SSE they point to.
+
+    @ivar names: A sequence of the names of all the parameters.
     """
     fmms = (
         (0.05, 'o', 3.0),
@@ -191,11 +193,11 @@ class Analysis(object):
         """
         return self.names[k-1]
     
-    def value_vs_SSE(self, *names, **kw):
+    def value_vs_SSE(self, names, **kw):
         """
         Returns a 1-D Numpy array of the SSEs of my individuals and
-        matching 1-D Numpy arrays for each of the named parameter
-        values.
+        matching 1-D Numpy arrays for each of the parameter
+        values in I{names}.
 
         @keyword inPop: Set C{True} to only include individuals in the
             population.
@@ -261,24 +263,42 @@ class Analysis(object):
         if N_left > 8:
             return 9
         return N_left
-    
-    def plot(self, *names, **kw):
-        """
-        Plots the values versus SSE for each of the named
-        parameters. Accepts keywords used for L{value_vs_SSE}.
 
-        If there are two integer args, they are used to select a range
-        of my I{names}.
+    def _makePlotter(self, *args, **kw):
         """
+        Returns a L{Plotter} object, constructed with the supplied args
+        and/or keywords, with some global options set.
+        """
+        pt = Plotter(*args, **kw)
+        pt.add_line(""); pt.use_minorTicks('y'); pt.use_grid()
+        return pt
+    
+    def plot(self, names, **kw):
+        """
+        Plots the values versus SSE for each of the parameters in
+        I{names}. Accepts keywords used for L{value_vs_SSE} (though
+        only I{inPop} is honored in this method), plus I{noShow}.
+        
+        If there are two integer values in I{names}, they are used to
+        select a range of my I{names} sequence. (Seldom used.)
+
+        @keyword noShow: Set C{True} to return the C{Plotter} object
+            from the last Matplotlib C{Figure} plotted instead of
+            calling C{showAll} on it, thus allowing you to do so at
+            your convenience.
+        """
+        noShow = kw.pop('noShow', False)
         names = self.args2names(names)
+        inPop = kw.get('inPop', False)
         kw['inPop'] = True
-        XYp = self.value_vs_SSE(*names, **kw)
-        kw['inPop'] = False
-        kw['notInPop'] = True
-        XYn = self.value_vs_SSE(*names, **kw)
-        kw['notInPop'] = False
-        kw['neverInPop'] = True
-        XYr = self.value_vs_SSE(*names, **kw)
+        XYp = self.value_vs_SSE(names, **kw)
+        if not inPop:
+            kw['inPop'] = False
+            kw['notInPop'] = True
+            XYn = self.value_vs_SSE(names, **kw)
+            kw['notInPop'] = False
+            kw['neverInPop'] = True
+            XYr = self.value_vs_SSE(names, **kw)
         # kList is a range of indices to the XYp, XYn, and XYr lists
         # of 1-D Numpy arrays
         N = len(XYp) - 1
@@ -287,18 +307,20 @@ class Analysis(object):
             N = self.pick_N(kList)
             kkList = kList[:N]; kList = kList[N:]
             Nc = 1 if N == 1 else 3 if N > 6 else 2
-            pt = Plotter(N, Nc=Nc)
+            pt = self._makePlotter(N, Nc=Nc)
             pt.add_marker('o', 2.0); pt.add_color('red')
-            pt.add_marker('o', 2.0); pt.add_color('blue')
-            pt.add_marker('.', 1.5); pt.add_color('#303030')
-            pt.add_line(""); pt.use_grid()
+            if not inPop:
+                pt.add_marker('o', 2.0); pt.add_color('blue')
+                pt.add_marker('.', 1.5); pt.add_color('#303030')
             with pt as sp:
                 for k in kkList:
                     name = names[k]
                     sp.set_title(name)
                     ax = sp(XYp[0], XYp[k+1])
-                    ax.plot(XYn[0], XYn[k+1])
-                    ax.plot(XYr[0], XYr[k+1])
+                    if not inPop:
+                        ax.plot(XYn[0], XYn[k+1])
+                        ax.plot(XYr[0], XYr[k+1])
+        if noShow: return pt
         pt.showAll()
 
     def plotXY(self, arg1, arg2, sp=None, useFraction=False):
@@ -334,15 +356,14 @@ class Analysis(object):
         k1 = arg1 if isinstance(arg1, int) else self.name2k(arg1)
         k2 = arg2 if isinstance(arg2, int) else self.name2k(arg2)
         if sp is None:
-            pt = Plotter(1)
-            pt.add_line(""); pt.use_grid()
+            pt = self._makePlotter(1)
             with pt as sp:
                 plot(sp)
             pt.show()
             return
         plot(sp)
 
-    def plotCorrelated(self, name=None, N=4):
+    def plotCorrelated(self, name=None, N=4, noShow=False):
         """
         Plots values of four pairs of parameters with the highest
         correlation. The higher the SSE for a given combination of
@@ -351,22 +372,24 @@ class Analysis(object):
         You can specify one parameter that must be included. Then the
         correlations checked are with everything else.
         
-        This actually has been of surprisingly little use in my own
-        work, which is probably a good sign that my parameters have
-        all been pretty independent and thus independently
-        worthwhile. Seeing a very high correlation in one of these
-        plots is an indication that you should somehow consolidate the
-        correlated parameters or at least make them explicitly
-        dependent on each other at the outset, so DE doesn't waste
-        effort searching all the deserted fitness landscape outside
-        the narrow ellipse of their correlated values.
+        Seeing a very high correlation in one of these plots is an
+        indication that you should somehow consolidate the correlated
+        parameters or at least make them explicitly dependent on each
+        other at the outset, so DE doesn't waste effort searching all
+        the deserted fitness landscape outside the narrow ellipse of
+        their correlated values.
+
+        @keyword noShow: Set C{True} to return the C{Plotter} object
+            from the last Matplotlib C{Figure} plotted instead of
+            calling C{showAll} on it, thus allowing you to do so at
+            your convenience.
+
         """
         Np = self.X.shape[1] - 1
         Ncombos = Np*(Np-1)/2
         if Ncombos == 0: return
         if Ncombos < N: N = Ncombos
-        pt = Plotter(N)
-        pt.add_line(""); pt.use_grid()
+        pt = self._makePlotter(N)
         with pt as sp:
             count = 0
             for stuff in self.correlator():
@@ -376,6 +399,7 @@ class Analysis(object):
                 self.plotXY(k1, k2, sp)
                 count += 1
                 if count == N: break
+        if noShow: return pt
         pt.show()
         
 

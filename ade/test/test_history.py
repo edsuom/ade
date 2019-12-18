@@ -55,7 +55,7 @@ class Test_Analysis(tb.TestCase):
             self.assertEqual(self.a.k2name(k+1), name)
     
     def test_valueVsSSE(self):
-        XY = self.a.value_vs_SSE('bar')
+        XY = self.a.value_vs_SSE(['bar'])
         self.assertEqual(len(XY), 2)
         self.assertItemsEqual(XY[0], [110.0, 270.0, 580.0, 810.0, 999.0])
         self.assertItemsEqual(XY[1], [2, 4, 5, 3, 6])
@@ -313,7 +313,7 @@ class Test_History(tb.TestCase):
             i = tb.MockIndividual(values=[k,k+1,k+2])
             i.SSE = 10.0 + k
             yield self.h.add(i)
-        XY = yield self.h.value_vs_SSE('bar')
+        XY = yield self.h.value_vs_SSE(['bar'])
         self.assertEqual(len(XY), 2)
         self.assertItemsEqual(XY[0], np.linspace(10.0, 19.0, 10))
         self.assertItemsEqual(XY[1], np.linspace(1.0, 10.0, 10))
@@ -324,7 +324,7 @@ class Test_History(tb.TestCase):
             i = tb.MockIndividual(values=[k,k+1,k+2])
             i.SSE = 10.0 + k
             yield self.h.add(i)
-        XY = yield self.h.value_vs_SSE('bar', maxRatio=1.5)
+        XY = yield self.h.value_vs_SSE(['bar'], maxRatio=1.5)
         self.assertEqual(len(XY), 2)
         self.assertItemsEqual(XY[0], np.linspace(10.0, 15.0, 6))
         self.assertItemsEqual(XY[1], np.linspace(1.0, 6.0, 6))
@@ -336,7 +336,7 @@ class Test_History(tb.TestCase):
             i.SSE = 10.0 + k
             kr = yield self.h.add(i)
         self.h.notInPop(kr)
-        XY = yield self.h.value_vs_SSE('bar', inPop=True)
+        XY = yield self.h.value_vs_SSE(['bar'], inPop=True)
         self.assertEqual(len(XY), 2)
         self.assertItemsEqual(XY[0], np.linspace(10.0, 18.0, 9))
         self.assertItemsEqual(XY[1], np.linspace(1.0, 9.0, 9))
@@ -348,7 +348,7 @@ class Test_History(tb.TestCase):
             i.SSE = 10.0 + k
             kr = yield self.h.add(i)
             if k > 5: self.h.notInPop(kr)
-        XY = yield self.h.value_vs_SSE('bar', notInPop=True)
+        XY = yield self.h.value_vs_SSE(['bar'], notInPop=True)
         self.assertEqual(len(XY), 2)
         self.assertItemsEqual(XY[0], np.linspace(16.0, 19.0, 4))
         self.assertItemsEqual(XY[1], np.linspace(7.0, 10.0, 4))
@@ -368,17 +368,6 @@ class Test_History(tb.TestCase):
         for k, x in enumerate(h):
             sdiff = np.sum(np.square(x-values(k)))
             self.assertLess(sdiff, 1E-6)
-        
-    @defer.inlineCallbacks
-    def test_add_keepsSomeFormerPops(self):
-        N_pop = 20
-        N_trials = 10000
-        h = history.History(self.names, N_max=100)
-        population = set()
-        for k in range(N):
-            if k % 2:
-                # Pretend this is a challenge winner
-                if  
                 
             
         

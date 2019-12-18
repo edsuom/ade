@@ -362,6 +362,7 @@ class Runner(object):
             bitterEnd=args.b, logHandle=self.fh, dwellByGrave=12)
         yield de()
         yield self.shutdown()
+        if len(args.P) > 1: self.p.save(args.P)
         msg(0, "Final population:\n{}", self.p)
         msg(0, "Elapsed time: {:.2f} seconds", time.time()-t0, 0)
         reactor.stop()
@@ -384,6 +385,12 @@ args = Args(
     OS may have something that works, too.)
 
     Press the Enter key to quit early.
+
+    By default, this example script saves the final state of the
+    ade.Population object to an efficiently compressed pickle file,
+    ade-population.dat in your home directory. You can view the
+    parameter values vs SSE using the 'pv' script that was installed
+    with ade.
     """
 )
 args('-m', '--maxiter', 2000, "Maximum number of DE generations to run")
@@ -398,6 +405,8 @@ args('-N', '--N-cores', 0, "Limit the number of CPU cores")
 args('-l', '--logfile',
      "Write results to logfile 'thermistor.log' instead of STDOUT")
 args('-x', '--xSSE', "Abort evaluation if challenger's SSE exceeds target's")
+args('-P', '--pickle', "~/ade-population.dat",
+     "Pickle dump file for finalized ade.Population object ('-' for none)")
 
 
 def main():

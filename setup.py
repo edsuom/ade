@@ -62,6 +62,7 @@ kw = {'version': '1.3.0',
           'console_scripts': [
               'ade-examples = ade.scripts.examples:extract',
               "lgg = ade.scripts.lgg:main",
+              "pv = ade.scripts.pv:main",
           ],
       },
       'zip_safe': True,
