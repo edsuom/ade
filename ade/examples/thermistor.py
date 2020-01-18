@@ -359,7 +359,7 @@ class Runner(object):
             self.p,
             CR=args.C, F=F, maxiter=args.m, xSSE=args.x,
             randomBase=args.r, uniform=args.u, adaptive=not args.n,
-            bitterEnd=args.b, logHandle=self.fh, dwellByGrave=12)
+            bitterEnd=args.e, logHandle=self.fh, dwellByGrave=12)
         yield de()
         yield self.shutdown()
         msg(0, "Final population:\n{}", self.p)
@@ -390,7 +390,7 @@ args('-m', '--maxiter', 2000, "Maximum number of DE generations to run")
 args('-p', '--popsize', 10, "Population: # individuals per unknown parameter")
 args('-C', '--CR', 0.8, "DE Crossover rate CR")
 args('-F', '--F', "0.5,1.0", "DE mutation scaling F: two values for range")
-args('-b', '--bitter-end', "Keep working to the end even with little progress")
+args('-e', '--bitter-end', "Keep working to the end even with little progress")
 args('-r', '--random-base', "Use DE/rand/1 instead of DE/best/1")
 args('-n', '--not-adaptive', "Don't use automatic F adaptation")
 args('-u', '--uniform', "Initialize population uniformly instead of with LHS")

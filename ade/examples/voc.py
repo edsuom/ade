@@ -321,7 +321,7 @@ args = Args(
     """
 )
 args('-m', '--maxiter', 800, "Maximum number of DE generations to run")
-args('-e', '--bitter-end', "Run to the bitter end")
+args('-e', '--bitter-end', "Keep working to the end even with little progress")
 args('-p', '--popsize', 20, "Population: # individuals per unknown parameter")
 args('-C', '--CR', 0.8, "DE Crossover rate CR")
 args('-F', '--F', "0.5,1.0", "DE mutation scaling F: two values for range")
