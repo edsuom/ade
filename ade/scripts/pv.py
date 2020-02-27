@@ -75,6 +75,7 @@ args('-i', '--in-pop',
      "Only individuals currently in the population")
 args('-N', '--N-correlates', 0,
      "Show the N most correlated pairs of all parameters")
+args('-v', '--verbose', "Print info about parameters to STDOUT")
 # Positional argument
 args("<pickle file> [param1 param2 ...]")
 
@@ -95,8 +96,10 @@ def main():
     if args.N:
         if names:
             for name in names:
-                pt = analyzer.plotCorrelated(name=name, N=args.N, noShow=True)
-        else: pt = analyzer.plotCorrelated(N=args.N, noShow=True)
+                pt = analyzer.plotCorrelated(
+                    name=name, N=args.N, noShow=True, verbose=args.v)
+        else:
+            pt = analyzer.plotCorrelated(N=args.N, noShow=True, verbose=args.v)
     if pt is None: raise RuntimeError("No analysis done!")
     pt.showAll()
 

@@ -310,9 +310,11 @@ class Messenger(object):
         ("-") to precede or follow the text with a row of hyphens as a
         separator. (You can also combine this with a numerical
         argument that comes immediately before or after.)
-    
-        Unless a single argument was supplied, returns the present
-        file handle.
+
+        Call with no arguments just to get the present file
+        handle. That will always be returned unless a single argument
+        was supplied, in which case the previous file handle is what
+        gets returned.
         """
         args = list(args)
         prefix = ""; suffix = ""

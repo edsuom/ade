@@ -323,6 +323,9 @@ class Analysis(object):
         if noShow: return pt
         pt.showAll()
 
+    def prettyLine(self, m, b):
+        return sub("Y={:+.6g}*X {} {:.6g}", m, "-" if b < 0 else "+", abs(b))
+        
     def plotXY(self, arg1, arg2, sp=None, useFraction=False):
         """
         Plots the values of the parameter at column I{k2} of my I{X} array
@@ -331,39 +334,44 @@ class Analysis(object):
 
         Also plots a best-fit line determined by I{lineFit} with the
         pairs having the best 50% of the SSEs.
+
+        Returns a 4-tuple with the x- and y-axis labels and the slope
+        and y-intercept of the best-fit line.
         """
         def plot(sp):
-            sp.set_xlabel(self.k2name(k1))
-            sp.set_ylabel(self.k2name(k2))
+            xName = self.k2name(k1)
+            yName = self.k2name(k2)
+            sp.set_xlabel(xName)
+            sp.set_ylabel(yName)
             K =  self.Kp12(0, 0.5)
             m, b = self.lineFit(k1, k2, K)
-            sp.add_annotation(
-                0, "Y={:+.6g}*X {} {:.6g}", m, "-" if b < 0 else "+", abs(b))
+            sp.add_annotation(0, self.prettyLine(m, b))
             X = self.X[K,k1]
             X = np.array([X.min(), X.max()])
             ax = sp(X, m*X+b, '-r')
             f1 = 0.0
             kw = {'color': "blue"}
-            for f2, m, ms in self.fmms:
+            for f2, mk, ms in self.fmms:
                 if ms:
                     K = self.Kf12(f1, f2) if useFraction else self.Kp12(f1, f2)
-                    kw['marker'] = m
+                    kw['marker'] = mk
                     kw['markersize'] = ms
                     X, Y = [self.X[K,x] for x in (k1, k2)]
                     ax.plot(X, Y, **kw)
                 f1 = f2
+            return xName, yName, m, b
 
         k1 = arg1 if isinstance(arg1, int) else self.name2k(arg1)
         k2 = arg2 if isinstance(arg2, int) else self.name2k(arg2)
         if sp is None:
             pt = self._makePlotter(1)
             with pt as sp:
-                plot(sp)
+                result = plot(sp)
             pt.show()
-            return
-        plot(sp)
-
-    def plotCorrelated(self, name=None, N=4, noShow=False):
+            return result
+        return plot(sp)
+    
+    def plotCorrelated(self, name=None, N=4, noShow=False, verbose=False):
         """
         Plots values of four pairs of parameters with the highest
         correlation. The higher the SSE for a given combination of
@@ -395,8 +403,13 @@ class Analysis(object):
             for stuff in self.correlator():
                 k1, k2, R = stuff
                 if name and name != self.k2name(k1): continue
-                sp.add_textBox("SE" if R > 0 else "NE", "R={:+.3f}", R)
-                self.plotXY(k1, k2, sp)
+                corr = sub("R={:+.3f}", R)
+                sp.add_textBox("SE" if R > 0 else "NE", corr)
+                xName, yName, m, b = self.plotXY(k1, k2, sp)
+                if verbose:
+                    firstPart = sub("{}:{} ({})", xName, yName, corr)
+                    print(sub(
+                        "{:>30s}  {}", firstPart, self.prettyLine(m, b)))
                 count += 1
                 if count == N: break
         if noShow: return pt
