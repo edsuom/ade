@@ -29,7 +29,7 @@ decompressing, and reading data files for the L{thermistor} and L{voc}
 examples.
 """
 
-import os.path, bz2
+import os.path, bz2, csv
 
 import numpy as np
 
@@ -49,7 +49,7 @@ class Data(Picklable):
     The CSV file isn't included in the I{ade} package and will
     automatically be downloaded from U{edsuom.com}. Here's the privacy
     policy for my site (it's short, as all good privacy policies
-    should be)::
+    should be):
 
         Privacy policy: I don’t sniff out, track, or share anything
         identifying individual visitors to this site. There are no
@@ -82,17 +82,18 @@ class Data(Picklable):
     urlProto = "http://edsuom.com/ade-{}"
     ranges = None
     weightCutoff = 0.2
-    
-    @defer.inlineCallbacks
-    def setup(self):
-        """
-        Calling this gets you a C{Deferred} that fires when setup is done
-        and my I{t}, I{X}, and possibly my I{weights} ivars are ready.
-        """
-        def addList():
-            t_list.append(value_list[0] - t0)
-            selected_value_lists.append(value_list[1:])
 
+    @defer.inlineCallbacks
+    def load(self):
+        """
+        Opens the CSV file at the csv file for my subclass's I{baseName}
+        and assembles a list of lists of comma-separated field values
+        from the non-comment lines.
+
+        Each value in each list is a string.
+        
+        Returns a C{Deferred} that fires with the list.
+        """
         if self.basename is None:
             raise AttributeError("No CSV file defined")
         csvPath = sub("{}.csv.bz2", self.basename)
@@ -100,19 +101,38 @@ class Data(Picklable):
             url = sub(self.urlProto, csvPath)
             msg("Downloading {} data file from edsuom.com...", csvPath)
             yield client.downloadPage(url, csvPath)
-        value_lists = []; T_counts = {}
         msg("Decompressing and parsing {}...", csvPath)
+        rows = []
         with bz2.BZ2File(csvPath, 'r') as bh:
-            while True:
-                line = bh.readline().strip()
-                if not line:
-                    if value_lists:
-                        break
-                    else: continue
-                if line.startswith('#'):
+            reader = csv.reader(bh, delimiter=',', quotechar='"')
+            for row in reader:
+                if row[0].startswith('#'):
                     continue
-                value_list = [float(x.strip()) for x in line.split(',')]
-                value_lists.append(value_list)
+                rows.append(row)
+        defer.returnValue(rows)
+    
+    def setup(self):
+        """
+        Override this in your sublcass to have me set myself up. Must
+        return a C{Deferred} that fires when the CSV file has been
+        loaded and fully parsed.
+        """
+        raise NotImplementedError("You must define a setup method!")
+
+
+class TimeData(Data):
+    """
+    I specialize in CSV files that contain time-series data.
+    """
+    def parseValues(self, result):
+        def addList():
+            t_list.append(value_list[0] - t0)
+            selected_value_lists.append(value_list[1:])
+    
+        value_lists = []; T_counts = {}
+        for raw_value_list in result:
+            value_list = [float(x) for x in raw_value_list]
+            value_lists.append(value_list)
         msg("Doing array conversions...")
         value_lists.sort(None, lambda x: x[0])
         t_list = []
@@ -129,11 +149,18 @@ class Data(Picklable):
         self.t = np.array(t_list)
         self.X = np.array(selected_value_lists)
         self.setWeights()
-        msg("Done setting up data", '-')
+        msg("Done setting up data", '-')    
+    
+    def setup(self):
+        """
+        Calling this gets you a C{Deferred} that fires when setup is done
+        and my I{t}, I{X}, and possibly my I{weights} ivars are ready.
+        """
+        return self.load().addCallback(self.parseValues)
 
     def setWeights(self):
         """
         Override this in your sublcass to set my I{weights} attribute to a
         1-D Numpy array of weights, one for each CSV file row.
         """
-
+        pass

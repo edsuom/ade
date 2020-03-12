@@ -53,10 +53,10 @@ from ade.de import DifferentialEvolution
 from ade.image import ImageViewer
 from ade.util import *
 
-from data import Data
+from data import TimeData
 
 
-class TemperatureData(Data):
+class TemperatureData(TimeData):
     """
     Run L{setup} on my instance to decompress and load the
     tempdump.csv.bz2 CSV file.

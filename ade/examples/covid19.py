@@ -24,21 +24,58 @@
 
 
 """
-Example script I{voc.py}: Identifying coefficients for the
-open-circuit voltage of an AGM lead-acid battery over time.
+Example script I{covid19.py}: Identifying coefficients for a naive
+linear+exponential model of the number of reported cases vs time in
+hours.
 
-This example reads a two-item-per-line CSV file. Each line
-contains: (B{1}) the time in seconds from some arbitrary starting
-time, (B{2}) the battery voltage with no charge or discharge current.
+This example reads a CSV file you may obtain from John Hopkins (one
+that was obtained as of the date of this commit/version). Each line
+contains the number of reported cases for one region of the world.
 
-Then it uses asynchronous differential evolution to efficiently find a
-nonlinear best-fit curve.
+The datafile C{time_series_19-covid-Confirmed.csv} is for educational
+purposes and reproduced under the Terms of Use for the data file,
+which is as follows:
+
+    This GitHub repo and its contents herein, including all data,
+    mapping, and analysis, copyright 2020 Johns Hopkins University,
+    all rights reserved, is provided to the public strictly for
+    educational and academic research purposes.  The Website relies
+    upon publicly available data from multiple sources, that do not
+    always agree. The Johns Hopkins University hereby disclaims any
+    and all representations and warranties with respect to the
+    Website, including accuracy, fitness for use, and merchantability.
+    Reliance on the Website for medical guidance or use of the Website
+    in commerce is strictly prohibited.
+
+The comma-separated fields are as follows:
+
+    1. Region Name. Blank if nation-wide data. Of interest here is the
+       state in the U.S., which may have a space.
+
+    2. Country Name. "US" is of interest here. (It will come as no
+       surprise that the author is a U.S. citizen!)
+
+    3. Latitude.
+
+    4. Longitude.
+
+    5. This and the remaining fields are the number of cases reported
+       each day starting on January 22, 2020.
+
+Uses asynchronous differential evolution to efficiently find a
+population of best-fit combinations of four parameters for the
+function::
+
+    f(t) = a*t + b*exp(c*t) + d
+
+where I{f} is the number of reported cases and I{t} is the time, in
+hours, since the first report in this dataset.
 """
 
-import time
+import re
+from datetime import date, timedelta
 
 import numpy as np
-from scipy import signal
 
 from twisted.internet import reactor, defer
 
@@ -50,10 +87,10 @@ from ade.de import DifferentialEvolution
 from ade.image import ImageViewer
 from ade.util import *
 
-from data import TimeData
+from data import Data
 
 
-class BatteryData(TimeData):
+class Covid19Data(Data):
     """
     Run L{setup} on my instance to decompress and load the
     voc.csv.bz2 CSV file.
@@ -72,7 +109,85 @@ class BatteryData(TimeData):
 
     @see: The L{Data} base class.
     """
-    basename = "voc"
+    basename = "covid19"
+    reDate = re.compile(r'([0-9]+)/([0-9]+)/([0-9]+)')
+
+    def __len__(self):
+        return len(self.dates)
+    
+    def parseDates(self, result):
+        """
+        Parses dates from first line of I{result} list of text-value
+        lists.
+        """
+        def g2i(k):
+            return int(m.group(k))
+
+        def hours(dateObj):
+            seconds = (dateObj - firstDate).total_seconds()
+            return seconds / 3600
+        
+        self.t = []
+        self.dates = []
+        firstDate = None
+        for dateText in result.pop(0)[4:]:
+            m = self.reDate.match(dateText)
+            if not m:
+                raise ValueError(sub(
+                    "Couldn't parse '{}' as a date!", dateText))
+            thisDate = date(g2i(3), g2i(1), g2i(2))
+            if firstDate is None:
+                firstDate = thisDate
+            self.dates.append(thisDate)
+            self.t.append(hours(thisDate))
+        self.t = np.array(self.t)
+    
+    def valuerator(self, result):
+        """
+        Iterates over the lists of text-values in the I{result}, yielding
+        a 1-D array of daily reported case numbers for each list whose
+        region code and country code match the desired values.
+        """
+        for rvl in result:
+            if rvl[0] not in self.regionCodes:
+                continue
+            if rvl[1] not in self.countryCodes:
+                continue
+            print rvl
+            yield np.array([int(x) for x in rvl[4:]])
+            
+    def parseValues(self, result):
+        self.parseDates(result)
+        self.X = np.zeros(len(self))
+        for Y in self.valuerator(result):
+            self.X += Y
+                   
+    def setup(self):
+        """
+        Calling this gets you a C{Deferred} that fires when setup is done
+        and my I{t} and I{X} ivars are ready.
+        """
+        return self.load().addCallback(self.parseValues)
+
+
+class Covid19Data_US(Covid19Data):    
+    countryCodes = ['US']
+    regionCodes = [
+        'Alabama',              'Alaska',       'Arizona',      'Arkansas',
+        'California',           'Colorado',     'Connecticut',  'Delaware',
+        'Florida',              'Georgia',      'Hawaii',
+        'Idaho',                'Illinois',     'Indiana',      'Iowa',
+        'Kansas',               'Kentucky',     'Louisiana',    'Maine',
+        'Maryland',             'Massachusetts',
+        'Michigan',             'Minnesota',    'Mississippi',  'Missouri',
+        'Montana',              'Nebraska',     'Nevada',       'New Hampshire',
+        'New Jersey',           'New Mexico',   'New York',     'North Carolina',
+        'North Dakota',         'Ohio',         'Oklahoma',     'Oregon',
+        'Pennsylvania',         'Rhode Island', 'South Carolina',
+        'South Dakota',         'Tennessee',    'Texas',        'Utah',
+        'Vermont',              'Virginia',     'Washington',
+        'West Virginia',        'Wisconsin',    'Wyoming',
+    ]
 
 
 class Reporter(object):
@@ -99,9 +214,8 @@ class Reporter(object):
         self.ev = evaluator
         self.prettyValues = population.pm.prettyValues
         self.pt = Plotter(
-            2, filePath=self.plotFilePath, width=15, height=10)
+            1, filePath=self.plotFilePath, width=16, height=9)
         self.pt.use_grid()
-        self.pt.use_timex()
         ImageViewer(self.plotFilePath)
     
     def __call__(self, values, counter, SSE):
@@ -114,62 +228,57 @@ class Reporter(object):
 
         SSE_info = sub("SSE={:g}", SSE)
         titleParts = []
-        titlePart("Voltage vs Time (sec)")
+        titlePart("Cases vs Time (hr)")
         titlePart(SSE_info)
         titlePart("k={:d}", counter)
         msg(0, self.prettyValues(values, SSE_info+", with"), 0)
         with self.pt as sp:
-            sp.set_title(", ".join(titleParts))
             t = self.ev.t
-            V = self.ev.X[:,0]
+            sp.set_title(", ".join(titleParts))
             # Model versus observations
             sp.add_line('-', 1)
-            sp.set_ylabel("V")
+            sp.set_xlabel("Hours")
+            sp.set_ylabel("N")
             sp.set_zeroLine(values[-1])
-            sp.add_annotation(0, "Battery disconnect")
-            sp.add_annotation(-1, "Last observation")
-            sp.add_textBox("NE", "Estimated VOC: {:.2f} V", values[-1])
-            ax = sp(t, V)
+            sp.add_annotation(0, self.ev.dates[0])
+            sp.add_annotation(-1, self.ev.dates[-1])
+            ax = sp(t, self.ev.X)
             tm = np.linspace(
                 t.min(), self.extrapolationMultiple*t.max(), self.N_curve_plot)
-            V_curve = self.ev.curve(tm, *values)
-            ax.plot(tm, V_curve, color='red', marker='o', markersize=2)
-            # Residuals
-            res = self.ev.curve(t, *values) - V
-            sp.set_ylabel("dV")
-            sp.set_zeroLine()
-            k = np.argmax(np.abs(res[2:])) + 2
-            resPercentage = 100 * res[k]/V[k]
-            sp(t, res)
+            X_curve = self.ev.curve(tm, *values)
+            ax.plot(tm, X_curve, color='red', marker='o', markersize=2)
         self.pt.show()
 
 
 class Evaluator(Picklable):
     """
-    I evaluate battery VOC model fitness.
+    I evaluate fitness of the function::
+
+        x(t) = a*t + b*exp(c*t) + d
+
+    against data for daily numbers of reported COVID-19 cases, where
+    I{x} is the number of expected reported cases and I{t} is the time
+    since the first observation in hours.
     
     Construct an instance of me, run the L{setup} method, and wait (in
     non-blocking Twisted-friendly fashion) for the C{Deferred} it
     returns to fire. Then call the instance a bunch of times with
     parameter values for a L{curve} to get a (deferred)
-    sum-of-squared-error fitness of the curve to the thermistor data.
+    sum-of-squared-error fitness of the curve to the actual data.
     """
     scale_SSE = 100
     bounds = {
-        # Initial rapid drop with up to 10 minute time constant
-        'a1':   (0,      40),
-        'b1':   (1,      10*60),
-        'c1':   (1,      200),
-        # Middle drop with 20 min to 2 hour time constant
-        'a2':   (0,      600),
-        'b2':   (20*60,  2*3600),
-        'c2':   (50,     1000),
-        # Slow settling with 1-12 hour time constant
-        'a3':   (0,      800),
-        'b3':   (3600,   12*3600),
-        'c3':   (100,    4000),
-        # A bit beyond the extremes for VOC of an AGM lead acid battery
-        'voc':  (45,     54),
+        # Linear term (increase per hour in expected number of new
+        # daily cases)
+        'a':    (0.2,    10),
+        # Exponential term (expected number of exponentially
+        # increasing new daily cases at outset)
+        'b':    (0.03,   20),
+        # Scaling coefficient (number of daily case doublings expected
+        # per ... hrs)
+        'c':    (0.001,  0.02),
+        # Constant term (number of reported cases at outset)
+        'd':    (1,     200),
     }
 
     def setup(self):
@@ -181,7 +290,7 @@ class Evaluator(Picklable):
         parameter name.
         """
         def done(null):
-            for name in ('t', 'X'):
+            for name in ('t', 'X', 'dates'):
                 setattr(self, name, getattr(data, name))
             return names, bounds
 
@@ -190,33 +299,27 @@ class Evaluator(Picklable):
         for name in names:
             bounds.append(self.bounds[name])
         # The data
-        data = BatteryData()
+        data = Covid19Data_US()
         return data.setup().addCallbacks(done, oops)
 
     def curve(self, t, *args):
         """
         Given a 1-D time vector followed by arguments defining curve
-        parameters, returns a 1-D vector of battery voltage over that
-        time with with no charge or discharge current, with one
-        particular but unknown SOC.
+        parameters, returns a 1-D vector of expected Covid-19 cases to
+        be reported over that time, in hours.
 
         The model implements this equation:
 
-        M{V = a1*exp(-t/b1+c1) + ... ak*exp(-t/bk+ck) + voc}
+        M{x = a*t + b*np.exp(c*t) + d}
         """
-        V = args[-1]
-        for k in range(3):
-            a, b, c = args[3*k:3*k+3]
-            V += a*np.exp(-(t+c)/b)
-        return V
+        return args[0]*t + args[1]*np.exp(args[2]*t) + args[3]
     
     def __call__(self, values):
         """
         Evaluation function for the parameter I{values}.
         """
-        V = self.X[:,0]
-        V_curve = self.curve(self.t, *values)
-        return self.scale_SSE * np.sum(np.square(V_curve - V))
+        X_curve = self.curve(self.t, *values)
+        return self.scale_SSE * np.sum(np.square(X_curve - self.X))
 
         
 class Runner(object):
@@ -237,7 +340,7 @@ class Runner(object):
         self.ev = Evaluator()
         N = args.N if args.N else ProcessQueue.cores()-1
         self.q = ProcessQueue(N, returnFailure=True)
-        self.fh = open("voc.log", 'w') if args.l else True
+        self.fh = open("covid19.log", 'w') if args.l else True
         msg(self.fh)
 
     @defer.inlineCallbacks
@@ -306,8 +409,8 @@ def main():
 
 args = Args(
     """
-    Parameter finder for AGM lead-acid battery open-circuit voltage
-    model using Differential Evolution.
+    Parameter finder for model of Covid-19 number of US reported cases
+    vs time using Differential Evolution.
 
     Downloads a compressed CSV file of real VOC data points from
     edsuom.com to the current directory (if it's not already
@@ -329,5 +432,6 @@ args('-b', '--best', "Use DE/best/1 instead of DE/rand/1")
 args('-n', '--not-adaptive', "Don't use automatic F adaptation")
 args('-u', '--uniform', "Initialize population uniformly instead of with LHS")
 args('-N', '--N-cores', 0, "Limit the number of CPU cores")
-args('-l', '--logfile', "Write results to logfile 'voc.log' instead of STDOUT")
+args('-l', '--logfile',
+     "Write results to logfile 'covid19.log' instead of STDOUT")
 args(main)
