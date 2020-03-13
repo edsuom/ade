@@ -90,10 +90,10 @@ from ade.util import *
 from data import Data
 
 
-class Covid19Data(Data):
+class Covid19Data_JH(Data):
     """
     Run L{setup} on my instance to decompress and load the
-    voc.csv.bz2 CSV file.
+    covid19-JH.csv.bz2 CSV file from Johns Hopkins.
 
     The CSV file isn't included in the I{ade} package and will
     automatically be downloaded from U{edsuom.com}. Here's the privacy
@@ -103,14 +103,17 @@ class Covid19Data(Data):
         Privacy policy: I don’t sniff out, track, or share anything
         identifying individual visitors to this site. There are no
         cookies or anything in place to let me see where you go on the
-        Internetthat’s creepy. All I get (like anyone else with a web
-        server), is plain vanilla server logs with “referral” info
+        Internet--that’s creepy. All I get (like anyone else with a
+        web server), is plain vanilla server logs with “referral” info
         about which web page sent you to this one.
 
     @see: The L{Data} base class.
     """
-    basename = "covid19"
+    basename = "covid19-JH"
     reDate = re.compile(r'([0-9]+)/([0-9]+)/([0-9]+)')
+
+    re_ps_yes = None
+    re_ps_no = None
 
     def __len__(self):
         return len(self.dates)
@@ -149,13 +152,15 @@ class Covid19Data(Data):
         region code and country code match the desired values.
         """
         for rvl in result:
-            if rvl[0] not in self.regionCodes:
-                continue
             if rvl[1] not in self.countryCodes:
                 continue
-            print rvl
+            if self.re_ps_no and self.re_ps_no.search(rvl[0]):
+                continue
+            if self.re_ps_yes and not self.re_ps_yes.search(rvl[0]):
+                msg("Not included: {}, {}", rvl[0], rvl[1])
+                continue
             yield np.array([int(x) for x in rvl[4:]])
-            
+                
     def parseValues(self, result):
         self.parseDates(result)
         self.X = np.zeros(len(self))
@@ -170,24 +175,14 @@ class Covid19Data(Data):
         return self.load().addCallback(self.parseValues)
 
 
-class Covid19Data_US(Covid19Data):    
+class Covid19Data_US_JH(Covid19Data_JH):
+    re_ps_yes = re.compile(
+        r'(\ Princess|District\ of\ Columbia|(\ (County|Parish),\ [A-Z]{2}))')
     countryCodes = ['US']
-    regionCodes = [
-        'Alabama',              'Alaska',       'Arizona',      'Arkansas',
-        'California',           'Colorado',     'Connecticut',  'Delaware',
-        'Florida',              'Georgia',      'Hawaii',
-        'Idaho',                'Illinois',     'Indiana',      'Iowa',
-        'Kansas',               'Kentucky',     'Louisiana',    'Maine',
-        'Maryland',             'Massachusetts',
-        'Michigan',             'Minnesota',    'Mississippi',  'Missouri',
-        'Montana',              'Nebraska',     'Nevada',       'New Hampshire',
-        'New Jersey',           'New Mexico',   'New York',     'North Carolina',
-        'North Dakota',         'Ohio',         'Oklahoma',     'Oregon',
-        'Pennsylvania',         'Rhode Island', 'South Carolina',
-        'South Dakota',         'Tennessee',    'Texas',        'Utah',
-        'Vermont',              'Virginia',     'Washington',
-        'West Virginia',        'Wisconsin',    'Wyoming',
-    ]
+
+    
+class Covid19Data_Italy_JH(Covid19Data_JH):
+    countryCodes = ['Italy']
 
 
 class Reporter(object):
@@ -203,9 +198,8 @@ class Reporter(object):
         the actual vs. modeled temperature versus thermistor
         resistance curves.
     """
-    plotFilePath = "voc.png"
-    N_curve_plot = 200
-    extrapolationMultiple = 3
+    plotFilePath = "covid19.png"
+    daysMax = 70
 
     def __init__(self, evaluator, population):
         """
@@ -228,7 +222,7 @@ class Reporter(object):
 
         SSE_info = sub("SSE={:g}", SSE)
         titleParts = []
-        titlePart("Cases vs Time (hr)")
+        titlePart("Cases vs Time (days)")
         titlePart(SSE_info)
         titlePart("k={:d}", counter)
         msg(0, self.prettyValues(values, SSE_info+", with"), 0)
@@ -237,16 +231,16 @@ class Reporter(object):
             sp.set_title(", ".join(titleParts))
             # Model versus observations
             sp.add_line('-', 1)
-            sp.set_xlabel("Hours")
+            sp.set_xlabel("Days")
             sp.set_ylabel("N")
-            sp.set_zeroLine(values[-1])
             sp.add_annotation(0, self.ev.dates[0])
             sp.add_annotation(-1, self.ev.dates[-1])
-            ax = sp(t, self.ev.X)
-            tm = np.linspace(
-                t.min(), self.extrapolationMultiple*t.max(), self.N_curve_plot)
+            for k, nb in enumerate(self.ev.bounds):
+                sp.add_textBox('SE', "{}: {:.5g}", nb[0], values[k])
+            ax = sp.semilogy(t/24, self.ev.X)
+            tm = np.arange(0, self.daysMax*24, 24)
             X_curve = self.ev.curve(tm, *values)
-            ax.plot(tm, X_curve, color='red', marker='o', markersize=2)
+            ax.semilogy(tm/24, X_curve, color='red', marker='o', markersize=2)
         self.pt.show()
 
 
@@ -254,7 +248,7 @@ class Evaluator(Picklable):
     """
     I evaluate fitness of the function::
 
-        x(t) = a*t + b*exp(c*t) + d
+        x(t) = L/(1 + exp(-k*(t-t0))) + a*t
 
     against data for daily numbers of reported COVID-19 cases, where
     I{x} is the number of expected reported cases and I{t} is the time
@@ -267,19 +261,18 @@ class Evaluator(Picklable):
     sum-of-squared-error fitness of the curve to the actual data.
     """
     scale_SSE = 100
-    bounds = {
-        # Linear term (increase per hour in expected number of new
-        # daily cases)
-        'a':    (0.2,    10),
-        # Exponential term (expected number of exponentially
-        # increasing new daily cases at outset)
-        'b':    (0.03,   20),
-        # Scaling coefficient (number of daily case doublings expected
-        # per ... hrs)
-        'c':    (0.001,  0.02),
-        # Constant term (number of reported cases at outset)
-        'd':    (1,     200),
-    }
+    bounds = [
+        # Maximum number of cases expected to be reported, ever
+        ('L',   (3e4, 7e5)),
+        # The logistic growth rate, proportional to the number of
+        # cases being reported per hour at midpoint
+        ('k',   (5e-3, 1e-2)),
+        # Midpoint time (hours)
+        ('t0',  (1000,  2000)),
+        # Linear term (constant hourly increase in the number of
+        # reported cases)
+        ('a',   (0.01,    1.0)),
+    ]
 
     def setup(self):
         """
@@ -294,12 +287,12 @@ class Evaluator(Picklable):
                 setattr(self, name, getattr(data, name))
             return names, bounds
 
-        bounds = []
-        names = sorted(self.bounds.keys())
-        for name in names:
-            bounds.append(self.bounds[name])
+        names = []; bounds = []
+        for name, theseBounds in self.bounds:
+            names.append(name)
+            bounds.append(theseBounds)
         # The data
-        data = Covid19Data_US()
+        data = Covid19Data_Italy_JH()
         return data.setup().addCallbacks(done, oops)
 
     def curve(self, t, *args):
@@ -308,11 +301,19 @@ class Evaluator(Picklable):
         parameters, returns a 1-D vector of expected Covid-19 cases to
         be reported over that time, in hours.
 
-        The model implements this equation:
+        A logistic growth model with a small amount of linearity (due
+        to increasing testing early on skewing the early case numbers
+        upward) is implemented this equation:
 
-        M{x = a*t + b*np.exp(c*t) + d}
+        M{x = L/(1 + exp(-k*(t-t0))) + a*t}
         """
-        return args[0]*t + args[1]*np.exp(args[2]*t) + args[3]
+        #import pdb; pdb.set_trace() 
+        L, k, t0, a = args
+        inside = -k*(t-t0)
+        X = np.zeros_like(t)
+        K = np.flatnonzero(inside < 700)
+        X[K] = L/(1 + np.exp(inside[K]))
+        return X + a*t
     
     def __call__(self, values):
         """
@@ -338,8 +339,12 @@ class Runner(object):
         """
         self.args = args
         self.ev = Evaluator()
+        #--- DEBUG -----------------------------------------------
         N = args.N if args.N else ProcessQueue.cores()-1
         self.q = ProcessQueue(N, returnFailure=True)
+        #from asynqueue import ThreadQueue
+        #self.q = ThreadQueue()
+        #---------------------------------------------------------
         self.fh = open("covid19.log", 'w') if args.l else True
         msg(self.fh)
 
