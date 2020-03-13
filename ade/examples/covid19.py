@@ -77,6 +77,7 @@ from datetime import date, timedelta
 
 import numpy as np
 
+from twisted.python import failure
 from twisted.internet import reactor, defer
 
 from asynqueue.process import ProcessQueue
@@ -85,15 +86,32 @@ from yampex.plot import Plotter
 from ade.population import Population
 from ade.de import DifferentialEvolution
 from ade.image import ImageViewer
+from ade.abort import abortNow
 from ade.util import *
+
 
 from data import Data
 
 
-class Covid19Data_JH(Data):
+def oops(failureObj):
+    """
+    A handy universal errback.
+
+    Prints the failure's error message to STDOUT and then stops
+    everything so you can figure out what went wrong.
+    """
+    if isinstance(failureObj, failure.Failure):
+        info = failureObj.getTraceback()
+    else: info = str(failureObj)
+    print(sub("Failure:\n{}\n{}\n", '-'*40, info))
+    abortNow()
+    os._exit(1)
+
+
+class Covid19Data(Data):
     """
     Run L{setup} on my instance to decompress and load the
-    covid19-JH.csv.bz2 CSV file from Johns Hopkins.
+    covid19.csv.bz2 CSV file from Johns Hopkins.
 
     The CSV file isn't included in the I{ade} package and will
     automatically be downloaded from U{edsuom.com}. Here's the privacy
@@ -109,7 +127,7 @@ class Covid19Data_JH(Data):
 
     @see: The L{Data} base class.
     """
-    basename = "covid19-JH"
+    basename = "covid19"
     reDate = re.compile(r'([0-9]+)/([0-9]+)/([0-9]+)')
 
     re_ps_yes = None
@@ -138,7 +156,7 @@ class Covid19Data_JH(Data):
             if not m:
                 raise ValueError(sub(
                     "Couldn't parse '{}' as a date!", dateText))
-            thisDate = date(g2i(3), g2i(1), g2i(2))
+            thisDate = date(2000+g2i(3), g2i(1), g2i(2))
             if firstDate is None:
                 firstDate = thisDate
             self.dates.append(thisDate)
@@ -172,76 +190,39 @@ class Covid19Data_JH(Data):
         Calling this gets you a C{Deferred} that fires when setup is done
         and my I{t} and I{X} ivars are ready.
         """
-        return self.load().addCallback(self.parseValues)
+        return self.load().addCallbacks(self.parseValues, oops)
 
 
-class Covid19Data_US_JH(Covid19Data_JH):
-    re_ps_yes = re.compile(
-        r'(\ Princess|District\ of\ Columbia|(\ (County|Parish),\ [A-Z]{2}))')
+class Covid19Data_US(Covid19Data):
     countryCodes = ['US']
+    bounds = [
+        # Maximum number of cases expected to be reported, ever
+        ('L',   (1e5, 2e6)),
+        # The logistic growth rate, proportional to the number of
+        # cases being reported per hour at midpoint
+        ('k',   (1.2e-2, 1.5e-2)),
+        # Midpoint time (hours)
+        ('t0',  (1500, 1800)),
+        # Linear term (constant hourly increase in the number of
+        # reported cases)
+        ('a',   (8e-3, 5e-2)),
+    ]
 
-    
-class Covid19Data_Italy_JH(Covid19Data_JH):
+
+class Covid19Data_Italy(Covid19Data):
     countryCodes = ['Italy']
-
-
-class Reporter(object):
-    """
-    An instance of me is called each time a combination of parameters
-    is found that's better than any of the others thus far.
-
-    Prints the sum-of-squared error and parameter values to the
-    console and updates a plot image (PNG) at I{plotFilePath}.
-
-    @cvar plotFilePath: The file name in the current directory of a
-        PNG file to write an update with a Matplotlib plot image of
-        the actual vs. modeled temperature versus thermistor
-        resistance curves.
-    """
-    plotFilePath = "covid19.png"
-    daysMax = 70
-
-    def __init__(self, evaluator, population):
-        """
-        C{Reporter(evaluator, population)}
-        """
-        self.ev = evaluator
-        self.prettyValues = population.pm.prettyValues
-        self.pt = Plotter(
-            1, filePath=self.plotFilePath, width=16, height=9)
-        self.pt.use_grid()
-        ImageViewer(self.plotFilePath)
-    
-    def __call__(self, values, counter, SSE):
-        """
-        Prints out a new best parameter combination and its curve vs
-        observations, with lots of extrapolation to the right.
-        """
-        def titlePart(*args):
-            titleParts.append(sub(*args))
-
-        SSE_info = sub("SSE={:g}", SSE)
-        titleParts = []
-        titlePart("Cases vs Time (days)")
-        titlePart(SSE_info)
-        titlePart("k={:d}", counter)
-        msg(0, self.prettyValues(values, SSE_info+", with"), 0)
-        with self.pt as sp:
-            t = self.ev.t
-            sp.set_title(", ".join(titleParts))
-            # Model versus observations
-            sp.add_line('-', 1)
-            sp.set_xlabel("Days")
-            sp.set_ylabel("N")
-            sp.add_annotation(0, self.ev.dates[0])
-            sp.add_annotation(-1, self.ev.dates[-1])
-            for k, nb in enumerate(self.ev.bounds):
-                sp.add_textBox('SE', "{}: {:.5g}", nb[0], values[k])
-            ax = sp.semilogy(t/24, self.ev.X)
-            tm = np.arange(0, self.daysMax*24, 24)
-            X_curve = self.ev.curve(tm, *values)
-            ax.semilogy(tm/24, X_curve, color='red', marker='o', markersize=2)
-        self.pt.show()
+    bounds = [
+        # Maximum number of cases expected to be reported, ever
+        ('L',   (1.4e4, 3.4e4)),
+        # The logistic growth rate, proportional to the number of
+        # cases being reported per hour at midpoint
+        ('k',   (1.0e-2, 1.7e-2)),
+        # Midpoint time (hours)
+        ('t0',  (1100, 1220)),
+        # Linear term (constant hourly increase in the number of
+        # reported cases)
+        ('a',   (0.0, 0.2)),
+    ]
 
 
 class Evaluator(Picklable):
@@ -260,22 +241,13 @@ class Evaluator(Picklable):
     parameter values for a L{curve} to get a (deferred)
     sum-of-squared-error fitness of the curve to the actual data.
     """
-    scale_SSE = 100
-    bounds = [
-        # Maximum number of cases expected to be reported, ever
-        ('L',   (3e4, 7e5)),
-        # The logistic growth rate, proportional to the number of
-        # cases being reported per hour at midpoint
-        ('k',   (5e-3, 1e-2)),
-        # Midpoint time (hours)
-        ('t0',  (1000,  2000)),
-        # Linear term (constant hourly increase in the number of
-        # reported cases)
-        ('a',   (0.01,    1.0)),
-    ]
+    scale_SSE = 1e-3
 
-    def setup(self):
+    def setup(self, klass):
         """
+        Call with a subclass I{klass} of L{Covid19Data} with data and
+        bounds for evaluation of my model.
+        
         Returns a C{Deferred} that fires with two equal-length sequences,
         the names and bounds of all parameters to be determined.
 
@@ -283,16 +255,17 @@ class Evaluator(Picklable):
         parameter name.
         """
         def done(null):
-            for name in ('t', 'X', 'dates'):
+            for name in ('bounds', 't', 'X', 'dates'):
                 setattr(self, name, getattr(data, name))
             return names, bounds
 
+        if not issubclass(klass, Covid19Data):
+            raise TypeError("You must supply a subclass of Covid19Data")
+        data = klass()
         names = []; bounds = []
-        for name, theseBounds in self.bounds:
+        for name, theseBounds in data.bounds:
             names.append(name)
             bounds.append(theseBounds)
-        # The data
-        data = Covid19Data_Italy_JH()
         return data.setup().addCallbacks(done, oops)
 
     def curve(self, t, *args):
@@ -307,13 +280,13 @@ class Evaluator(Picklable):
 
         M{x = L/(1 + exp(-k*(t-t0))) + a*t}
         """
-        #import pdb; pdb.set_trace() 
         L, k, t0, a = args
         inside = -k*(t-t0)
         X = np.zeros_like(t)
         K = np.flatnonzero(inside < 700)
         X[K] = L/(1 + np.exp(inside[K]))
-        return X + a*t
+        X = X + a*t
+        return np.clip(X, 1, None)
     
     def __call__(self, values):
         """
@@ -322,7 +295,121 @@ class Evaluator(Picklable):
         X_curve = self.curve(self.t, *values)
         return self.scale_SSE * np.sum(np.square(X_curve - self.X))
 
+
+class Reporter(object):
+    """
+    An instance of me is called each time a combination of parameters
+    is found that's better than any of the others thus far.
+
+    Prints the sum-of-squared error and parameter values to the
+    console and updates a plot image (PNG) at I{plotFilePath}.
+
+    @cvar plotFilePath: The file name in the current directory of a
+        PNG file to write an update with a Matplotlib plot image of
+        the actual vs. modeled temperature versus thermistor
+        resistance curves.
+    """
+    plotFilePath = "covid19.png"
+    daysMax = 75
+
+    def __init__(self, evaluator, population):
+        """
+        C{Reporter(evaluator, population)}
+        """
+        self.ev = evaluator
+        self.prettyValues = population.pm.prettyValues
+        self.pt = Plotter(
+            1, filePath=self.plotFilePath, width=18, height=14)
+        self.pt.use_grid()
+        ImageViewer(self.plotFilePath)
+
+    def day(self, k=None):
+        """
+        With an integer I{k}, returns text indicating the date I{k} days
+        after the start. Otherwise, returns an integer value of
+        I{k} for today.
+        """
+        firstDay = self.ev.dates[0]
+        if k is None:
+            seconds_in = (date.today() - firstDay).total_seconds()
+            return int(seconds_in / 3600 / 24)
+        return (firstDay + timedelta(days=k)).strftime("%m/%d")
         
+    def curvePoints(self, values):
+        """
+        Returns a customized I{t} and I{X} with one point per day along
+        the best-fit curve, extrapolating as necessary to reach my
+        I{daysMax}.
+
+        The unit for the returned I{t} is days even though the curve
+        of my L{Evaluator} accepts its I{t} vector with the unit being
+        hours.
+        """
+        tDaily = np.arange(0, self.daysMax, 1)
+        tDailyHours = 24 * tDaily
+        X = self.ev.curve(tDailyHours, *values)
+        return tDaily, X
+    
+    def __call__(self, values, counter, SSE):
+        """
+        Prints out a new best parameter combination and its curve vs
+        observations, with lots of extrapolation to the right.
+        """
+        def titlePart(*args):
+            titleParts.append(sub(*args))
+
+        def getValue(name):
+            for k, nb in enumerate(self.ev.bounds):
+                if nb[0] == name:
+                    return values[k]
+
+        def annotate_day(k=None):
+            if k is None:
+                k = self.day()
+            elif k < 0:
+                k = len(X_curve) + k
+            cases = X_curve[k]
+            sp.add_annotation(
+                k, "{:n} on {}", int(round(cases)), self.day(k), kVector=1)
+            return k
+                    
+        SSE_info = sub("SSE={:g}", SSE)
+        titleParts = []
+        titlePart("Cases vs Time (days)")
+        titlePart(SSE_info)
+        titlePart("k={:d}", counter)
+        msg(0, self.prettyValues(values, SSE_info+", with"), 0)
+        with self.pt as sp:
+            t = self.ev.t
+            sp.set_title(", ".join(titleParts))
+            # Observations...
+            sp.add_line('-', 1)
+            sp.set_xlabel("Days")
+            sp.set_ylabel("N")
+            for k, nb in enumerate(self.ev.bounds):
+                sp.add_textBox('SE', "{}: {:.5g}", nb[0], values[k])
+            # ...vs model
+            tCurve, X_curve = self.curvePoints(values)
+            t0_days = getValue('t0') / 24
+            if t0_days < tCurve.max():
+                sp.add_annotation(t0_days, "t0", kVector=1)
+            # Today
+            k = annotate_day()
+            # One week from today
+            annotate_day(k+7)
+            # Two weeks from today
+            annotate_day(k+14)
+            # When target case thresholds reached
+            for xt in (10000, 50000, 100000, 500000):
+                if xt > X_curve[k] and xt < X_curve[-1]:
+                    kt = np.argmin(np.abs(X_curve - xt))
+                    annotate_day(kt)
+            ax = sp.semilogy(t/24, self.ev.X)
+            ax.semilogy(
+                tCurve, X_curve, color='red', marker='o', markersize=2)
+        self.pt.show()
+
+    
 class Runner(object):
     """
     I run everything to fit a curve to thermistor data using
@@ -339,12 +426,8 @@ class Runner(object):
         """
         self.args = args
         self.ev = Evaluator()
-        #--- DEBUG -----------------------------------------------
         N = args.N if args.N else ProcessQueue.cores()-1
         self.q = ProcessQueue(N, returnFailure=True)
-        #from asynqueue import ThreadQueue
-        #self.q = ThreadQueue()
-        #---------------------------------------------------------
         self.fh = open("covid19.log", 'w') if args.l else True
         msg(self.fh)
 
@@ -362,7 +445,23 @@ class Runner(object):
             msg("Task Queue is shut down")
             self.q = None
             msg("Goodbye")
-        
+
+    def tryGetClass(self):
+        """
+        Tries to return a reference to a subclass of L{Covid19Data} with
+        the supplied I{suffix} following an underscore.
+        """
+        if not len(self.args):
+            raise RuntimeError(
+                "You must specify a recognized country/state code")
+        name = sub("Covid19Data_{}", self.args[0])
+        try: klass = globals()[name]
+        except ImportError:
+            klass = None
+        if klass is not None and issubclass(klass, Covid19Data):
+            return klass
+        raise ImportError(sub("No data subclass '{}' found!", name))
+            
     def evaluate(self, values):
         """
         The function that gets called with each combination of parameters
@@ -375,13 +474,16 @@ class Runner(object):
     
     @defer.inlineCallbacks
     def __call__(self):
-        t0 = time.time()
         args = self.args
-        names_bounds = yield self.ev.setup().addErrback(oops)
-        self.p = Population(
-            self.evaluate,
-            names_bounds[0], names_bounds[1], popsize=args.p)
-        yield self.p.setup().addErrback(oops)
+        startTime = time.time()
+        klass = self.tryGetClass()
+        names, bounds = yield self.ev.setup(klass).addErrback(oops)
+        if len(args) > 1:
+            self.p = Population.load(
+                args[1], func=self.evaluate, bounds=bounds)
+        else:
+            self.p = Population(self.evaluate, names, bounds, popsize=args.p)
+            yield self.p.setup().addErrback(oops)
         reporter = Reporter(self.ev, self.p)
         self.p.addCallback(reporter)
         F = [float(x) for x in args.F.split(',')]
@@ -393,7 +495,12 @@ class Runner(object):
         yield de()
         yield self.shutdown()
         msg(0, "Final population:\n{}", self.p)
-        msg(0, "Elapsed time: {:.2f} seconds", time.time()-t0, 0)
+        msg(0, "Elapsed time: {:.2f} seconds", time.time()-startTime, 0)
+        if len(args.P) > 1:
+            savePicklePath = args.P
+            self.p.save(savePicklePath)
+            msg("Saved final population of best parameter combinations "+\
+                "to {}", savePicklePath)
         msg(None)
         reactor.stop()
 
@@ -417,20 +524,24 @@ args = Args(
     Parameter finder for model of Covid-19 number of US reported cases
     vs time using Differential Evolution.
 
-    Downloads a compressed CSV file of real VOC data points from
+    Downloads a compressed CSV file of Covid-19 data points from
     edsuom.com to the current directory (if it's not already
-    present). The data points and the current best-fit curves are
-    plotted in the PNG file (also in the current directory)
-    pfinder.png. You can see the plots, automatically updated, with
-    the Linux command "qiv -Te thermistor.png". (Possibly that other
-    OS may have something that works, too.)
+    present). The data points are plotted against the current best-fit
+    curve, along with a statistical extrapolation plot, in the PNG
+    file (also in the current directory) covid19.png.
+
+    On Linux, a plot window should be opened automatically. If not,
+    you can obtain the free "qiv" image viewer and see the plots,
+    automatically updated, with the command "qiv -Te
+    covid19.png". (Possibly the other OS's may have something that
+    works, too.)
 
     Press the Enter key to quit early.
     """
 )
-args('-m', '--maxiter', 800, "Maximum number of DE generations to run")
+args('-m', '--maxiter', 300, "Maximum number of DE generations to run")
 args('-e', '--bitter-end', "Keep working to the end even with little progress")
-args('-p', '--popsize', 20, "Population: # individuals per unknown parameter")
+args('-p', '--popsize', 30, "Population: # individuals per unknown parameter")
 args('-C', '--CR', 0.8, "DE Crossover rate CR")
 args('-F', '--F', "0.5,1.0", "DE mutation scaling F: two values for range")
 args('-b', '--best', "Use DE/best/1 instead of DE/rand/1")
@@ -439,4 +550,7 @@ args('-u', '--uniform', "Initialize population uniformly instead of with LHS")
 args('-N', '--N-cores', 0, "Limit the number of CPU cores")
 args('-l', '--logfile',
      "Write results to logfile 'covid19.log' instead of STDOUT")
+args('-P', '--pickle', "covid19.dat",
+     "Pickle dump file for finalized ade.Population object ('-' for none)")
+args("<Country/State Name> [<pickle file>]")
 args(main)
