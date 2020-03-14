@@ -25,59 +25,76 @@
 
 """
 Example script I{covid19.py}: Identifying coefficients for a naive
-linear+exponential model of the number of reported cases vs time in
+logistic growth model of the number of reported cases vs time in
 hours.
 
 This example reads a CSV file you may obtain from John Hopkins (one
 that was obtained as of the date of this commit/version). Each line
 contains the number of reported cases for one region of the world.
 
-The datafile C{time_series_19-covid-Confirmed.csv} is for educational
-purposes and reproduced under the Terms of Use for the data file,
-which is as follows:
+You probably want to see how many cases may be reported in your
+country. If those are Iran, Italy, and US, you're in luck (actually,
+not), because there are already subclasses of L{Covid19Data} for
+them. To try it out in the U.S. for example, if you're wondering why
+our shithead president can't seem to grasp that this is a real crisis,
+do the command line "./covid19.py US" inside this file's directory
+(presumably ~/ade-examples). This works on Linux; you'll probably know
+how to do the equivalent in lesser operating systems. The code might
+even run.
 
-    This GitHub repo and its contents herein, including all data,
-    mapping, and analysis, copyright 2020 Johns Hopkins University,
-    all rights reserved, is provided to the public strictly for
-    educational and academic research purposes.  The Website relies
-    upon publicly available data from multiple sources, that do not
-    always agree. The Johns Hopkins University hereby disclaims any
-    and all representations and warranties with respect to the
-    Website, including accuracy, fitness for use, and merchantability.
-    Reliance on the Website for medical guidance or use of the Website
-    in commerce is strictly prohibited.
+The datafile time_series_19-covid-Confirmed.csv is for educational
+purposes and reproduced (via download from edsuom.com) under the Terms
+of Use for the data file, which is as follows:
+
+"This GitHub repo and its contents herein, including all data,
+mapping, and analysis, copyright 2020 Johns Hopkins University,
+all rights reserved, is provided to the public strictly for
+educational and academic research purposes.  The Website relies
+upon publicly available data from multiple sources, that do not
+always agree. The Johns Hopkins University hereby disclaims any
+and all representations and warranties with respect to the
+Website, including accuracy, fitness for use, and merchantability.
+Reliance on the Website for medical guidance or use of the Website
+in commerce is strictly prohibited."
 
 A few people may come across this source file out of their own
 interest in and concern about the COVID-19 coronavirus. I hope this
 example of my open-source evolutionary optimization software of mine
 gives them some insights about the situation.
 
-BUT PLEASE NOTE THIS CRITICAL DISCLAIMER: I know very little about
-biology, beyond a layman's fascination with it and the way everything
-evolved. (Including this virus!) I do have some experience with
-modeling, including using this I{ade} package to develop some really
-cool power open-source (free!) semiconductor simulation software that
-I'll be releasing in a month or so. It has a sophisticated subcircuit
-model for power MOSFETs that evolves 40+ parameters (an unfathomably
-huge search space) using this very package whose example you are now
-reading.
+BUT PLEASE NOTE THIS CRITICAL DISCLAIMER: First, I disclaim everything
+that John Hopkins does. I'm pretty sure their lawyers had good reason
+for putting that stuff in there, so I'm going to repeat it. Except
+think "Ed Suominen" when you are reading "The Johns Hopkins
+University."
+
+Second, I know very little about biology, beyond a layman's
+fascination with it and the way everything evolved. (Including this
+virus!) I do have some experience with modeling, including using this
+ADE package to develop some really cool power semiconductor simulation
+software that I'll be releasing in a month or so from when I'm doing
+the GitHub commit with this COVID-19 example. The software (also to be
+free and open-source!) has a sophisticated subcircuit model for power
+MOSFETs that evolves 40+ parameters (an unfathomably huge search
+space). And it does so with this very package whose example you are
+now reading.
 
 The model I'm using for the number of reported cases of COVID-19
 follows the logistic growth model, with a small (and not terribly
 significant) linear term added. It has just 4 parameters, and finding
 the best combination of those parameters is no problem at all for
-I{ade}.
+ADE.
 
 So, YES, THIS IS STILL A DISCLAIMER, I am not an expert in any of the
 actual realms of medicine, biology, etc. that we rely on for telling
 us what's going on with this virus. I just know how to fit models to
 data, in this case a model that is well understood to apply to
 biological populations.
-U{https://services.math.duke.edu/education/ccp/materials/diffeq/logistic/logi1.html}.
-Don't even think of relying on this analysis or the results of it for
+
+Don't even THINK of relying on this analysis or the results of it for
 any substantive action. If you really find it that important, then
-investigate for yourself the math, programming, and theory behind my
-use of the math for this situation. Run the code, play with it,
+investigate for yourself the math, programming, and the theory behind
+my use of the math for this situation. Run the code, play with it,
 critique it, consider how well the model does or does not
 apply. Consider whether the limiting part of the curve might occur
 more drastically or sooner, thus making this not as big a deal. Listen
@@ -106,10 +123,11 @@ Uses asynchronous differential evolution to efficiently find a
 population of best-fit combinations of four parameters for the
 function::
 
-    f(t) = a*t + b*exp(c*t) + d
+    x(t) = L/(1 + exp(-k*(t-t0))) + a*t
 
-where I{f} is the number of reported cases and I{t} is the time, in
-hours, since the first report in this dataset.
+against data for daily numbers of reported COVID-19 cases, where
+I{x} is the number of expected reported cases and I{t} is the time
+since the first observation, in hours.
 """
 
 import re
@@ -255,15 +273,15 @@ class Covid19Data_US(Covid19Data):
     countryCodes = ['US']
     bounds = [
         # Maximum number of cases expected to be reported, ever
-        ('L',   (1e5, 3e6)),
+        ('L',   (1e5, 5e6)),
         # The logistic growth rate, proportional to the number of
         # cases being reported per hour at midpoint
-        ('k',   (1.2e-2, 1.5e-2)),
+        ('k',   (1.2e-2, 1.6e-2)),
         # Midpoint time (hours)
         ('t0',  (1500, 1800)),
         # Linear term (constant hourly increase in the number of
         # reported cases)
-        ('a',   (8e-3, 5e-2)),
+        ('a',   (0.01, 0.05)),
     ]
 
 
