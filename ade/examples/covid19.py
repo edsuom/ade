@@ -37,10 +37,21 @@ country. If those are Iran, Italy, and US, you're in luck (actually,
 not), because there are already subclasses of L{Covid19Data} for
 them. To try it out in the U.S. for example, if you're wondering why
 our shithead president can't seem to grasp that this is a real crisis,
-do the command line "./covid19.py US" inside this file's directory
-(presumably ~/ade-examples). This works on Linux; you'll probably know
-how to do the equivalent in lesser operating systems. The code might
-even run.
+
+1. Clone this repo, and update it to make sure you have the latest
+   commit,
+
+2. Do "pip install -e ." from within the top-level 'ade' directory
+   of the repo,
+
+3. Run the command "ade-examples" to create a directory "~/ade-examples".
+
+4. Do the command line "./covid19.py US" inside the ~/ade-examples
+   directory. You'll want to have the "pqiv" program on your computer.
+   It should be as simple as doing "apt install pqiv".
+
+This works on Linux; you'll probably know how to do the equivalent in
+lesser operating systems. The code might even run.
 
 The datafile time_series_19-covid-Confirmed.csv is for educational
 purposes and reproduced (via download from edsuom.com) under the Terms
@@ -273,15 +284,15 @@ class Covid19Data_US(Covid19Data):
     countryCodes = ['US']
     bounds = [
         # Maximum number of cases expected to be reported, ever
-        ('L',   (1e5, 5e6)),
+        ('L',   (1e5, 1.5e7)),
         # The logistic growth rate, proportional to the number of
         # cases being reported per hour at midpoint
-        ('k',   (1.2e-2, 1.6e-2)),
+        ('k',   (1.1e-2, 1.5e-2)),
         # Midpoint time (hours)
-        ('t0',  (1500, 1800)),
+        ('t0',  (1500, 2000)),
         # Linear term (constant hourly increase in the number of
         # reported cases)
-        ('a',   (0.01, 0.05)),
+        ('a',   (0.005, 0.05)),
     ]
 
 
@@ -289,7 +300,7 @@ class Covid19Data_Iran(Covid19Data):
     countryCodes = ['Iran']
     bounds = [
         # Maximum number of cases expected to be reported, ever
-        ('L',   (1e4, 2e4)),
+        ('L',   (1.2e4, 1.9e4)),
         # The logistic growth rate, proportional to the number of
         # cases being reported per hour at midpoint
         ('k',   (1.0e-2, 1.5e-2)),
@@ -305,15 +316,15 @@ class Covid19Data_Italy(Covid19Data):
     countryCodes = ['Italy']
     bounds = [
         # Maximum number of cases expected to be reported, ever
-        ('L',   (1.6e4, 3.4e4)),
+        ('L',   (2e4, 1e5)),
         # The logistic growth rate, proportional to the number of
         # cases being reported per hour at midpoint
-        ('k',   (1.0e-2, 1.3e-2)),
+        ('k',   (5e-3, 1.2e-2)),
         # Midpoint time (hours)
-        ('t0',  (1100, 1260)),
+        ('t0',  (1200, 1400)),
         # Linear term (constant hourly increase in the number of
         # reported cases)
-        ('a',   (0.0, 0.1)),
+        ('a',   (0.0, 0.3)),
     ]
 
 
