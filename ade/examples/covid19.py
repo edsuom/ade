@@ -134,11 +134,18 @@ Uses asynchronous differential evolution to efficiently find a
 population of best-fit combinations of four parameters for the
 function::
 
-    x(t) = L/(1 + exp(-k*(t-t0))) + a*t
+    x(t) = L/(1 + exp(-k*(t-t0)))
 
 against data for daily numbers of reported COVID-19 cases, where
 I{x} is the number of expected reported cases and I{t} is the time
 since the first observation, in hours.
+
+Previously, there was also a linear term M{a*t}, but it did not attain
+a value greater than 0.05 (new cases per hour) in the final population
+of best parameter combinations for modeling U.S. reported cases. So it
+had no significance (what's even 3 additional cases per day when you
+have thousands and are doubling every couple days?) and is now
+discarded.
 """
 
 import re
@@ -284,15 +291,12 @@ class Covid19Data_US(Covid19Data):
     countryCodes = ['US']
     bounds = [
         # Maximum number of cases expected to be reported, ever
-        ('L',   (1e5, 1.5e7)),
+        ('L',   (1e5, 1.7e7)),
         # The logistic growth rate, proportional to the number of
         # cases being reported per hour at midpoint
-        ('k',   (1.1e-2, 1.5e-2)),
+        ('k',   (1.0e-2, 1.35e-2)),
         # Midpoint time (hours)
-        ('t0',  (1500, 2000)),
-        # Linear term (constant hourly increase in the number of
-        # reported cases)
-        ('a',   (0.005, 0.05)),
+        ('t0',  (1600, 2100)),
     ]
 
 
@@ -306,9 +310,6 @@ class Covid19Data_Iran(Covid19Data):
         ('k',   (1.0e-2, 1.5e-2)),
         # Midpoint time (hours)
         ('t0',  (1080, 1180)),
-        # Linear term (constant hourly increase in the number of
-        # reported cases)
-        ('a',   (0.0, 0.15)),
     ]
 
     
@@ -322,9 +323,6 @@ class Covid19Data_Italy(Covid19Data):
         ('k',   (5e-3, 1.2e-2)),
         # Midpoint time (hours)
         ('t0',  (1200, 1400)),
-        # Linear term (constant hourly increase in the number of
-        # reported cases)
-        ('a',   (0.0, 0.3)),
     ]
 
 
@@ -332,7 +330,7 @@ class Evaluator(Picklable):
     """
     I evaluate fitness of the function::
 
-        x(t) = L/(1 + exp(-k*(t-t0))) + a*t
+        x(t) = L/(1 + exp(-k*(t-t0)))
 
     against data for daily numbers of reported COVID-19 cases, where
     I{x} is the number of expected reported cases and I{t} is the time
@@ -385,18 +383,21 @@ class Evaluator(Picklable):
         parameters, returns a 1-D vector of expected Covid-19 cases to
         be reported over that time, in hours.
 
-        A logistic growth model with a small amount of linearity (due
-        to increasing testing early on skewing the early case numbers
-        upward) is implemented this equation:
+        A logistic growth model is implemented this equation:
 
         M{x = L/(1 + exp(-k*(t-t0))) + a*t}
+
+        Previously, the model was modified to include a small amount
+        of linearity (due to increasing testing early on skewing the
+        early case numbers upward). But the I{a} parameter was never
+        significant and has been discarded.
         """
-        L, k, t0, a = args
+        L, k, t0 = args
         inside = -k*(t-t0)
         X = np.zeros_like(t)
         K = np.flatnonzero(inside < 700)
         X[K] = L/(1 + np.exp(inside[K]))
-        return X + a*t
+        return X
     
     def __call__(self, values):
         """
