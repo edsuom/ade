@@ -141,11 +141,11 @@ I{x} is the number of expected reported cases and I{t} is the time
 since the first observation, in hours.
 """
 
-import re
+import re, random
 from datetime import date, timedelta
 
 import numpy as np
-from scipy.stats import triang as dist
+from scipy.stats import uniform
 
 from twisted.python import failure
 from twisted.internet import reactor, defer
@@ -162,6 +162,13 @@ from ade.util import *
 
 from data import Data
 
+
+DISCLAIMER = """
+Dedicated to the public domain by Edwin A. Suominen.
+My only relevant expertise is in fitting nonlinear models
+to data, not biology or medicine. See detailed disclaimer
+in source file covid19.py.
+"""
 
 def oops(failureObj):
     """
@@ -199,6 +206,7 @@ class Covid19Data(Data):
     """
     basename = "covid19"
     reDate = re.compile(r'([0-9]+)/([0-9]+)/([0-9]+)')
+    summaryPosition = 'NW'
 
     re_ps_yes = None
     re_ps_no = None
@@ -253,7 +261,7 @@ class Covid19Data(Data):
         region code and country code match the desired values.
         """
         for rvl in result:
-            if rvl[1] not in self.countryCodes:
+            if rvl[1] != self.countryCode:
                 continue
             if self.re_ps_no and self.re_ps_no.search(rvl[0]):
                 continue
@@ -281,50 +289,67 @@ class Covid19Data(Data):
 
 
 class Covid19Data_US(Covid19Data):
-    countryCodes = ['US']
+    countryCode = 'US'
     bounds = [
         # Maximum number of cases expected to be reported, ever
-        ('L',   (1e5, 1.5e7)),
+        ('L',   (1e7, 5e8)),
         # The logistic growth rate, proportional to the number of
         # cases being reported per hour at midpoint
-        ('k',   (1.1e-2, 1.5e-2)),
+        ('k',   (1.1e-2, 1.25e-2)),
         # Midpoint time (hours)
-        ('t0',  (1500, 2000)),
+        ('t0',  (2050, 2400)),
         # Linear term (constant hourly increase in the number of
         # reported cases)
-        ('a',   (0.005, 0.05)),
+        ('a',   (0, 5e-2)),
     ]
 
 
-class Covid19Data_Iran(Covid19Data):
-    countryCodes = ['Iran']
-    bounds = [
-        # Maximum number of cases expected to be reported, ever
-        ('L',   (1.2e4, 1.9e4)),
-        # The logistic growth rate, proportional to the number of
-        # cases being reported per hour at midpoint
-        ('k',   (1.0e-2, 1.5e-2)),
-        # Midpoint time (hours)
-        ('t0',  (1080, 1180)),
-        # Linear term (constant hourly increase in the number of
-        # reported cases)
-        ('a',   (0.0, 0.15)),
-    ]
-
-    
 class Covid19Data_Italy(Covid19Data):
-    countryCodes = ['Italy']
+    countryCode = 'Italy'
     bounds = [
         # Maximum number of cases expected to be reported, ever
-        ('L',   (2e4, 1e5)),
+        ('L',   (5e4, 1.1e5)),
         # The logistic growth rate, proportional to the number of
         # cases being reported per hour at midpoint
-        ('k',   (5e-3, 1.2e-2)),
+        ('k',   (8e-3, 1.1e-2)),
         # Midpoint time (hours)
-        ('t0',  (1200, 1400)),
+        ('t0',  (1260, 1450)),
         # Linear term (constant hourly increase in the number of
         # reported cases)
         ('a',   (0.0, 0.3)),
+    ]
+
+    
+class Covid19Data_Iran(Covid19Data):
+    countryCode = 'Iran'
+    summaryPosition = 'E'
+    bounds = [
+        # Maximum number of cases expected to be reported, ever
+        ('L',   (1.6e4, 2.2e4)),
+        # The logistic growth rate, proportional to the number of
+        # cases being reported per hour at midpoint
+        ('k',   (8e-3, 1.3e-2)),
+        # Midpoint time (hours)
+        ('t0',  (1130, 1230)),
+        # Linear term (constant hourly increase in the number of
+        # reported cases)
+        ('a',   (0.0, 0.2)),
+    ]
+
+
+class Covid19Data_SouthKorea(Covid19Data):
+    countryCode = 'Korea, South'
+    bounds = [
+        # Maximum number of cases expected to be reported, ever
+        ('L',   (1.5e4, 5e4)),
+        # The logistic growth rate, proportional to the number of
+        # cases being reported per hour at midpoint
+        ('k',   (1.0e-2, 1.4e-2)),
+        # Midpoint time (hours)
+        ('t0',  (1080, 1200)),
+        # Linear term (constant hourly increase in the number of
+        # reported cases)
+        ('a',   (0.0, 0.15)),
     ]
 
 
@@ -346,6 +371,9 @@ class Evaluator(Picklable):
     """
     scale_SSE = 1e-3
 
+    def __getattr__(self, name):
+        return getattr(self.data, name)
+    
     def setup(self, klass):
         """
         Call with a subclass I{klass} of L{Covid19Data} with data and
@@ -358,13 +386,11 @@ class Evaluator(Picklable):
         parameter name.
         """
         def done(null):
-            for name in ('bounds', 't', 'X', 'dates'):
-                setattr(self, name, getattr(data, name))
             return names, bounds
 
         if not issubclass(klass, Covid19Data):
             raise TypeError("You must supply a subclass of Covid19Data")
-        data = klass()
+        data = self.data = klass()
         names = []; bounds = []
         for name, theseBounds in data.bounds:
             names.append(name)
@@ -429,8 +455,10 @@ class Reporter(object):
     """
     plotFilePath = "covid19.png"
     minShown = 10
-    daysMax = 75
-    N = 10000
+    daysBack = 7
+    Nt = 100
+    k0 = (30, 50)
+    daysMax = (40, 50)
 
     def __init__(self, evaluator, population):
         """
@@ -440,160 +468,209 @@ class Reporter(object):
         self.p = population
         self.prettyValues = population.pm.prettyValues
         self.pt = Plotter(
-            1, filePath=self.plotFilePath, width=18, height=12)
+            2, filePath=self.plotFilePath, width=10, height=12, h2=1)
         self.pt.use_grid()
         ImageViewer(self.plotFilePath)
 
     def clipLower(self, X):
         return np.clip(X, self.minShown, None)
-        
-    def day(self, k=None):
+
+    def kToday(self):
         """
-        With an integer I{k}, returns text indicating the date I{k} days
-        after the start. Otherwise, returns an integer value of
-        I{k} for today.
+        Returns the current number of days since the date of first
+        reported case.
         """
         firstDay = self.ev.dates[0]
-        if k is None:
-            seconds_in = (date.today() - firstDay).total_seconds()
-            return int(seconds_in / 3600 / 24)
+        seconds_in = (date.today() - firstDay).total_seconds()
+        return int(seconds_in / 3600 / 24)
+    
+    def dayText(self, k):
+        """
+        Returns text indicating the date I{k} days after the first
+        reported case.
+        """
+        firstDay = self.ev.dates[0]
         return (firstDay + timedelta(days=k)).strftime("%m/%d")
-        
-    def curvePoints(self, values, tflr=None):
+
+    def hours(self, k0, k1, N=None):
         """
-        Returns a customized I{t} and I{X} with one point per day along
-        the best-fit curve, extrapolating as necessary to reach my
-        I{daysMax}.
+        Returns a vector of times in hours from I{k0} to I{k1} days after
+        the first reported case specified.
 
-        The unit for the returned I{t} is days even though the curve
-        of my L{Evaluator} accepts its I{t} vector with the unit being
-        hours.
-
-        Instead of using an equidistant time series, you can specify
-        the keyword I{tflr} for a single time in hours from the last
-        reported case. The value of I{t} in hours from first report
-        will be returned, as usual, with the single value of I{X}. In
-        this mode, a constant is added to set the value of I{X} to
-        make it exactly match the last number of cases reported, i.e.,
-        the value it would have with M{tflr=0}.
+        If I{N} is specified, that many samples of time will be drawn
+        from a uniform probability distribution instead of being once
+        per day. The lowest possible value of any sample is k0, and
+        the highest is k0 plus my I{daysMax}.
         """
-        if tflr is None:
-            tDaily = np.arange(0, self.daysMax, 1)
-            tDailyHours = 24 * tDaily
-            X = self.ev.curve(tDailyHours, *values)
-            return tDaily, X
-        t0 = self.ev.hoursFromStart(-1)
-        t = t0 + tflr
-        X0, Xt = self.ev.curve(np.array([t0, t]), *values)
-        return t, Xt-X0+self.ev.X[-1]
+        if N is None:
+            days = np.arange(k0, k1, 1)
+        else:
+            days = k0 + (k1-k0) * uniform.rvs(size=N)
+        return 24 * days
+    
+    def curvePoints(self, values, t):
+        """
+        Given a sequence of parameter I{values} and a vector I{t} of hours
+        from first reported case, returns a version of I{t} in days
+        from first report, with each corresponding value of I{X}.
+        """
+        return t/24, self.ev.curve(t, *values)
 
-    def annotate(self, sp, k, X=None):
+    def annotate(self, sp, X, k, k0=0, error=False):
         """
         Adds an annotation to subplot I{sp} for the supplied data vector
-        I{X} at day I{k} (start=0), showing the number of
-        reported cases then on that curve.
+        to be plotted I{X} at I{k} days from the vector's first value,
+        showing the number of reported cases then on that curve.
 
-        To add the annotation to the actual number of cases reported,
-        omit the data vector.
+        @keyword k0: If the first value in I{X} is for a day after the
+            first reported case, specify how many days from first
+            report it is delayed with the keyword I{k0}.
+
+        @keyword error: Set C{True} to annotate with error between the
+            value in I{X} and the corresponding value from the actual
+            data.
         """
-        if X is None:
-            cases = self.ev.X[k]
-            kVector = 0
-        else:
-            cases = X[k]
-            kVector = 1
-        sp.add_annotation(
-            k, "{:n} on {}", int(round(cases)), self.day(k), kVector=kVector)
+        cases = int(round(X[k]))
+        proto = sub("{}: ", self.dayText(k+k0))
+        if error:
+            if k+k0 >= len(self.ev.X):
+                return
+            cases -= self.ev.X[k+k0]
+            proto += "{:+,.0f}"
+        else: proto += "{:,.0f}"
+        sp.add_annotation(k, proto, cases, kVector=1)
     
-    def data_vs_model(self, sp, values):
+    def data_vs_model(self, sp, values, k0=0, future=False):
         """
-        Plots the data against the best-fit model.
+        Plots the data against the best-fit model in subplot I{sp}, given
+        the supplied parameter I{values}.
+
+        @keyword k0: Set to a starting day if not the date of first
+            reported case.
+
+        @keyword future: Set C{True} to annotate extrapolated values
+            instead of errors from past values.
         """
         def getValue(name):
             for k, nb in enumerate(self.ev.bounds):
                 if nb[0] == name:
                     return values[k]
 
-        def annotate_day(k=None):
-            if k is None:
-                k = self.day()
-            elif k < 0:
-                k = len(X_curve) + k
-            self.annotate(sp, k, X_curve)
-            return k
+        def annotate_day(k, error=False):
+            if k < 0 or k >= len(X_curve): return
+            if k not in kSet:
+                kSet.add(k)
+                self.annotate(sp, X_curve, k, k0, error=error)
 
-        t = self.ev.t
-        tCurve, X_curve = self.curvePoints(values)
+        kSet = set()
+        daysMax = self.daysMax[1 if future else 0]
+        k1 = k0 + daysMax + 1
+        tCurve, X_curve = self.curvePoints(values, self.hours(k0, k1))
         t0_days = getValue('t0') / 24
         if t0_days < tCurve.max():
-            sp.add_annotation(t0_days, "t0", kVector=1)
-        # Date of first case(s)
-        self.annotate(sp, 0)
+            sp.add_annotation(
+                t0_days, "t0: {}", self.dayText(t0_days), kVector=1)
+        # Date of first case(s) plotted
+        annotate_day(0)
         # Today
-        k = annotate_day()
-        # One week from today
-        annotate_day(k+7)
-        # Two weeks from today
-        annotate_day(k+14)
-        # When target case thresholds reached
-        for xt in (10000, 50000, 100000, 500000):
-            if xt > X_curve[k] and xt < X_curve[-1]:
-                kt = np.argmin(np.abs(X_curve - xt))
-                annotate_day(kt)
-        ax = sp.semilogy(t/24, self.clipLower(self.ev.X))
+        k = self.kToday() - k0
+        if future:
+            # Expected numbers of future reported cases
+            # Yesterday
+            annotate_day(k-1)
+            # Today
+            annotate_day(k)
+            # Tomorrow
+            annotate_day(k+1)
+            # Day after tomorrow
+            annotate_day(k+2)
+            # One week from today
+            annotate_day(k+7)
+            # Two weeks from today
+            annotate_day(k+14)
+            # When target case thresholds reached
+            for xt in (1e4, 5e4, 1e5, 5e5, 1e6, 5e6):
+                if xt > X_curve[k] and xt < X_curve[-1]:
+                    kt = np.argmin(np.abs(X_curve - xt))
+                    annotate_day(kt)
+            # The last day of extrapolation
+            annotate_day(daysMax-1)
+        else:
+            # Error in expected vs actual reported cases, going back
+            # several days starting with today
+            for k in range(k, k-self.daysBack, -1):
+                annotate_day(k, error=True)
+            
+        ax = sp.semilogy(self.ev.t[k0:]/24, self.clipLower(self.ev.X[k0:]))
         ax.semilogy(
             tCurve, self.clipLower(X_curve),
             color='red', marker='o', linewidth=2, markersize=3)
         return ax
-
-    def add_scatter(self, ax):
+    
+    def add_scatter(self, ax, k0=0):
         """
         Adds points, using randomly selected parameter combos in present
-        population, at times that are chosen from a probability
-        distribution skewed rightward.
-
-        The rightward skewing is to show more points where there is
-        more range.
+        population, at times that are chosen from a uniform
+        probability distribution.
         """
-        N_days = self.daysMax - len(self.ev.dates)
-        t0 = self.ev.hoursFromStart(-1)
-        rvs = dist.rvs(1.0, size=self.N)**2
-        t_fromLastReport = 24*N_days*rvs
-        t = np.empty(self.N)
-        X = np.empty(self.N)
-        for k, tk in enumerate(t_fromLastReport):
-            i = self.p[self.p.sample(1)]
-            values = list(i)
-            t[k], X[k] = self.curvePoints(values, tk)
-        ax.semilogy(
-            t/24, self.clipLower(X),
-            color='black', marker=',', linestyle='')
+        Ni = len(self.p)
+        tc = np.empty((self.Nt, Ni))
+        Xc = np.empty_like(tc)
+        k1 = k0 + self.daysMax[1]
+        for ki in range(Ni):
+            t = self.hours(k0, k1, N=self.Nt)
+            tc[:,ki], Xc[:,ki] = self.curvePoints(list(self.p[ki]), t)
+        tc = tc.flatten()
+        Xc = self.clipLower(Xc.flatten())
+        ax.semilogy(tc, Xc, color='black', marker=',', linestyle='')
     
-    def __call__(self, values, counter, SSE):
+    def subplot_upper(self, sp, values):
+        """
+        Does the upper subplot with model fit vs data.
+        """
+        k0 = self.k0[0]
+        for k, nb in enumerate(self.ev.bounds):
+            sp.add_textBox('SE', "{}: {:.5g}", nb[0], values[k])
+        # Data vs best-fit model
+        self.data_vs_model(sp, values, k0=k0)
+        
+    def subplot_lower(self, sp, values):
+        """
+        Does the lower subplot with extrapolation, starting at my I{k0}
+        days from first report.
+        """
+        k0 = self.k0[1]
+        ax = self.data_vs_model(sp, values, k0=k0, future=True)
+        # Scatter plot to sort of show extrapolation uncertainty
+        self.add_scatter(ax, k0=k0)
+        
+    def __call__(self, values, *args):
         """
         Prints out a new best parameter combination and its curve vs
         observations, with lots of extrapolation to the right.
         """
-        def titlePart(*args):
-            titleParts.append(sub(*args))
+        def tb(*args):
+            sp.add_textBox(self.ev.summaryPosition, *args)
 
-        SSE_info = sub("SSE={:g}", SSE)
-        titleParts = []
-        titlePart("Cases vs Time (days)")
-        titlePart(SSE_info)
-        titlePart("k={:d}", counter)
-        msg(0, self.prettyValues(values, SSE_info+", with"), 0)
+        self.pt.set_title(
+            "Modeling Reported Cases in {} of the Covid-19 Coronavirus",
+            self.ev.countryCode)
+        self.pt.set_ylabel("N")
+        self.pt.set_xlabel("Days")
+        self.pt.add_line('-', 2)
+        self.pt.use_minorTicks('x', 1.0)
         with self.pt as sp:
-            sp.set_title(", ".join(titleParts))
-            sp.add_line('-', 2)
-            sp.set_xlabel("Days")
-            sp.set_ylabel("N")
-            for k, nb in enumerate(self.ev.bounds):
-                sp.add_textBox('SE', "{}: {:.5g}", nb[0], values[k])
-            # Data vs best-fit model
-            ax = self.data_vs_model(sp, values)
-            # Scatter plot to show extrapolation uncertainty
-            self.add_scatter(ax)
+            tb("Reported cases in {} vs days after first case.",
+               self.ev.countryCode)
+            tb("Annotations show residuals between model and data.")
+            self.subplot_upper(sp, values)
+            tb("Expected cases reported in {} vs days after first case.",
+               self.ev.countryCode)
+            tb("Dots show predictions at random future times for each of")
+            tb("a final population of 120 evolved parameter combinations.")
+            for line in DISCLAIMER.split('\n'):
+                sp.add_textBox("SE", line)
+            self.subplot_lower(sp, values)
         self.pt.show()
 
     
@@ -626,6 +703,7 @@ class Runner(object):
 
         Repeated calls have no effect.
         """
+        yield self.p.reporter.waitForCallbacks()
         if self.q is not None:
             msg("Shutting down...")
             yield self.q.shutdown()
@@ -688,6 +766,7 @@ class Runner(object):
             self.p.save(savePicklePath)
             msg("Saved final population of best parameter combinations "+\
                 "to {}", savePicklePath)
+        self.q.call(reporter, list(self.p.best))
         msg(None)
         reactor.stop()
 
@@ -728,7 +807,7 @@ args = Args(
 )
 args('-m', '--maxiter', 50, "Maximum number of DE generations to run")
 args('-e', '--bitter-end', "Keep working to the end even with little progress")
-args('-p', '--popsize', 50, "Population: # individuals per unknown parameter")
+args('-p', '--popsize', 30, "Population: # individuals per unknown parameter")
 args('-C', '--CR', 0.8, "DE Crossover rate CR")
 args('-F', '--F', "0.5,1.0", "DE mutation scaling F: two values for range")
 args('-b', '--best', "Use DE/best/1 instead of DE/rand/1")
