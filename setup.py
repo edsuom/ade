@@ -38,7 +38,7 @@ required = [
 
 
 ### Define setup options
-kw = {'version': '1.3.2',
+kw = {'version': '1.3.3',
       'license': 'Apache License (2.0)',
       'platforms': 'OS Independent',
 

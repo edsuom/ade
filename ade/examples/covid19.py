@@ -295,9 +295,9 @@ class Covid19Data_US(Covid19Data):
         ('L',   (1e7, 5e8)),
         # The logistic growth rate, proportional to the number of
         # cases being reported per hour at midpoint
-        ('k',   (1.1e-2, 1.25e-2)),
+        ('k',   (1.05e-2, 1.2e-2)),
         # Midpoint time (hours)
-        ('t0',  (2050, 2400)),
+        ('t0',  (2100, 2400)),
         # Linear term (constant hourly increase in the number of
         # reported cases)
         ('a',   (0, 5e-2)),
@@ -306,14 +306,15 @@ class Covid19Data_US(Covid19Data):
 
 class Covid19Data_Italy(Covid19Data):
     countryCode = 'Italy'
+    summaryPosition = 'E'
     bounds = [
         # Maximum number of cases expected to be reported, ever
-        ('L',   (5e4, 1.1e5)),
+        ('L',   (5e4, 1.2e5)),
         # The logistic growth rate, proportional to the number of
         # cases being reported per hour at midpoint
         ('k',   (8e-3, 1.1e-2)),
         # Midpoint time (hours)
-        ('t0',  (1260, 1450)),
+        ('t0',  (1280, 1440)),
         # Linear term (constant hourly increase in the number of
         # reported cases)
         ('a',   (0.0, 0.3)),
@@ -325,12 +326,12 @@ class Covid19Data_Iran(Covid19Data):
     summaryPosition = 'E'
     bounds = [
         # Maximum number of cases expected to be reported, ever
-        ('L',   (1.6e4, 2.2e4)),
+        ('L',   (1.7e4, 2.3e4)),
         # The logistic growth rate, proportional to the number of
         # cases being reported per hour at midpoint
-        ('k',   (8e-3, 1.3e-2)),
+        ('k',   (8.5e-3, 1.25e-2)),
         # Midpoint time (hours)
-        ('t0',  (1130, 1230)),
+        ('t0',  (1140, 1230)),
         # Linear term (constant hourly increase in the number of
         # reported cases)
         ('a',   (0.0, 0.2)),
@@ -339,17 +340,18 @@ class Covid19Data_Iran(Covid19Data):
 
 class Covid19Data_SouthKorea(Covid19Data):
     countryCode = 'Korea, South'
+    summaryPosition = 'E'
     bounds = [
         # Maximum number of cases expected to be reported, ever
-        ('L',   (1.5e4, 5e4)),
+        ('L',   (7e3, 1e4)),
         # The logistic growth rate, proportional to the number of
         # cases being reported per hour at midpoint
-        ('k',   (1.0e-2, 1.4e-2)),
+        ('k',   (1.1e-2, 1.6e-2)),
         # Midpoint time (hours)
-        ('t0',  (1080, 1200)),
+        ('t0',  (940, 1020)),
         # Linear term (constant hourly increase in the number of
         # reported cases)
-        ('a',   (0.0, 0.15)),
+        ('a',   (0.0, 0.2)),
     ]
 
 
