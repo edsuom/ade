@@ -131,14 +131,53 @@ The comma-separated fields are as follows:
        each day starting on January 22, 2020.
 
 Uses asynchronous differential evolution to efficiently find a
-population of best-fit combinations of four parameters for the
+population of best-fit combinations of five parameters for the
 function::
 
-    x(t) = L/(1 + exp(-k*(t-t0))) + a*t
+    x(t) = r_vs_a(t, a, b, t1) * L/(1 + exp(-k*(t-t0)))
 
-against data for daily numbers of reported COVID-19 cases, where
-I{x} is the number of expected reported cases and I{t} is the time
-since the first observation, in hours.
+against data for daily numbers of reported COVID-19 cases, where I{x}
+is the number of expected cases to be reported and I{t} is the time
+since the first observation, in hours. The function C{r_vs_a} returns
+a fractional value between I{a} and 1.0, tranforming the number of
+actual cases modeled by the logistic curve into reported cases over a
+time interval determined by scaling parameter I{b} that is centered at
+time I{t1}.
+
+The transformation reduces the number of cases modeled by the logistic
+curve early on, when testing can be assumed to have been less
+available, and gradually converges to no transformation after testing
+is assumed to be as widespread as it's going to get. That doesn't mean
+that all cases are confirmed at that point, just that the increase in
+reported cases due to changes in testing availability no longer
+effects the fit to the logistic curve.
+
+The function I had in mind to model reported vs actual cases is the
+hyperbolic tangent, which has a nice smooth "S" curve that starts and
+ends with zero slope. Consider this proposed function for the
+proportion of reported cases vs actual cases over time, using
+C{tanh}::
+
+    r_vs_a(t, a, b, t1) = 0.5*(1 - a)*(tanh(b*(t-t1)) + 1) + a
+
+This function has a lower bound of I{a} and a fixed upper bound of
+1.0. Its maximum slope occurs I{t1} hours after the first reported
+case, much as the maximum slope of the model I{x(t)} has its maximum
+slope I{t0} hours after the first reported case.
+
+The function simplifies to::
+
+    r_vs_a(t, a, b, t1) = 0.5 * (tanh(b*(t-t1)) + 1 - a*tanh(b*(t-t1)) - a) + a
+
+or::
+
+    r_vs_a(t, a, b, t1) = 0.5*((1-a)*tanh(b*(t-t1)) + a + 1)
+
+Having the logistic curve work on (presumed) actual cases rather than
+reported ones, but only internally to the model, is an attempt to very
+roughly account for and quantify a presumed lack of testing early on
+in the outbreak, at least in the U.S., while deviating as little as
+possible from only trying to model the number of reported cases.
 """
 
 import re, random
@@ -293,15 +332,20 @@ class Covid19Data_US(Covid19Data):
     countryCode = 'US'
     bounds = [
         # Maximum number of cases expected to be reported, ever
-        ('L',   (5e7, 8e8)),
+        ('L',   (5e7, 3.3e8)),
         # The logistic growth rate, proportional to the number of
         # cases being reported per hour at midpoint
-        ('k',   (1.2e-2, 1.6e-2)),
-        # Midpoint time (hours)
-        ('t0',  (1900, 2200)),
-        # Linear term (constant hourly increase in the number of
-        # reported cases)
-        ('a',   (0, 0.4)),
+        ('k',   (1.2e-2, 1.8e-2)),
+        # Midpoint time (hours) for exponential behavior
+        ('t0',  (1800, 2300)),
+        # Starting proportion of reported vs actual cases
+        ('a',   (0.02, 0.95)),
+        # Transition interval scaling for reported vs actual
+        ('b',   (2e-4, 2e-1)),
+        # Midpoint time (hours) for reported vs actual cases
+        ('t1',  (500, 1600)),
+        # Linear term
+        ('c',   (0.0, 0.4)),
     ]
 
 
@@ -314,11 +358,12 @@ class Covid19Data_Italy(Covid19Data):
         # The logistic growth rate, proportional to the number of
         # cases being reported per hour at midpoint
         ('k',   (8e-3, 1.1e-2)),
-        # Midpoint time (hours)
+        # Midpoint time (hours) for exponential behavior
         ('t0',  (1280, 1440)),
-        # Linear term (constant hourly increase in the number of
-        # reported cases)
-        ('a',   (0.0, 0.3)),
+        # Starting proportion of reported vs actual cases
+        ('a',   (0.1, 0.4)),
+        # Midpoint time (hours) for reported vs actual cases
+        ('t1',  (900, 1400)),
     ]
 
     
@@ -436,25 +481,38 @@ class Evaluator(Picklable):
         """
         firstDay = self.dates[0]
         return (firstDay + timedelta(days=k)).strftime("%m/%d")
-    
+
+    def r_vs_a(self, t, a, b, t1):
+        """
+        Given a 1-D time vector (in hours), returns the number of reported
+        cases vs the number of actual cases. Ranges from I{a} to 1.0,
+        with maximum slope at I{t1}, with the transition interval
+        scaled by I{b}.
+        """
+        x = (1 - a)*np.tanh(b*(t - t1))
+        x += a + 1
+        return 0.5*x
+
     def curve(self, t, *args):
         """
         Given a 1-D time vector followed by arguments defining curve
         parameters, returns a 1-D vector of expected Covid-19 cases to
         be reported over that time, in hours.
 
-        A logistic growth model with a small amount of linearity (due
-        to increasing testing early on skewing the early case numbers
-        upward) is implemented this equation:
+        A logistic growth model on presumed actual case numbers,
+        followed by transformation to reported case numbers, is
+        implemented this equation::
 
-        M{x = L/(1 + exp(-k*(t-t0))) + a*t}
+        M{x = r_vs_a(t, a, b, t1) * L/(1 + exp(-k*(t-t0))) + c*t}
         """
-        L, k, t0, a = args
+        L, k, t0, a, b, t1, c = args
+        # Logistic curve, operating on actual cases
         inside = -k*(t-t0)
         X = np.zeros_like(t)
         K = np.flatnonzero(inside < 700)
         X[K] = L/(1 + np.exp(inside[K]))
-        return X + a*t
+        # Transform actual to reported
+        return self.r_vs_a(t, a, b, t1) * X + c*t
     
     def __call__(self, values):
         """
