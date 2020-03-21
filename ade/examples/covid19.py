@@ -293,19 +293,17 @@ class Covid19Data_US(Covid19Data):
     countryCode = 'US'
     bounds = [
         # Maximum number of cases expected to be reported, ever
-        ('L',   (5e7, 3.3e8)),
+        ('L',   (1e7, 3.3e8)),
         # The logistic growth rate, proportional to the number of
         # cases being reported per hour at midpoint
-        ('k',   (1.0e-2, 1.9e-2)),
+        ('k',   (1.3e-2, 1.8e-2)),
         # Midpoint time (hours)
-        ('t0',  (1700, 2200)),
+        ('t0',  (1800, 2140)),
         # Squared term
-        ('a',   (0.0, 100.0)),
-        # Offset time (hours) for squared term
-        ('t1',  (1000, 1800)),
+        ('a',   (0.0, 6e-4)),
         # Linear term (constant hourly increase in the number of
         # reported cases)
-        ('b',   (0.0, 0.6)),
+        ('b',   (0.0, 0.4)),
     ]
 
 
@@ -451,18 +449,14 @@ class Evaluator(Picklable):
         to increasing testing early on skewing the early case numbers
         upward) is implemented this equation:
 
-        M{x = L/(1 + exp(-k*(t-t0))) + a*(t > t1 ? t-t1 : 0)^2 + b*t}
+        M{x = L/(1 + exp(-k*(t-t0))) + a*t^2 + b*t}
         """
-        L, k, t0, a, t1, b = args
+        L, k, t0, a, b = args
         inside = -k*(t-t0)
         X = np.zeros(len(t))
         K = np.flatnonzero(inside < 700)
         X[K] = L/(1 + np.exp(inside[K]))
-        K = np.flatnonzero(t > t1)
-        try:
-            X[K] += a*(t[K] - float(t1))**2
-        except:
-            import pdb; pdb.set_trace() 
+        X[K] += a*t**2
         return X + b*t
     
     def __call__(self, values):
