@@ -146,11 +146,12 @@ from datetime import date, timedelta
 
 import numpy as np
 from scipy.stats import norm
+from scipy.integrate import solve_ivp
 
 from twisted.python import failure
 from twisted.internet import reactor, defer
 
-from asynqueue.process import ProcessQueue
+from asynqueue import ThreadQueue, ProcessQueue
 from yampex.plot import Plotter
 
 from ade.population import Population
@@ -276,23 +277,44 @@ class Covid19Data(Data):
 
 class Covid19Data_US(Covid19Data):
     countryCode = 'US'
-    bounds = [
-        #--- Power-Law Component ----------------------------------------------
+    bounds_lg = [
+        #--- Logistic Growth (list these first) -------------------------------
+        # Total cases after exponential growth completely stopped
+        ('L',   (2e6, 3.3e8)),
+        # The growth rate, proportional to the maximum number of
+        # new cases being reported per day from logistic growth 
+        ('r',   (2e-4, 1.2e-1)),
+    ]
+    bounds_pl = [
+        #--- Power-Law (list these second) ------------------------------------
         # Scaling coefficient
         ('a',   (1.0, 40.0)),
         # Power-law exponent
-        ('n',   (1.2, 3.5)),
+        ('n',   (1.1, 3.2)),
         # Start of local country/region epidemic (days after 1/22/20)
-        ('ts',  (41, 52)),
-        # Decay time constant
-        ('t0',  (1e1, 1e5)),
+        ('ts',  (41, 53)),
+        # Decay time constant (two years is 730 days)
+        ('t0',  (10, 730)),
     ]
+    bounds_l = [
+        #--- Linear (list this last) ------------------------------------------
+        # Constant number of new cases reported each day since beginning
+        ('b',   (0.01, 8.0)),
+        #----------------------------------------------------------------------
+    ]
+    bounds = bounds_lg + bounds_pl + bounds_l
 
 
 class Covid19Data_Italy(Covid19Data):
     countryCode = 'Italy'
     summaryPosition = 'E'
     bounds = [
+        #--- Logistic Growth --------------------------------------------------
+        # Total cases after exponential growth completely stopped
+        ('L',   (2e4, 1.2e5)),
+        # The growth rate, proportional to the maximum number of
+        # new cases being reported per day from logistic growth 
+        ('r',   (3e-4, 7e-4)),
         #--- Power-Law Component ----------------------------------------------
         # Scaling coefficient
         ('a',   (1.0, 200.0)),
@@ -302,9 +324,12 @@ class Covid19Data_Italy(Covid19Data):
         ('ts',  (20, 52)),
         # Decay time constant
         ('t0',  (1e1, 1e5)),
+        #--- Linear -----------------------------------------------------------
+        # Constant number of new cases reported each day since beginning
+        ('b',   (0, 8.0)),
     ]
 
-    
+
 class Covid19Data_Iran(Covid19Data):
     countryCode = 'Iran'
     summaryPosition = 'E'
@@ -322,24 +347,57 @@ class Covid19Data_Finland(Covid19Data):
 
 class Evaluator(Picklable):
     """
-    I evaluate fitness of the power-law with exponential cutoff
-    function of Vasquez (2006)::
+    I evaluate fitness of one of two different models, or both in
+    linear combination, against the number of new COVID-19 cases
+    reported each day.
 
-        xd(t) = a * (t-ts)^n * exp(-(t-ts)/t0) + b
+    One model (my preferred one due to its remarkable closeness of fit
+    thus far) is the logistic (Verhulst) model: "A biological
+    population with plenty of food, space to grow, and no threat from
+    predators, tends to grow at a rate that is proportional to the
+    population....Of course, most populations are constrained by
+    limitations on resources--even in the short run--and none is
+    unconstrained forever."
+    U{https://services.math.duke.edu/education/ccp/materials/diffeq/logistic/logi1.html}
 
-    against data for daily numbers of B{new} reported COVID-19 cases,
-    where xd{x} is the number of new cases expected to be reported and
-    I{t} is the time since the first observation (in days).
+    It requires the integration of a first-order differential
+    equation:::
+
+        xd(t, x) = x*r*(1 - x/L)
+    
+    The other is the power-law model with exponential cutoff
+    function of Vasquez (2006):::
+
+        xd(t) = a * (t-ts)^n * exp(-(t-ts)/t0)
+
+    Finally, you can add a linear component to either model or the
+    combination of both with the single parameter I{b}:::
+
+        xd(t) += b*t
+    
+    The data in my 1-D array I{Xd} contains daily numbers of B{new}
+    reported COVID-19 cases. The modeled value of the functions xd{x}
+    is the number of new cases expected to be reported and I{t} is the
+    time since the first observation (in days).
     
     Construct an instance of me, run the L{setup} method, and wait (in
     non-blocking Twisted-friendly fashion) for the C{Deferred} it
     returns to fire. Then call the instance a bunch of times with
     parameter values for a L{curve} to get a (deferred)
     sum-of-squared-error fitness of the curve to the actual data.
+
+    You select a model by defining its uniquely named parameters in
+    the I{bounds} list of your chosen subclass of L{Covid19Data}. For
+    example, to use a linear combination of both models, that list
+    should define I{L} and L{r} for the logistic growth component and
+    I{a}, I{n}, I{ts}, and I{t0} for the power-law component. If a
+    linear component is desired (constant number of new cases each
+    day), define it with parameter I{b}.
     """
     scale_SSE = 1e-3
-    logTransform = True
+    logTransform = False
     daysBack = 14
+    fList = None
 
     def __getattr__(self, name):
         return getattr(self.data, name)
@@ -364,7 +422,13 @@ class Evaluator(Picklable):
         def done(null):
             # Weighting
             self.W = np.zeros_like(self.X)
-            self.W[-self.daysBack:] = np.linspace(0.0, 1.0, self.daysBack)
+            if self.logTransform:
+                # With log transform, emphasize the last readings
+                self.W[-self.daysBack:] = np.linspace(0.0, 1.0, self.daysBack)
+            else:
+                # Without transform, emphasize lower-valued data
+                # points, to a point
+                self.W = 1.0 / (1 + np.sqrt(100*self.X/self.X.max()))
             # Differential
             self.Xd = np.zeros_like(self.X)
             msg("Cumulative and new cases reported thus far for {}",
@@ -394,36 +458,118 @@ class Evaluator(Picklable):
         """
         firstDay = self.dates[0]
         return (firstDay + timedelta(days=k)).strftime("%m/%d")
-    
-    def curve(self, t, *args):
-        """
-        Given a 1-D time vector (in days) followed by arguments defining
-        curve parameters, returns a 1-D vector of B{new} Covid-19
-        cases expected to be reported on each of those days.
 
-        M{xd(t) = a * (t-ts)^n * exp(-(t-ts)/t0)}
+    def curve_logistic(self, t, x, L, r):
         """
-        a, n, ts, t0 = args
-        td = t - ts
-        X = np.zeros_like(td)
-        K = np.flatnonzero(td > 0)
-        X[K] = np.power(a*td[K], n)
-        inside = -td / t0
-        K = np.flatnonzero(np.logical_and(np.isfinite(inside), inside < 700))
-        X[K] = X[K] * np.exp(inside)
-        return X
+        Logistic growth model (Verhulst model),
+        U{https://services.math.duke.edu/education/ccp/materials/diffeq/logistic/logi1.html}
+        
+        Given a scalar time (in days) followed by arguments defining
+        curve parameters, returns the number of B{new} Covid-19
+        cases expected to be reported on that day.::
+
+            xd(t, x) = x*r*(1 - x/L)
+            
+        This requires integration of a first-order differential
+        equation, which is performed in L{curve}.
+        """
+        x = np.array(x)
+        return r*x*(1 - x/L)
+    
+    def curve_powerlaw(self, t, x, a, n, ts, t0):
+        """
+        Power law model,
+        U{https://www.medrxiv.org/content/10.1101/2020.02.16.20023820v2.full.pdf}
+        
+        Given a scalar time vector (in days) followed by arguments
+        defining curve parameters, returns the number of B{new}
+        Covid-19 cases expected to be reported on that day.::
+
+            xd(t, x) = a * (t-ts)^n * exp(-(t-ts)/t0)
+
+        Note that there is actually no dependence on I{x}. It is just
+        included as an argument for consistency with
+        L{curve_logistic}, since a linear combination of both requires
+        the use of an ODE solver.
+
+        Thanks to my new FB friend, applied statistician Ng Yi Kai
+        Aaron of Singapore, for suggesting I look into the power law
+        model as an alternative, and pointing me to an article
+        discussing its possible application to COVID-19.
+        """
+        t -= ts
+        if t < 0: return np.zeros_like(x)
+        return a*t**n * np.exp(-t/t0) * np.ones_like(x)
+
+    def curve_linear(self, t, x, b):
+        """
+        Linear component: Constant number of new cases reported each day.
+        """
+        return b * np.ones_like(x)
+    
+    def curve(self, t, *values):
+        """
+        Returns the expected number of new cases per day for each day in
+        1-D array I{t}, using the logistic growth model, the power law
+        model, or both, with or without a linear component.
+
+        If there are 2 parameters, I{L} and I{k}, only logistic growth
+        would be used, but that doesn't work because the initial
+        number of reported cases is zero. You need one of the other
+        terms, too.
+
+        If there are 4 parameters, I{a}, I{n}, I{ts}, and I{t0},
+        only power-law is used.
+
+        If there are 6 parameters, both logistic growth and power
+        law are used in a linear combination.
+
+        If there are 3 parameters (logistic growth plus linear), 5
+        parameters (power-law plus linear), or 7 parameters
+        (everything), a linear component is added.
+        """
+        def f(t, x):
+            Xd = np.zeros_like(x)
+            for f, ks in self.fList:
+                Xd_this = np.clip(f(t, x, *values[ks]), 0, None)
+                Xd += Xd_this
+            return Xd
+        
+        if self.fList is None:
+            k = 0
+            self.fList = []
+            N = len(values)
+            if N == 2:
+                raise ValueError(
+                    "You can't have just logistic growth by itself!")
+            if N in (6, 3, 7):
+                self.fList.append((self.curve_logistic, slice(k, k+2)))
+                k += 2
+            if N in (4, 6, 5, 7):
+                self.fList.append((self.curve_powerlaw, slice(k, k+4)))
+                k += 4
+            if N in (3, 5, 7):
+                self.fList.append((self.curve_linear, slice(k, k+1)))
+        sol = solve_ivp(
+            f, [0.0, t.max()], f(0.0, [0.0]), t_eval=t, vectorized=True)
+        if not sol.success:
+            raise RuntimeError("ODE solver failed!")
+        return sol.y[0]
     
     def __call__(self, values):
         """
-        Evaluation function for the parameter I{values}.
+        Evaluation function for the parameter I{values}. 
         """
         Xd = self.Xd
         Xd_curve = self.curve(self.t, *values)
         scale_SSE = self.scale_SSE
         if self.logTransform:
+            if np.any(Xd_curve < 0):
+                raise ValueError(
+                    "Can't use log transform with any negative growth!")
             Xd = np.log(Xd+1)
             Xd_curve = np.log(Xd_curve+1)
-            scale_SSE *= 1e4
+            scale_SSE *= 1e5
         return scale_SSE * np.sum(self.W * np.square(Xd_curve - Xd))
 
 
@@ -683,6 +829,9 @@ class Reporter(object):
         def tb(*args):
             sp.add_textBox(self.ev.summaryPosition, *args)
 
+        # Make a frozen local copy of the values list to work with, so
+        # outdated stuff doesn't get plotted
+        values = list(values)
         msg(0, "Values: {}", ", ".join([str(x) for x in values]))
         self.pt.set_title(
             "Modeled (red) vs Actual (blue) Reported Cases of COVID-19: {}",
@@ -724,8 +873,11 @@ class Runner(object):
         """
         self.args = args
         self.ev = Evaluator()
-        N = args.N if args.N else ProcessQueue.cores()-1
-        self.q = ProcessQueue(N, returnFailure=True)
+        if args.t:
+            self.q = ThreadQueue(returnFailure=True)
+        else:
+            N = args.N if args.N else ProcessQueue.cores()-1
+            self.q = ProcessQueue(N, returnFailure=True)
         self.fh = open("covid19.log", 'w') if args.l else True
         msg(self.fh)
 
@@ -847,6 +999,8 @@ args('-b', '--best', "Use DE/best/1 instead of DE/rand/1")
 args('-n', '--not-adaptive', "Don't use automatic F adaptation")
 args('-u', '--uniform', "Initialize population uniformly instead of with LHS")
 args('-N', '--N-cores', 0, "Limit the number of CPU cores")
+args('-t', '--threads',
+     "Use a single worker thread instead of processes (for debugging)")
 args('-l', '--logfile',
      "Write results to logfile 'covid19.log' instead of STDOUT")
 args('-P', '--pickle', "covid19.dat",
