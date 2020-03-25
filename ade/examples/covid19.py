@@ -145,7 +145,7 @@ import re, random
 from datetime import date, timedelta
 
 import numpy as np
-from scipy.stats import norm
+from scipy import stats
 from scipy.integrate import solve_ivp
 
 from twisted.python import failure
@@ -258,7 +258,7 @@ class Covid19Data(Data):
                 continue
             yield np.array([int(x) for x in rvl[4:] if x])
                 
-    def parseValues(self, result):
+    def parseValues(self, result, daysAgo):
         self.parseDates(result)
         NX = len(self)
         self.X = np.zeros(NX)
@@ -266,13 +266,22 @@ class Covid19Data(Data):
             NY = len(Y)
             N = min([NX, NY])
             self.X[:N] += Y[:N]
+        if daysAgo:
+            for name in ('t', 'dates', 'X'):
+                setattr(self, name, getattr(self, name)[:-daysAgo])
                    
-    def setup(self):
+    def setup(self, daysAgo=0):
         """
         Calling this gets you a C{Deferred} that fires when setup is done
         and my I{t} and I{X} ivars are ready.
+
+        @keyword daysAgo: Limit latest data to this many days ago
+            (integer) rather than up to today (0 days ago).
         """
-        return self.load().addCallbacks(self.parseValues, oops)
+        d = self.load()
+        d.addCallback(self.parseValues, daysAgo)
+        d.addErrback(oops)
+        return d
 
 
 class Covid19Data_US(Covid19Data):
@@ -283,23 +292,23 @@ class Covid19Data_US(Covid19Data):
         ('L',   (2e6, 3.3e8)),
         # The growth rate, proportional to the maximum number of
         # new cases being reported per day from logistic growth 
-        ('r',   (2e-4, 1.2e-1)),
+        ('r',   (1e-2, 2.4e-1)),
     ]
     bounds_pl = [
         #--- Power-Law (list these second) ------------------------------------
         # Scaling coefficient
-        ('a',   (1.0, 40.0)),
+        ('a',   (1.0, 500.0)),
         # Power-law exponent
-        ('n',   (1.1, 3.2)),
+        ('n',   (0.1, 2.0)),
         # Start of local country/region epidemic (days after 1/22/20)
-        ('ts',  (41, 53)),
+        ('ts',  (43, 55)),
         # Decay time constant (two years is 730 days)
-        ('t0',  (10, 730)),
+        ('t0',  (10, 1000)),
     ]
     bounds_l = [
         #--- Linear (list this last) ------------------------------------------
         # Constant number of new cases reported each day since beginning
-        ('b',   (0.01, 8.0)),
+        ('b',   (0.0, 1.0)),
         #----------------------------------------------------------------------
     ]
     bounds = bounds_lg + bounds_pl + bounds_l
@@ -393,16 +402,19 @@ class Evaluator(Picklable):
     I{a}, I{n}, I{ts}, and I{t0} for the power-law component. If a
     linear component is desired (constant number of new cases each
     day), define it with parameter I{b}.
+
+    @ivar Xd: The actual number of new cases per day, each day, for
+        the selected country or region since the first reported case
+        in the Johns Hopkins dataset on January 22, 2020, B{after} my
+        L{transform} has been applied.
     """
-    scale_SSE = 1e-3
-    logTransform = False
-    daysBack = 14
+    scale_SSE = 1e-2
     fList = None
 
     def __getattr__(self, name):
         return getattr(self.data, name)
     
-    def setup(self, klass):
+    def setup(self, klass, daysAgo=0):
         """
         Call with a subclass I{klass} of L{Covid19Data} with data and
         bounds for evaluation of my model.
@@ -420,15 +432,6 @@ class Evaluator(Picklable):
         parameter name.
         """
         def done(null):
-            # Weighting
-            self.W = np.zeros_like(self.X)
-            if self.logTransform:
-                # With log transform, emphasize the last readings
-                self.W[-self.daysBack:] = np.linspace(0.0, 1.0, self.daysBack)
-            else:
-                # Without transform, emphasize lower-valued data
-                # points, to a point
-                self.W = 1.0 / (1 + np.sqrt(100*self.X/self.X.max()))
             # Differential
             self.Xd = np.zeros_like(self.X)
             msg("Cumulative and new cases reported thus far for {}",
@@ -439,7 +442,7 @@ class Evaluator(Picklable):
                 xPrev = x
                 msg("{:03d}\t{}\t{:d}\t{:d}",
                     k, self.dayText(k), int(x), int(xd))
-                self.Xd[k] = xd
+                self.Xd[k] = self.transform(xd)
             return names, bounds
 
         if not issubclass(klass, Covid19Data):
@@ -449,8 +452,24 @@ class Evaluator(Picklable):
         for name, theseBounds in data.bounds:
             names.append(name)
             bounds.append(theseBounds)
-        return data.setup().addCallbacks(done, oops)
+        return data.setup(daysAgo).addCallbacks(done, oops)
 
+    def transform(self, Xd, inverse=False):
+        """
+        Applies a transform to the numbers of new cases per day each day,
+        real or modeled. Set I{inverse} C{True} to apply the inverse
+        of the transform.
+
+        The crude transform currently used is just a square root of
+        the absolute magnitude, with sign preserved.  The seems like a
+        reasonable initial compromise between a log transform (useful
+        for a purely exponential model), and not transforming at
+        all. Will investigate Cox-Box as an option.
+        """
+        if inverse:
+            return np.sign(Xd) * Xd**2
+        return np.sign(Xd) * np.sqrt(np.abs(Xd))
+    
     def dayText(self, k):
         """
         Returns text indicating the date I{k} days after the first
@@ -560,17 +579,8 @@ class Evaluator(Picklable):
         """
         Evaluation function for the parameter I{values}. 
         """
-        Xd = self.Xd
-        Xd_curve = self.curve(self.t, *values)
-        scale_SSE = self.scale_SSE
-        if self.logTransform:
-            if np.any(Xd_curve < 0):
-                raise ValueError(
-                    "Can't use log transform with any negative growth!")
-            Xd = np.log(Xd+1)
-            Xd_curve = np.log(Xd_curve+1)
-            scale_SSE *= 1e5
-        return scale_SSE * np.sum(self.W * np.square(Xd_curve - Xd))
+        Xd_curve = self.transform(self.curve(self.t, *values))
+        return self.scale_SSE * np.sum(np.square(Xd_curve - self.Xd))
 
 
 class Reporter(object):
@@ -597,9 +607,8 @@ class Reporter(object):
     plotFilePath = "covid19.png"
     minShown = 10
     daysBack = 10
-    Nt = 100
-    k0 = (30, 50)
-    daysMax = (40, 60)
+    k0 = 40
+    daysMax = 50
 
     def __init__(self, evaluator, population):
         """
@@ -609,7 +618,7 @@ class Reporter(object):
         self.p = population
         self.prettyValues = population.pm.prettyValues
         self.pt = Plotter(
-            2, filePath=self.plotFilePath, width=10, height=12, h2=1)
+            3, filePath=self.plotFilePath, width=10, height=14, h2=[0, 2])
         self.pt.use_grid()
         ImageViewer(self.plotFilePath)
 
@@ -715,6 +724,12 @@ class Reporter(object):
         Plots the data against the best-fit model in subplot I{sp}, given
         the supplied parameter I{values}.
 
+        Returns a 3-tuple with (1) the C{yampex.subplot.SpecialAx}
+        object for the subplot, and (2) a 1-D array I{t_data} with the
+        number of days since first reported case, in days, for the
+        actual data, and (3) a 1-D array I{t_curve} for the modeled
+        data, both starting with I{k0}.
+
         @keyword k0: Set to a starting day if not the date of first
             reported case.
 
@@ -740,8 +755,9 @@ class Reporter(object):
 
         kSet = set()
         kToday = self.kToday()
-        daysMax = self.daysMax[1 if future else 0]
-        k1 = k0 + daysMax + 1
+        if future:
+            k1 = k0 + self.daysMax + 1
+        else: k1 = kToday + 3
         t_curve, X_curve = self.curvePoints(values, k0, k1)
         t_data = self.ev.t[k0:]
         X_data = self.clipLower(self.ev.X[k0:])
@@ -752,10 +768,10 @@ class Reporter(object):
         annotate_past(k)
         if future:
             # Expected numbers of future reported cases
+            # Day before yesterday
+            annotate_past(k-2)
             # Yesterday
             annotate_past(k-1)
-            # Today
-            annotate_past(k)
             # Tomorrow
             annotate_future(k+1)
             # Day after tomorrow
@@ -769,7 +785,7 @@ class Reporter(object):
                     kt = np.argmin(np.abs(X_curve - xt))
                     annotate_future(kt)
             # The last day of extrapolation
-            annotate_future(daysMax-1)
+            annotate_future(self.daysMax-1)
         else:
             # Error in expected vs actual reported cases, going back
             # several days starting with today
@@ -780,23 +796,22 @@ class Reporter(object):
         ax.semilogy(
             t_curve, self.clipLower(X_curve),
             color='red', marker='o', linewidth=2, markersize=3)
-        return ax
+        return ax, t_data, t_curve
     
-    def add_scatter(self, ax, k0=0):
+    def add_scatter(self, ax, k0, k1):
         """
         Adds points, using randomly selected parameter combos in present
         population, at times that are chosen from a uniform
         probability distribution.
         """
-        Nt = self.daysMax[1]
+        Nt = k1 - k0
         Ni = len(self.p)
-        k1 = k0 + Nt
         tc = np.empty((Nt, Ni))
         Xc = np.empty_like(tc)
         X0 = self.ev.X[k0]
         for ki in range(Ni):
             t, X = self.curvePoints(list(self.p[ki]), k0, k1, X0)
-            tc[:,ki], Xc[:,ki] = t+0.1*norm.rvs(size=Nt), X
+            tc[:,ki], Xc[:,ki] = t+0.1*stats.norm.rvs(size=Nt), X
         tc = tc.flatten()
         Xc = self.clipLower(Xc.flatten())
         ax.semilogy(tc, Xc, color='black', marker=',', linestyle='')
@@ -804,22 +819,55 @@ class Reporter(object):
     def subplot_upper(self, sp, values):
         """
         Does the upper subplot with model fit vs data.
+
+        Returns the I{t} vector for the actual-data dates being
+        plotted.
         """
-        k0 = self.k0[0]
+        sp.add_line('-', 2)
+        k0 = self.k0
         for k, nb in enumerate(self.ev.bounds):
             sp.add_textBox('SE', "{}: {:.5g}", nb[0], values[k])
         # Data vs best-fit model
-        self.data_vs_model(sp, values, k0=k0)
+        return self.data_vs_model(sp, values, k0=k0)[1]
+
+    def subplot_middle(self, sp, values, t):
+        """
+        Does a middle subplot with residuals between the data I{X_data}
+        and modeled data I{X_curve}.
+        """
+        def tb(proto, *args):
+            sp.add_textBox("SW", proto, *args)
+        
+        sp.set_ylabel("Residual")
+        sp.set_xlabel("Modeled (fitted) new cases/day (square-root transform)")
+        sp.set_zeroLine(color="red", linestyle='-', linewidth=3)
+        sp.add_line('')
+        sp.add_marker('o', 4)
+        sp.set_colors("black")
+        Xd_curve = self.ev.transform(self.ev.curve(t, *values))
+        k0 = int(t[0])
+        Xd = self.ev.Xd[k0:]
+        R = Xd - Xd_curve
+        cdf = ('t', len(R)-1)
+        cdf_text = sub("{}({})", cdf[0], ", ".join([str(x) for x in cdf[1:]]))
+        tb("Residuals: Modeled vs actual new cases/day (transformed)")
+        tb("Kolmogorov-Smirnov goodness of fit to '{}' "+\
+           "distribution: {:.4f} (p < {:.4f})",
+           cdf_text, *stats.kstest(R, cdf[0], cdf[1:]))
+        K = np.argsort(Xd_curve)
+        sp(Xd_curve[K], R[K])
         
     def subplot_lower(self, sp, values):
         """
         Does the lower subplot with extrapolation, starting at my I{k0}
         days from first report.
         """
-        k0 = self.k0[1]
-        ax = self.data_vs_model(sp, values, k0=k0, future=True)
+        sp.add_line('-', 2)
+        k0 = self.k0
+        ax, t_data, t_curve = self.data_vs_model(
+            sp, values, k0=k0, future=True)
         # Scatter plot to sort of show extrapolation uncertainty
-        self.add_scatter(ax, k0=len(self.ev.t)-1)
+        self.add_scatter(ax, k0=int(t_data.max()), k1=int(t_curve.max()))
         
     def __call__(self, values, *args):
         """
@@ -838,19 +886,19 @@ class Reporter(object):
             self.ev.countryCode)
         self.pt.set_ylabel("Reported Cases")
         self.pt.set_xlabel("Days after January 22, 2020")
-        self.pt.add_line('-', 2)
         self.pt.use_minorTicks('x', 1.0)
         with self.pt as sp:
             tb("Reported cases in {} vs days after first case.",
                self.ev.countryCode)
             tb("Annotations show residuals between model and data.")
-            self.subplot_upper(sp, values)
+            t_data = self.subplot_upper(sp, values)
+            self.subplot_middle(sp, values, t_data)
             tb("Expected cases reported in {} vs days after first",
                self.ev.countryCode)
-            tb("case. Dots show predictions at random future times for")
-            tb("each of a final population of 120 evolved parameter")
-            tb("combinations. Annotations show actual values in past,")
-            tb("best-fit projected values in future.")
+            tb("case. Dots show predictions each day for each")
+            tb("of a final population of 120 evolved parameter")
+            tb("combinations. Annotations show actual values in")
+            tb("past, best-fit projected values in future.")
             for line in DISCLAIMER.split('\n'):
                 sp.add_textBox("SE", line)
             self.subplot_lower(sp, values)
@@ -928,7 +976,7 @@ class Runner(object):
         args = self.args
         startTime = time.time()
         klass = self.tryGetClass()
-        names, bounds = yield self.ev.setup(klass).addErrback(oops)
+        names, bounds = yield self.ev.setup(klass, args.d).addErrback(oops)
         if len(args) > 1:
             self.p = Population.load(
                 args[1], func=self.evaluate, bounds=bounds)
@@ -990,6 +1038,8 @@ args = Args(
     Press the Enter key to quit early.
     """
 )
+args('-d', '--days-ago', 0,
+     "Limit latest data to N days ago rather than up to today")
 args('-m', '--maxiter', 50, "Maximum number of DE generations to run")
 args('-e', '--bitter-end', "Keep working to the end even with little progress")
 args('-p', '--popsize', 30, "Population: # individuals per unknown parameter")
