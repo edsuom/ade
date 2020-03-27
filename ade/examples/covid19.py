@@ -4,7 +4,7 @@
 # ade:
 # Asynchronous Differential Evolution.
 #
-# Copyright (C) 2018-19 by Edwin A. Suominen,
+# Copyright (C) 2018-20 by Edwin A. Suominen,
 # http://edsuom.com/ade
 #
 # See edsuom.com for API documentation as well as information about
@@ -33,10 +33,10 @@ that was obtained as of the date of this commit/version). Each line
 contains the number of reported cases for one region of the world.
 
 You probably want to see how many cases may be reported in your
-country. If those are Iran, Italy, and US, you're in luck (actually,
-not), because there are already subclasses of L{Covid19Data} for
-them. To try it out in the U.S. for example, if you're wondering why
-our shithead president can't seem to grasp that this is a real crisis,
+country. If those are Italy or the US, you're in luck (actually, not),
+because there are already subclasses of L{Covid19Data} for them. To
+try it out in the U.S. for example, if you're wondering why our
+shithead president can't seem to grasp that this is a real crisis,
 
 1. Clone this repo, and update it to make sure you have the latest
    commit,
@@ -131,14 +131,16 @@ The comma-separated fields are as follows:
        each day starting on January 22, 2020.
 
 Uses asynchronous differential evolution to efficiently find a
-population of best-fit combinations of four parameters for the
-function::
+population of best-fit combinations of parameters for a first-order
+differential equation modeling the number of new Covid-19 cases per
+day:::
 
-    xd(t) = a * (t-ts)^n * exp(-(t-ts)/t0)    
+    xd(t, x) =  x*r*(1 - x/L) + a*(t-ts)^n * exp(-(t-ts)/t0) + b*t
 
 against data for daily numbers of new reported COVID-19 cases, where
-I{xd} is the number of new cases expected to be reported each day and
-I{t} is the time since the first observation, in days.
+I{xd} is the number of new cases expected to be reported each day,
+I{t} is the time since the first observation, in days, and I{x} is the
+number of total reported cases at time I{t}.
 """
 
 import re, random
@@ -289,54 +291,56 @@ class Covid19Data_US(Covid19Data):
     bounds_lg = [
         #--- Logistic Growth (list these first) -------------------------------
         # Total cases after exponential growth completely stopped
-        ('L',   (2e6, 3.3e8)),
+        ('L',   (1e5, 3.3e8)),
         # The growth rate, proportional to the maximum number of
         # new cases being reported per day from logistic growth 
-        ('r',   (1e-2, 2.4e-1)),
+        ('r',   (0.12, 0.26)),
     ]
     bounds_pl = [
         #--- Power-Law (list these second) ------------------------------------
         # Scaling coefficient
-        ('a',   (1.0, 500.0)),
+        ('a',   (20.0, 700.0)),
         # Power-law exponent
-        ('n',   (0.1, 2.0)),
+        ('n',   (0.0, 1.4)),
         # Start of local country/region epidemic (days after 1/22/20)
-        ('ts',  (43, 55)),
+        ('ts',  (42, 58)),
         # Decay time constant (two years is 730 days)
-        ('t0',  (10, 1000)),
+        ('t0',  (2, 600)),
     ]
     bounds_l = [
         #--- Linear (list this last) ------------------------------------------
         # Constant number of new cases reported each day since beginning
-        ('b',   (0.0, 1.0)),
+        ('b',   (0.0, 0.1)),
         #----------------------------------------------------------------------
     ]
     bounds = bounds_lg + bounds_pl + bounds_l
+    k0 = 40
 
 
 class Covid19Data_Italy(Covid19Data):
     countryCode = 'Italy'
-    summaryPosition = 'E'
+    summaryPosition = 'NW'
     bounds = [
         #--- Logistic Growth --------------------------------------------------
         # Total cases after exponential growth completely stopped
-        ('L',   (2e4, 1.2e5)),
+        ('L',   (5e4, 5e7)),
         # The growth rate, proportional to the maximum number of
         # new cases being reported per day from logistic growth 
-        ('r',   (3e-4, 7e-4)),
+        ('r',   (0.05, 0.18)),
         #--- Power-Law Component ----------------------------------------------
         # Scaling coefficient
-        ('a',   (1.0, 200.0)),
+        ('a',   (1.0, 170.0)),
         # Power-law exponent
-        ('n',   (1.2, 3.5)),
+        ('n',   (0.0, 1.6)),
         # Start of local country/region epidemic (days after 1/22/20)
-        ('ts',  (20, 52)),
+        ('ts',  (15, 52)),
         # Decay time constant
         ('t0',  (1e1, 1e5)),
         #--- Linear -----------------------------------------------------------
         # Constant number of new cases reported each day since beginning
-        ('b',   (0, 8.0)),
+        ('b',   (0, 0.7)),
     ]
+    k0 = 40
 
 
 class Covid19Data_Iran(Covid19Data):
@@ -607,7 +611,6 @@ class Reporter(object):
     plotFilePath = "covid19.png"
     minShown = 10
     daysBack = 10
-    k0 = 40
     daysMax = 50
 
     def __init__(self, evaluator, population):
@@ -772,6 +775,8 @@ class Reporter(object):
             annotate_past(k-2)
             # Yesterday
             annotate_past(k-1)
+            # Today (model)
+            annotate_future(k)
             # Tomorrow
             annotate_future(k+1)
             # Day after tomorrow
@@ -824,7 +829,7 @@ class Reporter(object):
         plotted.
         """
         sp.add_line('-', 2)
-        k0 = self.k0
+        k0 = self.ev.k0
         for k, nb in enumerate(self.ev.bounds):
             sp.add_textBox('SE', "{}: {:.5g}", nb[0], values[k])
         # Data vs best-fit model
@@ -835,9 +840,6 @@ class Reporter(object):
         Does a middle subplot with residuals between the data I{X_data}
         and modeled data I{X_curve}.
         """
-        def tb(proto, *args):
-            sp.add_textBox("SW", proto, *args)
-        
         sp.set_ylabel("Residual")
         sp.set_xlabel("Modeled (fitted) new cases/day (square-root transform)")
         sp.set_zeroLine(color="red", linestyle='-', linewidth=3)
@@ -848,12 +850,10 @@ class Reporter(object):
         k0 = int(t[0])
         Xd = self.ev.Xd[k0:]
         R = Xd - Xd_curve
-        cdf = ('t', len(R)-1)
-        cdf_text = sub("{}({})", cdf[0], ", ".join([str(x) for x in cdf[1:]]))
-        tb("Residuals: Modeled vs actual new cases/day (transformed)")
-        tb("Kolmogorov-Smirnov goodness of fit to '{}' "+\
-           "distribution: {:.4f} (p < {:.4f})",
-           cdf_text, *stats.kstest(R, cdf[0], cdf[1:]))
+        sp.add_textBox(
+            'NW', "Residuals: Modeled vs actual new cases/day (transformed)")
+        sp.add_textBox(
+            'SW', "Non-normality: p < {:.4f}", stats.normaltest(R)[1])
         K = np.argsort(Xd_curve)
         sp(Xd_curve[K], R[K])
         
@@ -863,13 +863,13 @@ class Reporter(object):
         days from first report.
         """
         sp.add_line('-', 2)
-        k0 = self.k0
+        k0 = self.ev.k0
         ax, t_data, t_curve = self.data_vs_model(
             sp, values, k0=k0, future=True)
         # Scatter plot to sort of show extrapolation uncertainty
         self.add_scatter(ax, k0=int(t_data.max()), k1=int(t_curve.max()))
         
-    def __call__(self, values, *args):
+    def __call__(self, values, counter, SSE):
         """
         Prints out a new best parameter combination and its curve vs
         observations, with lots of extrapolation to the right.
@@ -880,7 +880,8 @@ class Reporter(object):
         # Make a frozen local copy of the values list to work with, so
         # outdated stuff doesn't get plotted
         values = list(values)
-        msg(0, "Values: {}", ", ".join([str(x) for x in values]))
+        msg(0, self.prettyValues(
+            values, "SSE={:.5g} on eval {:d}:", SSE, counter), 0)
         self.pt.set_title(
             "Modeled (red) vs Actual (blue) Reported Cases of COVID-19: {}",
             self.ev.countryCode)
