@@ -93,13 +93,16 @@ class Analysis(object):
         (0.70, '.', 0.5),
         (1.01, '.', 0.0),
     )
+    fileSpec = None
+    defaultWidth = 12.0 # 1200 pixels default, for PNG plots
     
-    def __init__(self, names, X, K, Kp=set(), Kn=set()):
+    def __init__(self, names, X, K, Kp=set(), Kn=set(), baseFilePath=None):
         self.names = names
         self.X = X
         self.K = K
         self.Kp = Kp
         self.Kn = Kn
+        if baseFilePath: self.filePath(baseFilePath)
 
     def corr(self, k1, k2):
         """
@@ -264,11 +267,47 @@ class Analysis(object):
             return 9
         return N_left
 
-    def _makePlotter(self, *args, **kw):
+    def filePath(self, baseFilePath=None, width=None):
+        """
+        Obtains a unique filePath for a PNG file, or, with I{baseFilePath}
+        set, sets my I{fileSpec} to a 5-list: C{[directory, basename,
+        extension, count, width]} so that plotting is done to a PNG
+        file at I{filePath}.
+
+        With no I{baseFilePath} specified: If my I{fileSpec} has been
+        set, a numerical suffix gets appended to the base name (but
+        not the extension), making each figure/PNG file unique. The
+        unique file path is returned along with the desired width in
+        pixels. Otherwise, a pair of C{None} objects is returned.
+        """
+        if width is None: width = self.defaultWidth
+        if baseFilePath is None:
+            if self.fileSpec is None:
+                return None, None
+            directory, baseName, ext, count, width = self.fileSpec
+            count += 1
+            self.fileSpec[3] = count
+            fileName = sub("{}-{:02d}.{}", baseName, count, ext)
+            return os.path.join(directory, fileName), width
+        directory, fileName = os.path.split(baseFilePath)
+        baseName, ext = os.path.splitext(fileName)
+        self.fileSpec = [directory, baseName, ext.lstrip('.'), 0, width]
+
+    def makePlotter(self, *args, **kw):
         """
         Returns a L{Plotter} object, constructed with the supplied args
         and/or keywords, with some global options set.
+
+        If I have a I{fileSpec} set, I will write the plot to a PNG
+        file instead of showing a plot window. There will be a
+        uniquifying numerical suffix appended to the file's base name.
         """
+        filePath, width = self.filePath()
+        if filePath:
+            kw['filePath'] = filePath
+            kw['width'] = width
+            N, Nc, Nr = Plotter.parseArgs(*args, **kw)[2:]
+            kw['height'] = 0.8*width * Nr/Nc
         pt = Plotter(*args, **kw)
         pt.add_line(""); pt.use_minorTicks('y'); pt.use_grid()
         return pt
@@ -286,8 +325,12 @@ class Analysis(object):
             from the last Matplotlib C{Figure} plotted instead of
             calling C{showAll} on it, thus allowing you to do so at
             your convenience.
+
+        @keyword semilog: Set C{True} to plot parameter values on a
+            logarithmic scale.
         """
         noShow = kw.pop('noShow', False)
+        semilog = kw.pop('semilog', False)
         names = self.args2names(names)
         inPop = kw.get('inPop', False)
         kw['inPop'] = True
@@ -307,8 +350,11 @@ class Analysis(object):
             N = self.pick_N(kList)
             kkList = kList[:N]; kList = kList[N:]
             Nc = 1 if N == 1 else 3 if N > 6 else 2
-            pt = self._makePlotter(N, Nc=Nc)
+            pt = self.makePlotter(N, Nc=Nc)
             pt.add_marker('o', 2.0); pt.add_color('red')
+            pt.set_xlabel("SSE")
+            if semilog:
+                pt.plot_semilogy()
             if not inPop:
                 pt.add_marker('o', 2.0); pt.add_color('blue')
                 pt.add_marker('.', 1.5); pt.add_color('#303030')
@@ -364,7 +410,7 @@ class Analysis(object):
         k1 = arg1 if isinstance(arg1, int) else self.name2k(arg1)
         k2 = arg2 if isinstance(arg2, int) else self.name2k(arg2)
         if sp is None:
-            pt = self._makePlotter(1)
+            pt = self.makePlotter(1)
             with pt as sp:
                 result = plot(sp)
             pt.show()
@@ -373,7 +419,7 @@ class Analysis(object):
     
     def plotCorrelated(self, name=None, N=4, noShow=False, verbose=False):
         """
-        Plots values of four pairs of parameters with the highest
+        Plots values of I{N} pairs of parameters with the highest
         correlation. The higher the SSE for a given combination of
         values, the less prominent the point will be in the plot.
 
@@ -391,13 +437,12 @@ class Analysis(object):
             from the last Matplotlib C{Figure} plotted instead of
             calling C{showAll} on it, thus allowing you to do so at
             your convenience.
-
         """
         Np = self.X.shape[1] - 1
         Ncombos = Np*(Np-1)/2
         if Ncombos == 0: return
         if Ncombos < N: N = Ncombos
-        pt = self._makePlotter(N)
+        pt = self.makePlotter(N)
         with pt as sp:
             count = 0
             for stuff in self.correlator():

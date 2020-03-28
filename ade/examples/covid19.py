@@ -214,6 +214,8 @@ class Covid19Data(Data):
     re_ps_yes = None
     re_ps_no = None
 
+    daysMax = 50
+    
     def __len__(self):
         return len(self.dates)
 
@@ -343,19 +345,85 @@ class Covid19Data_Italy(Covid19Data):
     k0 = 40
 
 
-class Covid19Data_Iran(Covid19Data):
-    countryCode = 'Iran'
-    summaryPosition = 'E'
-
-
 class Covid19Data_SouthKorea(Covid19Data):
     countryCode = 'Korea, South'
     summaryPosition = 'E'
+    bounds = [
+        #--- Logistic Growth --------------------------------------------------
+        # Total cases after exponential growth completely stopped
+        ('L',   (1.0, 500)),
+        # The growth rate, proportional to the maximum number of
+        # new cases being reported per day from logistic growth 
+        ('r',   (0.01, 0.4)),
+        #--- Power-Law Component ----------------------------------------------
+        # Scaling coefficient
+        ('a',   (2.0, 500.0)),
+        # Power-law exponent
+        ('n',   (0.01, 3.5)),
+        # Start of local country/region epidemic (days after 1/22/20)
+        ('ts',  (17, 38)),
+        # Decay time constant
+        ('t0',  (0.3, 10.0)),
+        #--- Linear -----------------------------------------------------------
+        # Constant number of new cases reported each day since beginning
+        ('b',   (0, 0.8)),
+    ]
+    k0 = 20
+    daysMax = 60
 
 
 class Covid19Data_Finland(Covid19Data):
     countryCode = 'Finland'
-    summaryPosition = 'E'
+    summaryPosition = 'NW'
+    bounds = [
+        #--- Logistic Growth --------------------------------------------------
+        # Total cases after exponential growth completely stopped
+        ('L',   (1.0, 1e6)),
+        # The growth rate, proportional to the maximum number of
+        # new cases being reported per day from logistic growth 
+        ('r',   (0.01, 0.12)),
+        #--- Power-Law Component ----------------------------------------------
+        # Scaling coefficient
+        ('a',   (0.0, 10.0)),
+        # Power-law exponent
+        ('n',   (0.01, 1.5)),
+        # Start of local country/region epidemic (days after 1/22/20)
+        ('ts',  (30, 60)),
+        # Decay time constant
+        ('t0',  (10.0, 1200.0)),
+        #--- Linear -----------------------------------------------------------
+        # Constant number of new cases reported each day since beginning
+        ('b',   (0, 0.08)),
+    ]
+    k0 = 40
+    daysMax = 50
+
+
+class Covid19Data_Singapore(Covid19Data):
+    countryCode = 'Singapore'
+    summaryPosition = 'NW'
+    bounds = [
+        #--- Logistic Growth --------------------------------------------------
+        # Total cases after exponential growth completely stopped
+        ('L',   (2e4, 1e7)),
+        # The growth rate, proportional to the maximum number of
+        # new cases being reported per day from logistic growth 
+        ('r',   (0.001, 0.08)),
+        #--- Power-Law Component ----------------------------------------------
+        # Scaling coefficient
+        ('a',   (0.1, 7)),
+        # Power-law exponent
+        ('n',   (0.005, 1)),
+        # Start of local country/region epidemic (days after 1/22/20)
+        ('ts',  (35, 60)),
+        # Decay time constant
+        ('t0',  (100, 1.5e4)),
+        #--- Linear -----------------------------------------------------------
+        # Constant number of new cases reported each day since beginning
+        ('b',   (0.01, 0.15)),
+    ]
+    k0 = 30
+    daysMax = 55
 
 
 class Evaluator(Picklable):
@@ -495,9 +563,23 @@ class Evaluator(Picklable):
             
         This requires integration of a first-order differential
         equation, which is performed in L{curve}.
+
+        The Jacobian with respect to I{x} is provided by
+        L{jacobian_logistic}.
         """
         x = np.array(x)
         return r*x*(1 - x/L)
+
+    def jacobian_logistic(self, t, x, L, r):
+        """
+        Jacobian for L{curve_logistic}, with respect to I{x}::
+
+            xd(t, x) = r*x - r*x^2/L
+            xd2(t, x) = r*(1 - 2*x/L)
+        
+        """
+        x = np.array(x)
+        return [r*(1 - 2*x/L)]
     
     def curve_powerlaw(self, t, x, a, n, ts, t0):
         """
@@ -519,6 +601,8 @@ class Evaluator(Picklable):
         Aaron of Singapore, for suggesting I look into the power law
         model as an alternative, and pointing me to an article
         discussing its possible application to COVID-19.
+
+        The Jacobian with respect to I{x} is zero.
         """
         t -= ts
         if t < 0: return np.zeros_like(x)
@@ -527,6 +611,8 @@ class Evaluator(Picklable):
     def curve_linear(self, t, x, b):
         """
         Linear component: Constant number of new cases reported each day.
+
+        The Jacobian with respect to I{x} is zero.
         """
         return b * np.ones_like(x)
     
@@ -536,7 +622,7 @@ class Evaluator(Picklable):
         1-D array I{t}, using the logistic growth model, the power law
         model, or both, with or without a linear component.
 
-        If there are 2 parameters, I{L} and I{k}, only logistic growth
+        If there are 2 parameters, I{L} and I{r}, only logistic growth
         would be used, but that doesn't work because the initial
         number of reported cases is zero. You need one of the other
         terms, too.
@@ -557,7 +643,11 @@ class Evaluator(Picklable):
                 Xd_this = np.clip(f(t, x, *values[ks]), 0, None)
                 Xd += Xd_this
             return Xd
+
+        def jac(t, x):
+            return self.jacobian_logistic(t, x, *values[:2])
         
+        jacobian = lambda t, y: [[0.0]]
         if self.fList is None:
             k = 0
             self.fList = []
@@ -567,6 +657,7 @@ class Evaluator(Picklable):
                     "You can't have just logistic growth by itself!")
             if N in (6, 3, 7):
                 self.fList.append((self.curve_logistic, slice(k, k+2)))
+                jacobian = jac
                 k += 2
             if N in (4, 6, 5, 7):
                 self.fList.append((self.curve_powerlaw, slice(k, k+4)))
@@ -574,7 +665,8 @@ class Evaluator(Picklable):
             if N in (3, 5, 7):
                 self.fList.append((self.curve_linear, slice(k, k+1)))
         sol = solve_ivp(
-            f, [0.0, t.max()], f(0.0, [0.0]), t_eval=t, vectorized=True)
+            f, [0.0, t.max()], f(0.0, [0.0]),
+            method='Radau', t_eval=t, vectorized=True, jac=jacobian)
         if not sol.success:
             raise RuntimeError("ODE solver failed!")
         return sol.y[0]
@@ -603,15 +695,11 @@ class Reporter(object):
     @cvar minShown: Minimum number of reported cases to show at the
         bottom of the log plot.
 
-    @cvar daysMax: Maximum number of days to show from date of first
-        reported case(s).
-
     @cvar N: Number of random points in extrapolated scatter plot.
     """
     plotFilePath = "covid19.png"
     minShown = 10
     daysBack = 10
-    daysMax = 50
 
     def __init__(self, evaluator, population):
         """
@@ -625,6 +713,10 @@ class Reporter(object):
         self.pt.use_grid()
         ImageViewer(self.plotFilePath)
 
+    @property
+    def daysMax(self):
+        return self.ev.daysMax
+        
     def clipLower(self, X):
         return np.clip(X, self.minShown, None)
 
@@ -660,10 +752,10 @@ class Reporter(object):
         expected number of B{cumulative} cases reported on each of
         those days.
 
-        @keyword X0: Set this to a known number of days at I{k0}. The
-            first element of the returned array will have that exact
-            number, and elements for subsequent days will extrapolate
-            from that point.
+        @keyword X0: Set this to a known number of total cases
+            reported as of day I{k0}. The first element of the
+            returned array will have that exact number, and elements
+            for subsequent days will extrapolate from that point.
         """
         if k1 <= k0: raise ValueError("Number k1 must be > k0!")
         t = np.arange(0, k1)
@@ -761,7 +853,7 @@ class Reporter(object):
         if future:
             k1 = k0 + self.daysMax + 1
         else: k1 = kToday + 3
-        t_curve, X_curve = self.curvePoints(values, k0, k1)
+        t_curve, X_curve = self.curvePoints(values, k0, k1, X0=self.ev.X[k0])
         t_data = self.ev.t[k0:]
         X_data = self.clipLower(self.ev.X[k0:])
         k = kToday - k0
@@ -867,7 +959,8 @@ class Reporter(object):
         ax, t_data, t_curve = self.data_vs_model(
             sp, values, k0=k0, future=True)
         # Scatter plot to sort of show extrapolation uncertainty
-        self.add_scatter(ax, k0=int(t_data.max()), k1=int(t_curve.max()))
+        # DEBUG
+        #self.add_scatter(ax, k0=int(t_data.max()), k1=int(t_curve.max()))
         
     def __call__(self, values, counter, SSE):
         """
