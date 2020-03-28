@@ -35,8 +35,9 @@ contains the number of reported cases for one region of the world.
 You probably want to see how many cases may be reported in your
 country. If those are Italy or the US, you're in luck (actually, not),
 because there are already subclasses of L{Covid19Data} for them. To
-try it out in the U.S. for example, if you're wondering why our
-shithead president can't seem to grasp that this is a real crisis,
+try it out in the U.S. for example, if you're wondering whether this
+is a real crisis despite what our shithead president said and didn't
+do for weeks and weeks:
 
 1. Clone this repo, and update it to make sure you have the latest
    commit,
@@ -135,12 +136,32 @@ population of best-fit combinations of parameters for a first-order
 differential equation modeling the number of new Covid-19 cases per
 day:::
 
-    xd(t, x) =  x*r*(1 - x/L) + a*(t-ts)^n * exp(-(t-ts)/t0) + b*t
+    xd(t, x) =  x*r*(1-x/L) + a*(t-ts)^n * exp(-(t-ts)/t0) + b*t
 
 against data for daily numbers of new reported COVID-19 cases, where
 I{xd} is the number of new cases expected to be reported each day,
 I{t} is the time since the first observation, in days, and I{x} is the
 number of total reported cases at time I{t}.
+
+With the exception of the residual subplot in the middle, the plot
+shows cumulative numbers of total cases C{x(t)}, not the differential
+model function C{xd(t, x)} that is fitted to the number of daily
+B{new} cases. To produce these plots and the predictions that we are
+all interested in, the plots are anchored to the most recently known
+value of the number of reported cases. Then I{xd(t, x)} is integrated
+in both directions from the date for that most recent known value.
+
+The integration goes backwards to show fit between the model and
+historical numbers of total cases, which can be expected to get worse
+in percentage terms as the known point gets farther away but probably
+not so bad in absolute terms as both modeled and historical numbers
+shrink rapidly.
+
+For extrapolations from the most recent known date, the integration is
+done forwards from that point. Again, precision will get worse as the
+model ventures farther into the future. Extrapolation is dangerous
+even for models with a solid theoretical basis (and this one was
+produced by a biology+medicine layman), so see the disclaimer.
 """
 
 import re, random
@@ -244,7 +265,7 @@ class Covid19Data(Data):
                 firstDate = thisDate
             self.dates.append(thisDate)
             self.t.append(hours(thisDate) / 24)
-        self.t = np.array(self.t)
+        self.t = np.array(self.t, dtype=float)
     
     def valuerator(self, result):
         """
@@ -293,29 +314,30 @@ class Covid19Data_US(Covid19Data):
     bounds_lg = [
         #--- Logistic Growth (list these first) -------------------------------
         # Total cases after exponential growth completely stopped
-        ('L',   (1e5, 3.3e8)),
+        ('L',   (1.5e5, 8e5)),
         # The growth rate, proportional to the maximum number of
         # new cases being reported per day from logistic growth 
-        ('r',   (0.12, 0.26)),
+        ('r',   (0.23, 0.32)),
     ]
     bounds_pl = [
         #--- Power-Law (list these second) ------------------------------------
         # Scaling coefficient
-        ('a',   (20.0, 700.0)),
+        ('a',   (200, 4000)),
         # Power-law exponent
-        ('n',   (0.0, 1.4)),
+        ('n',   (0.02, 0.4)),
         # Start of local country/region epidemic (days after 1/22/20)
-        ('ts',  (42, 58)),
+        ('ts',  (53, 59)),
         # Decay time constant (two years is 730 days)
-        ('t0',  (2, 600)),
+        ('t0',  (1, 2e4)),
     ]
     bounds_l = [
         #--- Linear (list this last) ------------------------------------------
         # Constant number of new cases reported each day since beginning
-        ('b',   (0.0, 0.1)),
+        ('b',   (0, 40)),
         #----------------------------------------------------------------------
     ]
-    bounds = bounds_lg + bounds_pl + bounds_l
+    # NOT including power law!
+    bounds = bounds_lg #+ bounds_l
     k0 = 40
 
 
@@ -405,24 +427,24 @@ class Covid19Data_Singapore(Covid19Data):
     bounds = [
         #--- Logistic Growth --------------------------------------------------
         # Total cases after exponential growth completely stopped
-        ('L',   (2e4, 1e7)),
+        ('L',   (1e4, 2e8)),
         # The growth rate, proportional to the maximum number of
         # new cases being reported per day from logistic growth 
-        ('r',   (0.001, 0.08)),
+        ('r',   (0.005, 0.12)),
         #--- Power-Law Component ----------------------------------------------
         # Scaling coefficient
-        ('a',   (0.1, 7)),
+        ('a',   (0.0, 40)),
         # Power-law exponent
-        ('n',   (0.005, 1)),
+        ('n',   (0.005, 1.9)),
         # Start of local country/region epidemic (days after 1/22/20)
-        ('ts',  (35, 60)),
+        ('ts',  (40, 60)),
         # Decay time constant
-        ('t0',  (100, 1.5e4)),
+        ('t0',  (1, 1e5)),
         #--- Linear -----------------------------------------------------------
         # Constant number of new cases reported each day since beginning
-        ('b',   (0.01, 0.15)),
+        ('b',   (0.0, 4.0)),
     ]
-    k0 = 30
+    k0 = 10
     daysMax = 55
 
 
@@ -456,7 +478,7 @@ class Evaluator(Picklable):
 
         xd(t) += b*t
     
-    The data in my 1-D array I{Xd} contains daily numbers of B{new}
+    The data in my 1-D array I{XD} contains daily numbers of B{new}
     reported COVID-19 cases. The modeled value of the functions xd{x}
     is the number of new cases expected to be reported and I{t} is the
     time since the first observation (in days).
@@ -475,7 +497,7 @@ class Evaluator(Picklable):
     linear component is desired (constant number of new cases each
     day), define it with parameter I{b}.
 
-    @ivar Xd: The actual number of new cases per day, each day, for
+    @ivar XD: The actual number of new cases per day, each day, for
         the selected country or region since the first reported case
         in the Johns Hopkins dataset on January 22, 2020, B{after} my
         L{transform} has been applied.
@@ -485,13 +507,30 @@ class Evaluator(Picklable):
 
     def __getattr__(self, name):
         return getattr(self.data, name)
+
+    def kt(self, t):
+        """
+        Returns an index to my I{t} and I{X} vectors for the specified
+        number of days I{t} after 1/22/20.
+        """
+        k = np.searchsorted(self.data.t, t)
+        N = len(self.data.t)
+        if k >= N: k = N-1
+        return k
+    
+    def Xt(self, t):
+        """
+        Returns the value of I{X} at the specified number of days I{t}
+        after 1/22/20.
+        """
+        return self.data.X[self.kt(t)]
     
     def setup(self, klass, daysAgo=0):
         """
         Call with a subclass I{klass} of L{Covid19Data} with data and
         bounds for evaluation of my model.
 
-        Computes a differential vector I{Xd} that contains the
+        Computes a differential vector I{XD} that contains the
         differences between a particular day's cumulative cases and
         the previous day's. The length this vector is the same as
         I{X}, with a zero value for the first day.
@@ -505,7 +544,7 @@ class Evaluator(Picklable):
         """
         def done(null):
             # Differential
-            self.Xd = np.zeros_like(self.X)
+            self.XD = np.zeros_like(self.X)
             msg("Cumulative and new cases reported thus far for {}",
                 self.countryCode, '-')
             xPrev = None
@@ -514,7 +553,7 @@ class Evaluator(Picklable):
                 xPrev = x
                 msg("{:03d}\t{}\t{:d}\t{:d}",
                     k, self.dayText(k), int(x), int(xd))
-                self.Xd[k] = self.transform(xd)
+                self.XD[k] = self.transform(xd)
             return names, bounds
 
         if not issubclass(klass, Covid19Data):
@@ -526,7 +565,7 @@ class Evaluator(Picklable):
             bounds.append(theseBounds)
         return data.setup(daysAgo).addCallbacks(done, oops)
 
-    def transform(self, Xd, inverse=False):
+    def transform(self, XD, inverse=False):
         """
         Applies a transform to the numbers of new cases per day each day,
         real or modeled. Set I{inverse} C{True} to apply the inverse
@@ -539,8 +578,8 @@ class Evaluator(Picklable):
         all. Will investigate Cox-Box as an option.
         """
         if inverse:
-            return np.sign(Xd) * Xd**2
-        return np.sign(Xd) * np.sqrt(np.abs(Xd))
+            return np.sign(XD) * XD**2
+        return np.sign(XD) * np.sqrt(np.abs(XD))
     
     def dayText(self, k):
         """
@@ -550,7 +589,7 @@ class Evaluator(Picklable):
         firstDay = self.dates[0]
         return (firstDay + timedelta(days=k)).strftime("%m/%d")
 
-    def curve_logistic(self, t, x, L, r):
+    def xd_logistic(self, t, x, L, r):
         """
         Logistic growth model (Verhulst model),
         U{https://services.math.duke.edu/education/ccp/materials/diffeq/logistic/logi1.html}
@@ -570,18 +609,17 @@ class Evaluator(Picklable):
         x = np.array(x)
         return r*x*(1 - x/L)
 
-    def jacobian_logistic(self, t, x, L, r):
+    def x2d_logistic(self, t, x, L, r):
         """
-        Jacobian for L{curve_logistic}, with respect to I{x}::
+        Jacobian for L{xd_logistic}, with respect to I{x}::
 
             xd(t, x) = r*x - r*x^2/L
-            xd2(t, x) = r*(1 - 2*x/L)
-        
+            x2d(t, x) = r*(1 - 2*x/L)
         """
         x = np.array(x)
         return [r*(1 - 2*x/L)]
     
-    def curve_powerlaw(self, t, x, a, n, ts, t0):
+    def xd_powerlaw(self, t, x, a, n, ts, t0):
         """
         Power law model,
         U{https://www.medrxiv.org/content/10.1101/2020.02.16.20023820v2.full.pdf}
@@ -604,11 +642,20 @@ class Evaluator(Picklable):
 
         The Jacobian with respect to I{x} is zero.
         """
-        t -= ts
-        if t < 0: return np.zeros_like(x)
-        return a*t**n * np.exp(-t/t0) * np.ones_like(x)
+        def xd(t, x):
+            return a*t**n * np.exp(-t/t0) * np.ones_like(x)
 
-    def curve_linear(self, t, x, b):
+        # NOTE: Using t -= ts changed t in place, which wasn't cool
+        t = t - ts
+        XD = np.zeros_like(x)
+        if isinstance(t, np.ndarray):
+            K = np.flatnonzero(t > 0)
+            XD[K] = xd(t[K], x[K])
+        elif t > 0:
+            XD = xd(t, x)
+        return XD
+
+    def xd_linear(self, t, x, b):
         """
         Linear component: Constant number of new cases reported each day.
 
@@ -616,12 +663,19 @@ class Evaluator(Picklable):
         """
         return b * np.ones_like(x)
     
-    def curve(self, t, *values):
+    def curve(self, t, values, backwards=False):
         """
-        Returns the expected number of new cases per day for each day in
-        1-D array I{t}, using the logistic growth model, the power law
-        model, or both, with or without a linear component.
+        Returns a 2-tuple with (1) I{XD}, the expected number of new
+        reported cases per day for each day in 1-D array I{t}, and (2)
+        I{X}, the expected total number of reported cases.
 
+        Uses the logistic growth model, the power law model, or both,
+        with or without a linear (constant xd) term.
+
+        Arguments are the time array I{t} (monotonically increasing
+        numbers of days after 1/22/20), and a set of model parameter
+        values.
+        
         If there are 2 parameters, I{L} and I{r}, only logistic growth
         would be used, but that doesn't work because the initial
         number of reported cases is zero. You need one of the other
@@ -636,47 +690,73 @@ class Evaluator(Picklable):
         If there are 3 parameters (logistic growth plus linear), 5
         parameters (power-law plus linear), or 7 parameters
         (everything), a linear component is added.
+
+        @keyword backwards: Set C{True} to integrate backwards,
+            reversing the sign of the differential and anchoring the
+            starting point to the last value instead of the first.
         """
         def f(t, x):
-            Xd = np.zeros_like(x)
+            XD = np.zeros_like(x)
             for f, ks in self.fList:
-                Xd_this = np.clip(f(t, x, *values[ks]), 0, None)
-                Xd += Xd_this
-            return Xd
+                XD_this = f(t, x, *values[ks])
+                XD += XD_this
+            return XD
 
         def jac(t, x):
-            return self.jacobian_logistic(t, x, *values[:2])
-        
+            return self.x2d_logistic(t, x, *values[:2])
+
         jacobian = lambda t, y: [[0.0]]
         if self.fList is None:
             k = 0
             self.fList = []
             N = len(values)
-            if N == 2:
-                raise ValueError(
-                    "You can't have just logistic growth by itself!")
-            if N in (6, 3, 7):
-                self.fList.append((self.curve_logistic, slice(k, k+2)))
+            if N in (2, 3, 6, 7):
+                self.fList.append((self.xd_logistic, slice(k, k+2)))
                 jacobian = jac
                 k += 2
             if N in (4, 6, 5, 7):
-                self.fList.append((self.curve_powerlaw, slice(k, k+4)))
+                self.fList.append((self.xd_powerlaw, slice(k, k+4)))
                 k += 4
             if N in (3, 5, 7):
-                self.fList.append((self.curve_linear, slice(k, k+1)))
+                self.fList.append((self.xd_linear, slice(k, k+1)))
+        # Solve the initial value problem to get X, which in turns
+        # lets us obtain values for XD, dependent as it probably is
+        # (due to logistic component likely included) on X
+        if backwards: t = np.flip(t)
+        t_span = [t[0], t[-1]]
         sol = solve_ivp(
-            f, [0.0, t.max()], f(0.0, [0.0]),
+            f, t_span, [self.Xt(t_span[0])],
             method='Radau', t_eval=t, vectorized=True, jac=jacobian)
         if not sol.success:
             raise RuntimeError("ODE solver failed!")
-        return sol.y[0]
+        X = sol.y[0]
+        return f(t, X), X
+    
+    def residuals(self, values, XD_included=False):
+        """
+        Returns a 1-D array of transformed residuals between my L{curve}
+        for my time vector I{t} for days after 1/22/20 and I{XD}.
+
+        The residual array is left-trimmed to start with my first
+        valid day I{k0}.
+
+        @keyword XD_included: Set C{True} to also return a trimmed
+            version of the modeled values of I{XD}.
+        """
+        t = self.t[self.k0:]
+        XD = self.transform(self.curve(t, values, backwards=False)[0])
+        R = XD - self.XD[self.k0:]
+        #R = XD - np.flip(self.XD[self.k0:])
+        if XD_included:
+            return R, XD
+        return R
     
     def __call__(self, values):
         """
         Evaluation function for the parameter I{values}. 
         """
-        Xd_curve = self.transform(self.curve(self.t, *values))
-        return self.scale_SSE * np.sum(np.square(Xd_curve - self.Xd))
+        R = self.residuals(values)
+        return self.scale_SSE * np.sum(np.square(R))
 
 
 class Reporter(object):
@@ -743,35 +823,29 @@ class Reporter(object):
             return np.arange(k0, k1, 1)
         return k0 + (k1-k0) * uniform.rvs(size=N)
     
-    def curvePoints(self, values, k0, k1, X0=None):
+    def curvePoints(self, values, k0, k1, backwards=False):
         """
+        Obtains modeled numbers of cumulative reported cases from I{k0} to
+        I{k1} days after first reported case.
+        
         Given a sequence of parameter I{values} and a first I{k0} and
         second I{k1} number of days from first reported case, returns
-        (1) a 1-D array with days from first reported case, starting
-        at I{k0} and ending at I{k1}, and (2) a 1-D array with the
-        expected number of B{cumulative} cases reported on each of
-        those days.
+        (1) a 1-D array I{t} with days from first reported case,
+        starting at I{k0} and ending at I{k1}, and (2) a 1-D array
+        I{X} with the expected number of B{cumulative} cases reported
+        on each of those days.
 
-        @keyword X0: Set this to a known number of total cases
-            reported as of day I{k0}. The first element of the
-            returned array will have that exact number, and elements
-            for subsequent days will extrapolate from that point.
+        The first value of I{X} is anchored to the known number of
+        reported cases at first time I{k0}. That is appropriate to use
+        with forwards integration for extrapolation. For backwards
+        integration (for historical comparisons), where the last value
+        of I{X} is anchored to the known number of reported cases at
+        the second time I{k1}, set I{backwards} C{True}.
         """
         if k1 <= k0: raise ValueError("Number k1 must be > k0!")
-        t = np.arange(0, k1)
-        Xd = self.ev.curve(t, *values)
-        X = np.zeros_like(t)
-        for k, Xdk in enumerate(Xd):
-            if X0 is not None:
-                if k < k0:
-                    continue
-                if k == k0:
-                    X[k] = X0
-                    continue
-            if k < 1:
-                continue
-            X[k] = X[k-1] + Xd[k]
-        return t[k0:], X[k0:]
+        t = np.arange(float(k0), float(k1))
+        X = self.ev.curve(t, values, backwards)[1]
+        return t, X
     
     def annotate(self, sp, k, k0, X_curve=None, X_data=None):
         """
@@ -853,7 +927,7 @@ class Reporter(object):
         if future:
             k1 = k0 + self.daysMax + 1
         else: k1 = kToday + 3
-        t_curve, X_curve = self.curvePoints(values, k0, k1, X0=self.ev.X[k0])
+        t_curve, X_curve = self.curvePoints(values, k0, k1)
         t_data = self.ev.t[k0:]
         X_data = self.clipLower(self.ev.X[k0:])
         k = kToday - k0
@@ -877,8 +951,10 @@ class Reporter(object):
             for weeks in range(1, 4):
                 annotate_future(k+7*weeks)
             # When target case thresholds reached
+            N = len(X_curve)
+            if k >= N: k = N-1
             for xt in (1e4, 5e4, 1e5, 5e5, 1e6, 5e6):
-                if xt > X_curve[k] and xt < X_curve[-1]:
+                if xt > X_curve[k] and xt < X_curve[N-1]:
                     kt = np.argmin(np.abs(X_curve - xt))
                     annotate_future(kt)
             # The last day of extrapolation
@@ -907,7 +983,7 @@ class Reporter(object):
         Xc = np.empty_like(tc)
         X0 = self.ev.X[k0]
         for ki in range(Ni):
-            t, X = self.curvePoints(list(self.p[ki]), k0, k1, X0)
+            t, X = self.curvePoints(list(self.p[ki]), k0, k1)
             tc[:,ki], Xc[:,ki] = t+0.1*stats.norm.rvs(size=Nt), X
         tc = tc.flatten()
         Xc = self.clipLower(Xc.flatten())
@@ -938,16 +1014,12 @@ class Reporter(object):
         sp.add_line('')
         sp.add_marker('o', 4)
         sp.set_colors("black")
-        Xd_curve = self.ev.transform(self.ev.curve(t, *values))
-        k0 = int(t[0])
-        Xd = self.ev.Xd[k0:]
-        R = Xd - Xd_curve
+        R, XDc = self.ev.residuals(values, XD_included=True)
         sp.add_textBox(
             'NW', "Residuals: Modeled vs actual new cases/day (transformed)")
         sp.add_textBox(
             'SW', "Non-normality: p < {:.4f}", stats.normaltest(R)[1])
-        K = np.argsort(Xd_curve)
-        sp(Xd_curve[K], R[K])
+        sp(XDc, R)
         
     def subplot_lower(self, sp, values):
         """
@@ -959,8 +1031,7 @@ class Reporter(object):
         ax, t_data, t_curve = self.data_vs_model(
             sp, values, k0=k0, future=True)
         # Scatter plot to sort of show extrapolation uncertainty
-        # DEBUG
-        #self.add_scatter(ax, k0=int(t_data.max()), k1=int(t_curve.max()))
+        self.add_scatter(ax, k0=int(t_data.max()), k1=int(t_curve.max()))
         
     def __call__(self, values, counter, SSE):
         """
