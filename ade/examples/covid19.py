@@ -226,6 +226,10 @@ class Covid19Data(Data):
         web server), is plain vanilla server logs with “referral” info
         about which web page sent you to this one.
 
+    @cvar second_deriv: Set this C{True} to have the model considered
+        the second derivative of the cumulative number of cases,
+        rather than the first derivative.
+    
     @see: The L{Data} base class.
     """
     basename = "covid19"
@@ -308,30 +312,71 @@ class Covid19Data(Data):
 
 
 class Covid19Data_US(Covid19Data):
+    """
+    US, first-order ODE
+    """
     countryCode = 'US'
     bounds_lg = [
         #--- Logistic Growth (list these first) -------------------------------
         # Total cases after exponential growth completely stopped
-        ('L',   (1.5e5, 8e5)),
+        ('L',   (2e5, 4e6)),
         # The growth rate, proportional to the maximum number of
         # new cases being reported per day from logistic growth 
-        ('r',   (0.10, 0.32)),
+        ('r',   (0.10, 0.30)),
     ]
     bounds_pl = [
         #--- Power-Law (list these second) ------------------------------------
         # Scaling coefficient
-        ('a',   (200, 4000)),
+        ('a',   (10, 200)),
         # Power-law exponent
-        ('n',   (0.02, 0.4)),
+        ('n',   (1.4, 2.4)),
         # Start of local country/region epidemic (days after 1/22/20)
-        ('ts',  (54, 58)),
+        ('ts',  (45, 53)),
         # Decay time constant (two years is 730 days)
-        ('t0',  (1, 2e4)),
+        ('t0',  (10, 1e4)),
     ]
     bounds_l = [
         #--- Linear (list this last) ------------------------------------------
         # Constant number of new cases reported each day since beginning
-        ('b',   (0, 60)),
+        ('b',   (0, 2e3)),
+        #----------------------------------------------------------------------
+    ]
+    #bounds = bounds_lg #+ bounds_pl + bounds_l
+    bounds = bounds_pl + bounds_l
+    k0 = 56
+
+
+class Covid19Data_US_2d(Covid19Data):
+    """
+    US, second-order ODE treating model as the differential in the
+    number of number of new daily cases. In other words, as the
+    increase of the increase.
+    """
+    countryCode = 'US'
+    second_deriv = True
+    bounds_lg = [
+        #--- Logistic Growth (list these first) -------------------------------
+        # Total cases after exponential growth completely stopped
+        ('L',   (1e5, 3.3e8)),
+        # The growth rate, proportional to the maximum number of
+        # new cases being reported per day from logistic growth 
+        ('r',   (0.12, 0.26)),
+    ]
+    bounds_pl = [
+        #--- Power-Law (list these second) ------------------------------------
+        # Scaling coefficient
+        ('a',   (20.0, 700.0)),
+        # Power-law exponent
+        ('n',   (0.0, 1.4)),
+        # Start of local country/region epidemic (days after 1/22/20)
+        ('ts',  (42, 58)),
+        # Decay time constant (two years is 730 days)
+        ('t0',  (2, 600)),
+    ]
+    bounds_l = [
+        #--- Linear (list this last) ------------------------------------------
+        # Constant number of new cases reported each day since beginning
+        ('b',   (0.0, 0.1)),
         #----------------------------------------------------------------------
     ]
     bounds = bounds_lg + bounds_pl + bounds_l
@@ -442,6 +487,23 @@ class Covid19Data_Singapore(Covid19Data):
     k0 = 40
 
 
+class Results(object):
+    """
+    I am a simple container to hold the results of modeling with one
+    set of parameters.
+    """
+    __slots__ = ['t', 'XD', 'X']
+
+    def __init__(self, t0, t1):
+        self.t = np.arange(t0, t1, np.sign(t1-t0))
+
+    def flip(self):
+        for name in self.__slots__:
+            Z = getattr(self, name, None)
+            if Z is None: continue
+            setattr(self, name, np.flip(Z))
+
+
 class Evaluator(Picklable):
     """
     I evaluate fitness of one of two different models, or both in
@@ -516,7 +578,8 @@ class Evaluator(Picklable):
     def Xt(self, t):
         """
         Returns the value of I{X} at the specified number of days I{t}
-        after 1/22/20.
+        after 1/22/20. If the days are beyond the limits of the data
+        on hand, the latest data value will be used.
         """
         return self.data.X[self.kt(t)]
 
@@ -536,6 +599,24 @@ class Evaluator(Picklable):
 
         Also creates a dict of I{indices} in those sequences, keyed by
         parameter name.
+
+        If the supplied I{klass} has a I{second_deriv} attribute set
+        C{True}, the model is considered the second derivative of the
+        cumulative number of cases, rather than the first
+        derivative. In other words, what gets modeled is the increase
+        of the increase.
+
+        That will cause I{X} will be returned from the initial value
+        problem done by L{curve}, rather than C{f(t, X)}. Seems weird,
+        but this unlikely (and, admittedly, accidental) version of the
+        model worked very effectively at predicting at making
+        near-term predictions in previous weeks.
+
+        @keyword daysAgo: Set to a positive number of days ago
+            to limit the latter end of the John Hopkins data. Useful
+            for back-testing or when the current day's data dump is
+            believed to be not yet complete.
+        @type daysAgo: int
         """
         def done(null):
             # Differential
@@ -555,6 +636,7 @@ class Evaluator(Picklable):
             raise TypeError("You must supply a subclass of Covid19Data")
         data = self.data = klass()
         names = []; bounds = []
+        self.second_deriv = getattr(klass, 'second_deriv', False)
         for name, theseBounds in data.bounds:
             names.append(name)
             bounds.append(theseBounds)
@@ -664,14 +746,20 @@ class Evaluator(Picklable):
         first reported case, an ending time I{t1}, also in days
         from first report, and a list of parameter I{values}.
 
-        Unless there was a problem with the ODE solver, returns a
-        3-tuple with (1) I{t} a 1-D array containing the number of
-        days since first report for each modeled day, in ascending
-        order, (2) I{XD}, the modeled number of new reported cases per
-        day for each day in I{t}, and (2) I{X}, the modeled total
-        number of reported cases for each day in I{t}.
+        Unless there was a problem with the ODE solver, returns an instance of L{Results}
+        with the following attributes:
 
-        If there was a problem with the ODE solver, returns C{None}.
+            - I{t}, a 1-D array containing the number of days since
+              first report for each modeled day, in ascending order
+
+            - I{XD}, the modeled number of new reported cases per
+              day for each day in I{t}, and
+
+            - I{X}, the modeled total number of reported cases for
+              each day in I{t}.
+
+        If there was a problem with the ODE solver, returns C{None}
+        instead.
 
         Uses the logistic growth model, the power law model, or both,
         with or without a linear (constant xd) term.
@@ -725,47 +813,71 @@ class Evaluator(Picklable):
         # Solve the initial value problem to get X, which in turns
         # lets us obtain values for XD, dependent as it probably is
         # (due to logistic component likely included) on X
-        t = np.arange(t0, t1, np.sign(t1-t0))
+        r = Results(t0, t1)
         sol = solve_ivp(
             f, [t0, t1], [self.Xt(t0)],
-            method='Radau', t_eval=t, vectorized=True, jac=jacobian)
+            method='Radau', t_eval=r.t, vectorized=True, jac=jacobian)
         if not sol.success:
             return
-        X = sol.y[0]
-        if t1 < t0:
-            t = np.flip(t)
-            X = np.flip(X)
-        return t, f(t, X), X
+        r.X = sol.y[0]
+        if t1 < t0: r.flip()
+        r.XD = f(r.t, r.X)
+        return r
     
-    def residuals(self, values, XD_included=False):
+    def residuals_1d(self, values):
         """
-        Returns a 1-D array of transformed residuals between my L{curve}
-        for my time vector I{t} for days after 1/22/20 and I{XD}.
+        Returns a 1-D array of transformed residuals to I{XD} from my
+        L{curve}, fixed to the last known value with other derivatives
+        computed backwards through my time vector I{t}.
 
         The residual array is left-trimmed to start with my first
         valid day I{k0}.
-
-        @keyword XD_included: Set C{True} to also return a trimmed
-            version of the modeled values of I{XD}.
         """
         t0 = self.data.t[-1]
         t1 = self.data.t[self.k0]
-        stuff = self.curve(t0, t1, values)
-        if stuff is None: return
-        t, XD = stuff[:2]
-        XD = self.transform(XD)
-        K = [self.kt(x) for x in t]
+        r = self.curve(t0, t1, values)
+        if r is None: return
+        XD = self.transform(r.XD)
+        K = [self.kt(x) for x in r.t]
         # During setup, self.XD got its transform done for all time
         R = XD - self.XD[K]
-        if XD_included:
-            return R, XD
-        return R
+        return R, XD
+
+    def residuals_2d(self, values):
+        """
+        Returns a 1-D array of transformed residuals to I{XD} from my
+        L{curve}, fixed to 0 at 1/22/20, with other
+        values of I{XD} computed via forward integration of the model.
+
+        Unlike L{residuals}, this method integrates the model before
+        subtracting the known I{XD}. Thus, the model is actually for
+        the second derivative.
+        
+        The residual array is left-trimmed to start with my first
+        valid day I{k0}.
+        """
+        t0 = self.data.t[0]
+        t1 = self.data.t[-1]
+        r = self.curve(t0, t1, values)
+        if r is None: return
+        # Yes, we want r.X, not r.XD, because this is a
+        # second-derivative model
+        XD = self.transform(r.X)
+        K = [self.kt(x) for x in r.t]
+        # During setup, self.XD got its transform done for all time
+        R = XD - self.XD[K]
+        return R, XD
+
+    def residuals(self, values):
+        if self.second_deriv:
+            return self.residuals_2d(values)
+        return self.residuals_1d(values)
     
     def __call__(self, values):
         """
         Evaluation function for the parameter I{values}. 
         """
-        R = self.residuals(values)
+        R = self.residuals(values)[0]
         if R is None:
             return 1e9
         return self.scale_SSE * np.sum(np.square(R))
@@ -837,50 +949,9 @@ class Reporter(object):
         I{k1} smaller than I{k0}. In any event, the returned I{t} and
         I{X} 1-D arrays will be in ascending order of time.
         """
-        stuff = self.ev.curve(float(k0), float(k1), values)
-        if stuff is None: return
-        return stuff[0], stuff[2]
-    
-    def annotate(self, sp, k, k0, X_curve=None, X_data=None):
-        """
-        Adds an annotation to subplot I{sp} for the supplied data vector
-        to be plotted, at I{k} days from the vector's first value,
-        with a first plotted day of my data object's I{k0} days from
-        first reported.
-
-        You must supply I{X_curve}, I{X_data}, or both:
-
-            * If you supply I{X_curve}, the annotation will be to the
-              modeled curve (kVector=1).
-
-            * If you supply I{X_data}, the annotation will be to the
-              data curve (kVector=0).
-
-            * If you supply both, the annotation will be to the
-              modeled curve (kVector=1), with an error between that
-              and the corresponding point on the data curve.
-        """
-        if X_data is None:
-            X = X_curve
-            error = False
-            kVector = 0
-        elif X_curve is None:
-            X = X_data
-            error = False
-            kVector = 0
-        else:
-            N = min([len(X_curve), len(X_data)])
-            X = X_curve[:N] - X_data[:N]
-            error = True
-            kVector = 1
-        if k < 0 or k >= len(X):
-            # Annotation is beyond the plotted range, skip
-            return
-        if error:
-            text = sub("{:+.1f}%", 100.0*X[k]/X_data[k])
-        else:
-            text = sub("{}: {:,.0f}", self.ev.dayText(k+k0), int(round(X[k])))
-        sp.add_annotation(k, text, kVector=kVector)
+        r = self.ev.curve(float(k0), float(k1), values)
+        if r is None: return
+        return r.t, r.X
     
     def model_past(self, sp, values):
         """
@@ -889,24 +960,35 @@ class Reporter(object):
         anchored at the right to today's actual reported cases.
         """
         def annotate_past(k):
-            k -= k0
-            self.annotate(sp, k, k0, X_data=X_data)
+            if k-k0 < 0: return
+            if k-k0 >= len(X_data): return
+            sp.add_annotation(
+                k-k0,
+                "{}: {:,.0f}", self.ev.dayText(k), int(round(X_data[k-k0])))
 
         def annotate_error(k):
-            k -= k0
-            self.annotate(sp, k, k0, X_curve=X_curve, X_data=X_data)
-
+            xc = X_curve[k-k0]
+            x = X_data[k-k0]
+            xe = (xc - x)/x
+            sp.add_annotation(
+                k-k0, "{}: {:+.0f}%",
+                self.ev.dayText(k), int(round(100*xe)), kVector=1)
+            
         k0 = self.ev.k0
         kToday = self.kToday()
-        t, X_curve = self.curvePoints(values, kToday, k0)
+        if self.ev.second_deriv:
+            t, X_curve = self.curvePoints(values, k0, kToday)
+        else: t, X_curve = self.curvePoints(values, kToday, k0)
         X_data = self.clipLower(self.ev.X[self.ev.kt(t)])
-        # Date of first case(s) plotted
+        # Date of first reported case number plotted
         annotate_past(k0)
+        # Yesterday
+        annotate_past(kToday-1)
         # Today
         annotate_past(kToday)
         # Error in expected vs actual reported cases, going back
         # several days starting with today
-        for k in range(kToday, kToday-self.daysBack, -1):
+        for k in range(kToday-1, kToday-self.daysBack, -1):
             annotate_error(k)
         sp.add_axvline(-1)
         ax = sp.semilogy(t, X_data)
@@ -924,7 +1006,7 @@ class Reporter(object):
         Ni = len(self.p)
         tc = np.empty((Nt, Ni))
         Xc = np.empty_like(tc)
-        X0 = self.ev.X[k0]
+        X0 = self.ev.Xt(k0)
         for ki in range(Ni):
             t, X = self.curvePoints(list(self.p[ki]), k0, k1)
             tc[:,ki], Xc[:,ki] = t+0.1*stats.norm.rvs(size=Nt), X
@@ -935,13 +1017,29 @@ class Reporter(object):
     def model_future(self, sp, values):
         """
         Plots the past data against the best-fit model in subplot I{sp},
-        given the supplied parameter I{values}, with the model curve
-        anchored at the right to today's actual reported cases and
-        extending beyond for extrapolation.
+        given the supplied parameter I{values}.
+
+        The model curve is anchored at the most recent data point in
+        the actual reported cases, and then extends beyond for
+        extrapolation.
+
+        If the most recent data point is not from today, the
+        annotation will actually start in the past. The number of days
+        between today (when this is run) and the date of the last data
+        point is subtracted from the "days after 1/22/20" index before
+        being applied to the method L{dayText}.
         """
         def annotate_future(daysInFuture):
-            self.annotate(sp, daysInFuture, k0, X_curve=X_curve)
-
+            # The value of k_offset will be zero if latest data
+            # includes today, higher for each day the data is stale
+            k_offset = k0 - len(self.ev.X) - 1
+            k_curve = daysInFuture - k_offset
+            if k_curve < 0: return
+            if k_curve >= len(X_curve): return
+            sp.add_annotation(
+                k_curve, "{}: {:,.0f}",
+                self.ev.dayText(k0+daysInFuture), int(round(X_curve[k_curve])))
+            
         k0 = self.kToday()
         k1 = k0 + self.daysForward
         t, X_curve = self.curvePoints(values, k0, k1)
@@ -978,12 +1076,12 @@ class Reporter(object):
         sp.add_line('')
         sp.add_marker('o', 4)
         sp.set_colors("black")
-        R, XDc = self.ev.residuals(values, XD_included=True)
+        R, XD = self.ev.residuals(values)
         sp.add_textBox(
             'NW', "Residuals: Modeled vs actual new cases/day (transformed)")
         sp.add_textBox(
             'SW', "Non-normality: p < {:.4f}", stats.normaltest(R)[1])
-        sp(XDc, R)
+        sp(XD, R)
         
     def subplot_lower(self, sp, values):
         """
