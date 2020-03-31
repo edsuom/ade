@@ -174,7 +174,7 @@ from scipy.integrate import solve_ivp
 from twisted.python import failure
 from twisted.internet import reactor, defer
 
-from asynqueue import ThreadQueue, ProcessQueue
+from asynqueue import ThreadQueue, ProcessQueue, DeferredTracker
 from yampex.plot import Plotter
 
 from ade.population import Population
@@ -234,7 +234,7 @@ class Covid19Data(Data):
     """
     basename = "covid19"
     reDate = re.compile(r'([0-9]+)/([0-9]+)/([0-9]+)')
-    summaryPosition = 'NW'
+    summaryPosition = 'E'
 
     re_ps_yes = None
     re_ps_no = None
@@ -319,31 +319,31 @@ class Covid19Data_US(Covid19Data):
     bounds_lg = [
         #--- Logistic Growth (list these first) -------------------------------
         # Total cases after exponential growth completely stopped
-        ('L',   (2e5, 4e6)),
+        ('L',   (1e5, 5e6)),
         # The growth rate, proportional to the maximum number of
         # new cases being reported per day from logistic growth 
-        ('r',   (0.10, 0.30)),
+        ('r',   (0.03, 0.28)),
     ]
     bounds_pl = [
         #--- Power-Law (list these second) ------------------------------------
         # Scaling coefficient
-        ('a',   (10, 200)),
+        ('a',   (1500, 5000)),
         # Power-law exponent
-        ('n',   (1.4, 2.4)),
+        ('n',   (0.01, 0.8)),
         # Start of local country/region epidemic (days after 1/22/20)
-        ('ts',  (45, 53)),
+        ('ts',  (55, 58)),
         # Decay time constant (two years is 730 days)
-        ('t0',  (10, 1e4)),
+        ('t0',  (10, 1e6)),
     ]
     bounds_l = [
         #--- Linear (list this last) ------------------------------------------
         # Constant number of new cases reported each day since beginning
-        ('b',   (0, 2e3)),
+        ('b',   (0, 400)),
         #----------------------------------------------------------------------
     ]
     #bounds = bounds_lg #+ bounds_pl + bounds_l
-    bounds = bounds_pl + bounds_l
-    k0 = 56
+    bounds = bounds_lg + bounds_pl + bounds_l
+    k0 = 50
 
 
 class Covid19Data_US_2d(Covid19Data):
@@ -492,7 +492,7 @@ class Results(object):
     I am a simple container to hold the results of modeling with one
     set of parameters.
     """
-    __slots__ = ['t', 'XD', 'X']
+    __slots__ = ['t', 'XD', 'X', 'R', 'SSE']
 
     def __init__(self, t0, t1):
         self.t = np.arange(t0, t1, np.sign(t1-t0))
@@ -558,11 +558,14 @@ class Evaluator(Picklable):
         L{transform} has been applied.
     """
     scale_SSE = 1e-2
-    fList = None
+    f_text = None
 
     def __getattr__(self, name):
         return getattr(self.data, name)
 
+    def __len__(self):
+        return len(self.data.t)
+    
     def kt(self, t):
         """
         Returns an index to my I{t} and I{X} vectors for the specified
@@ -572,7 +575,7 @@ class Evaluator(Picklable):
         returned.
         """
         K = np.searchsorted(self.data.t, t)
-        N = len(self.data.t)
+        N = len(self)
         return np.clip(K, 0, N-1)
     
     def Xt(self, t):
@@ -619,7 +622,7 @@ class Evaluator(Picklable):
         @type daysAgo: int
         """
         def done(null):
-            # Differential
+            # Calculate differential and show data on console
             self.XD = np.zeros_like(self.X)
             msg("Cumulative and new cases reported thus far for {}",
                 self.countryCode, '-')
@@ -630,6 +633,9 @@ class Evaluator(Picklable):
                 msg("{:03d}\t{}\t{:d}\t{:d}",
                     k, self.dayText(k), int(x), int(xd))
                 self.XD[k] = self.transform(xd)
+            # Set up curve for all fitting and plotting
+            self.curve_def()
+            # Done, return names and bounds to caller
             return names, bounds
 
         if not issubclass(klass, Covid19Data):
@@ -637,6 +643,8 @@ class Evaluator(Picklable):
         data = self.data = klass()
         names = []; bounds = []
         self.second_deriv = getattr(klass, 'second_deriv', False)
+        self.f_residuals = self.residuals_2d \
+            if self.second_deriv else self.residuals_1d
         for name, theseBounds in data.bounds:
             names.append(name)
             bounds.append(theseBounds)
@@ -666,6 +674,7 @@ class Evaluator(Picklable):
         firstDay = self.dates[0]
         return (firstDay + timedelta(days=k)).strftime("%m/%d")
 
+    xd_logistic_text = "x*r*(1 - x/L)"
     def xd_logistic(self, t, x, L, r):
         """
         Logistic growth model (Verhulst model),
@@ -695,7 +704,8 @@ class Evaluator(Picklable):
         """
         x = np.array(x)
         return [r*(1 - 2*x/L)]
-    
+
+    xd_powerlaw_text = "a*(t-ts)^n*exp(-(t-ts)/t0)"
     def xd_powerlaw(self, t, x, a, n, ts, t0):
         """
         Power law model,
@@ -732,6 +742,7 @@ class Evaluator(Picklable):
             XD = xd(t, x)
         return XD
 
+    xd_linear_text = "b"
     def xd_linear(self, t, x, b):
         """
         Linear component: Constant number of new cases reported each day.
@@ -739,6 +750,42 @@ class Evaluator(Picklable):
         The Jacobian with respect to I{x} is zero.
         """
         return b * np.ones_like(x)
+
+    def curve_def(self):
+        """
+        Sets up my model function and its Jacobian.
+        """
+        def curve_text():
+            """
+            Returns a string with the right side of the equation M{xd(t, x) =
+            ...}, or M{x2d(t, x) = ...} if my I{second_deriv} is
+            C{True}.
+            """
+            text = sub("{}(t, x) = ", "x2d" if self.second_deriv else "xd")
+            text += " + ".join(self.ftList)
+            return text
+        
+        if self.f_text is None:
+            k = 0
+            self.ftList = []; self.fList = []; self.jacobian = None
+            N = len(self.bounds)
+            if N in (2, 3, 6, 7):
+                # Logistic growth
+                self.ftList.append(self.xd_logistic_text)
+                # This model component has a non-zero Jacobian
+                self.jacobian = self.x2d_logistic
+                self.fList.append((self.xd_logistic, slice(k, k+2)))
+                k += 2
+            if N in (4, 6, 5, 7):
+                # Power law
+                self.ftList.append(self.xd_powerlaw_text)
+                self.fList.append((self.xd_powerlaw, slice(k, k+4)))
+                k += 4
+            if N in (3, 5, 7):
+                # Linear (constant differential)
+                self.ftList.append(self.xd_linear_text)
+                self.fList.append((self.xd_linear, slice(k, k+1)))
+            self.f_text = curve_text()
     
     def curve(self, t0, t1, values):
         """
@@ -746,8 +793,8 @@ class Evaluator(Picklable):
         first reported case, an ending time I{t1}, also in days
         from first report, and a list of parameter I{values}.
 
-        Unless there was a problem with the ODE solver, returns an instance of L{Results}
-        with the following attributes:
+        Unless there was a problem with the ODE solver, returns an
+        instance of L{Results} with the following attributes:
 
             - I{t}, a 1-D array containing the number of days since
               first report for each modeled day, in ascending order
@@ -788,66 +835,58 @@ class Evaluator(Picklable):
         """
         def f(t, x):
             XD = np.zeros_like(x)
-            for f, ks in self.fList:
-                XD_this = f(t, x, *values[ks])
+            for fc, ks in self.fList:
+                XD_this = fc(t, x, *values[ks])
                 XD += XD_this
             return XD
 
         def jac(t, x):
-            return self.x2d_logistic(t, x, *values[:2])
-
-        jacobian = lambda t, y: [[0.0]]
-        if self.fList is None:
-            k = 0
-            self.fList = []
-            N = len(values)
-            if N in (2, 3, 6, 7):
-                self.fList.append((self.xd_logistic, slice(k, k+2)))
-                jacobian = jac
-                k += 2
-            if N in (4, 6, 5, 7):
-                self.fList.append((self.xd_powerlaw, slice(k, k+4)))
-                k += 4
-            if N in (3, 5, 7):
-                self.fList.append((self.xd_linear, slice(k, k+1)))
+            if self.jacobian is None: return [[0.0]]
+            return self.jacobian(t, x, *values[:2])
+        
         # Solve the initial value problem to get X, which in turns
         # lets us obtain values for XD, dependent as it probably is
         # (due to logistic component likely included) on X
         r = Results(t0, t1)
         sol = solve_ivp(
             f, [t0, t1], [self.Xt(t0)],
-            method='Radau', t_eval=r.t, vectorized=True, jac=jacobian)
+            method='Radau', t_eval=r.t, vectorized=True, jac=jac)
         if not sol.success:
             return
         r.X = sol.y[0]
         if t1 < t0: r.flip()
         r.XD = f(r.t, r.X)
         return r
-    
+
     def residuals_1d(self, values):
         """
-        Returns a 1-D array of transformed residuals to I{XD} from my
+        Computes a 1-D array of transformed residuals to I{XD} from my
         L{curve}, fixed to the last known value with other derivatives
         computed backwards through my time vector I{t}.
 
         The residual array is left-trimmed to start with my first
         valid day I{k0}.
+
+        Sets I{XD} and I{R} attributes to the instance of L{Results}
+        that is obtained from calling L{curve} and returns the
+        instance, unless a C{None} object was obtained because of an
+        ODE problem, in which case C{None} is returned.
         """
         t0 = self.data.t[-1]
         t1 = self.data.t[self.k0]
         r = self.curve(t0, t1, values)
         if r is None: return
-        XD = self.transform(r.XD)
+        r.XD = self.transform(r.XD)
         K = [self.kt(x) for x in r.t]
         # During setup, self.XD got its transform done for all time
-        R = XD - self.XD[K]
-        return R, XD
+        r.R = r.XD - self.XD[K]
+        return r
 
     def residuals_2d(self, values):
         """
-        Returns a 1-D array of transformed residuals to I{XD} from my
-        L{curve}, fixed to 0 at 1/22/20, with other
-        values of I{XD} computed via forward integration of the model.
+        Computes a 1-D array of transformed residuals to I{XD} from my
+        L{curve}, fixed to 0 at 1/22/20, with other values of I{XD}
+        computed via forward integration of the model.
 
         Unlike L{residuals}, this method integrates the model before
         subtracting the known I{XD}. Thus, the model is actually for
@@ -855,32 +894,48 @@ class Evaluator(Picklable):
         
         The residual array is left-trimmed to start with my first
         valid day I{k0}.
+
+        Sets I{XD} and I{R} attributes to the instance of L{Results}
+        that is obtained from calling L{curve} and returns the
+        instance, unless a C{None} object was obtained because of an
+        ODE problem, in which case C{None} is returned.
         """
         t0 = self.data.t[0]
         t1 = self.data.t[-1]
         r = self.curve(t0, t1, values)
-        if r is None: return
+        if r is None: return 
         # Yes, we want r.X, not r.XD, because this is a
         # second-derivative model
-        XD = self.transform(r.X)
+        r.XD = self.transform(r.X)
         K = [self.kt(x) for x in r.t]
         # During setup, self.XD got its transform done for all time
-        R = XD - self.XD[K]
-        return R, XD
+        r.R = r.XD - self.XD[K]
+        return r
 
     def residuals(self, values):
-        if self.second_deriv:
-            return self.residuals_2d(values)
-        return self.residuals_1d(values)
+        """
+        Obtains a L{Results} instance with a residuals vector I{R}
+        computed between the modeled and actual values, and sets its
+        I{SSE} to the sum of squared error of those residuals.
+
+        Returns the instance with I{R} and I{SSE} set, as well as
+        I{t}, I{XD}, and I{X}. If computation of the modeled values
+        failed, returns C{None}.
+        """
+        r = self.f_residuals(values)
+        if r is not None:
+            r.SSE = self.scale_SSE * np.sum(np.square(r.R))
+        return r
     
     def __call__(self, values):
         """
-        Evaluation function for the parameter I{values}. 
+        Evaluation function for the parameter I{values}.
+
+        If the ODE is unsuccessful and calling L{residuals} results in
+        a C{None} object, returns a crazy bad SSE.
         """
-        R = self.residuals(values)[0]
-        if R is None:
-            return 1e9
-        return self.scale_SSE * np.sum(np.square(R))
+        r = self.residuals(values)
+        return getattr(r, 'SSE', 1e9)
 
 
 class Reporter(object):
@@ -903,7 +958,6 @@ class Reporter(object):
     """
     plotFilePath = "covid19.png"
     minShown = 10
-    daysBack = 10
     daysForward = 22
     
     def __init__(self, evaluator, population):
@@ -911,6 +965,7 @@ class Reporter(object):
         C{Reporter(evaluator, population)}
         """
         self.ev = evaluator
+        self.ev.curve_def()
         self.p = population
         self.prettyValues = population.pm.prettyValues
         self.pt = Plotter(
@@ -918,9 +973,7 @@ class Reporter(object):
         self.pt.use_grid()
         ImageViewer(self.plotFilePath)
 
-    def clipLower(self, X):
-        return np.clip(X, self.minShown, None)
-
+    @property
     def kToday(self):
         """
         Returns the current number of days since the date of first
@@ -929,7 +982,22 @@ class Reporter(object):
         firstDay = self.ev.dates[0]
         seconds_in = (date.today() - firstDay).total_seconds()
         return int(seconds_in / 3600 / 24)
+
+    @property
+    def kForToday(self):
+        """
+        Property: A 2-tuple with today's index (the current number of days
+        since first reported case) and k_offset.
+        
+        The value of k_offset will be zero if latest data includes
+        today, higher for each day the data is stale.
+        """
+        kToday = self.kToday
+        return kToday, kToday - len(self.ev) + 1
     
+    def clipLower(self, X):
+        return np.clip(X, self.minShown, None)
+
     def curvePoints(self, values, k0, k1):
         """
         Obtains modeled numbers of cumulative reported cases from I{k0} to
@@ -952,51 +1020,11 @@ class Reporter(object):
         r = self.ev.curve(float(k0), float(k1), values)
         if r is None: return
         return r.t, r.X
-    
-    def model_past(self, sp, values):
-        """
-        Plots the past data against the best-fit model in subplot I{sp},
-        given the supplied parameter I{values}, with the model curve
-        anchored at the right to today's actual reported cases.
-        """
-        def annotate_past(k):
-            if k-k0 < 0: return
-            if k-k0 >= len(X_data): return
-            sp.add_annotation(
-                k-k0,
-                "{}: {:,.0f}", self.ev.dayText(k), int(round(X_data[k-k0])))
 
-        def annotate_error(k):
-            xc = X_curve[k-k0]
-            x = X_data[k-k0]
-            xe = (xc - x)/x
-            sp.add_annotation(
-                k-k0, "{}: {:+.0f}%",
-                self.ev.dayText(k), int(round(100*xe)), kVector=1)
-            
-        k0 = self.ev.k0
-        kToday = self.kToday()
-        if self.ev.second_deriv:
-            t, X_curve = self.curvePoints(values, k0, kToday)
-        else: t, X_curve = self.curvePoints(values, kToday, k0)
-        X_data = self.clipLower(self.ev.X[self.ev.kt(t)])
-        # Date of first reported case number plotted
-        annotate_past(k0)
-        # Yesterday
-        annotate_past(kToday-1)
-        # Today
-        annotate_past(kToday)
-        # Error in expected vs actual reported cases, going back
-        # several days starting with today
-        for k in range(kToday-1, kToday-self.daysBack, -1):
-            annotate_error(k)
-        sp.add_axvline(-1)
-        ax = sp.semilogy(t, X_data)
-        ax.semilogy(
-            t, self.clipLower(X_curve),
-            color='red', marker='o', linewidth=2, markersize=3)
+    def add_model(self, ax, t, X):
+        ax.semilogy(t, X, color='red', marker='o', linewidth=2, markersize=3)
 
-    def add_scatter(self, ax, k0, k1):
+    def add_scatter(self, ax, k0, k1, k_offset=0):
         """
         Adds points, using randomly selected parameter combos in present
         population, at times that are plotted with a slight random
@@ -1010,9 +1038,67 @@ class Reporter(object):
         for ki in range(Ni):
             t, X = self.curvePoints(list(self.p[ki]), k0, k1)
             tc[:,ki], Xc[:,ki] = t+0.1*stats.norm.rvs(size=Nt), X
-        tc = tc.flatten()
+        tc = tc.flatten() - k_offset
         Xc = self.clipLower(Xc.flatten())
         ax.semilogy(tc, Xc, color='black', marker=',', linestyle='')
+
+    @staticmethod
+    def cases(X, k):
+        return int(round(X[k]))
+        
+    def annotate_past(self, sp, X, k):
+        """
+        Given a 1-D array I{X} of case numbers that will be displayed as
+        the first line in the supplied subplot I{sp}, adds an
+        annotation for the actual number I{k} days after first report.
+
+        The last item in array I{X} must be the most recent actual
+        number of cases.
+        """
+        # Length of X, just actual data to be plotted up to most
+        # recent
+        N = len(X)
+        # Convert index from all data to just data to be plotted
+        kX = k - (len(self.ev) - N)
+        if kX >= N: return
+        if kX < 0: return
+        sp.add_annotation(
+            kX, "{}: {:,.0f}", self.ev.dayText(k), self.cases(X, kX))
+    
+    def model_past(self, sp, values):
+        """
+        Plots the past data against the best-fit model in subplot I{sp},
+        given the supplied parameter I{values}, with the model curve
+        anchored at the right to today's actual reported cases.
+        """
+        def annotate_past(k):
+            self.annotate_past(sp, X_data, k)
+        
+        def annotate_error(k):
+            xc = X_curve[k-k0]
+            x = X_data[k-k0]
+            xe = (xc - x)/x
+            sp.add_annotation(
+                k-k0, "{}: {:+.0f}%",
+                self.ev.dayText(k), int(round(100*xe)), kVector=1)
+            
+        k0 = self.ev.k0
+        kToday, k_offset = self.kForToday
+        if self.ev.second_deriv:
+            t, X_curve = self.curvePoints(values, k0, kToday)
+        else: t, X_curve = self.curvePoints(values, kToday, k0)
+        t -= k_offset
+        X_data = self.clipLower(self.ev.X[self.ev.kt(t)])
+        # Date of first reported case number plotted
+        annotate_past(k0)
+        # Error in expected vs actual reported cases, going back
+        # several days starting with today
+        for k in range(kToday-1, k0-1, -1):
+            annotate_error(k)
+        sp.add_axvline(-1)
+        ax = sp.semilogy(t, X_data)
+        # Add the best-fit model values for comparison
+        self.add_model(ax, t, X_curve)
     
     def model_future(self, sp, values):
         """
@@ -1029,29 +1115,90 @@ class Reporter(object):
         point is subtracted from the "days after 1/22/20" index before
         being applied to the method L{dayText}.
         """
+        def annotate_past(k):
+            self.annotate_past(sp, X_data, k)
+
         def annotate_future(daysInFuture):
-            # The value of k_offset will be zero if latest data
-            # includes today, higher for each day the data is stale
-            k_offset = k0 - len(self.ev.X) - 1
-            k_curve = daysInFuture - k_offset
+            k_curve = daysInFuture + k_offset
             if k_curve < 0: return
             if k_curve >= len(X_curve): return
             sp.add_annotation(
                 k_curve, "{}: {:,.0f}",
-                self.ev.dayText(k0+daysInFuture), int(round(X_curve[k_curve])))
-            
-        k0 = self.kToday()
+                self.ev.dayText(k0+daysInFuture),
+                self.cases(X_curve, k_curve), kVector=1)
+
+        N_back = 4
+        k0, k_offset = self.kForToday
         k1 = k0 + self.daysForward
+        t_data, X_data = [
+            getattr(self.ev, name)[-N_back:] for name in ('t', 'X')]
         t, X_curve = self.curvePoints(values, k0, k1)
-        # Today + next week
+        # Today + previous few days
+        for k in range(k0-N_back, k0+1):
+            annotate_past(k)
+        # This next week
         for k in range(7):
             annotate_future(k)
         # One to three weeks from today
         for weeks in range(1, 4):
             annotate_future(7*weeks)
-        ax = sp.semilogy(t, X_curve)
-        self.add_scatter(ax, k0, k1)
+        # Start with a few of the most recent actual data points
+        sp.add_axvline(self.ev.t[-1])
+        ax = sp.semilogy(t_data, X_data)
+        # Add the best-fit model extrapolation
+        self.add_model(ax, t-k_offset, X_curve)
+        # Add scatterplot sorta-probalistic predictions
+        self.add_scatter(ax, k0, k1, k_offset)
+
+    def AICc(self, r):
+        """
+        Computes the Akaike Information Criterion, corrected for small
+        sample size (AICc) for the residuals I{R} in the supplied
+        instance I{r} of L{Results}.
+
+        The residuals were previou between transformed model and actual
+        values. The AICc is defined as follows:::
+
+            AIC = 2*k + N*ln(SSE/N)
+        
+            AICc = AIC + 2*(k^2 + k)/(N-k-1)
+
+        where SSE is the sum-of-squared error (i.e., the "residual
+        sums-of-squares," as Brandmaier puts it at
+        U{https://www.researchgate.net/post/What_is_the_AIC_formula},
+        already computed and stored in I{r} as I{SSE}, I{N} is the
+        number of samples (i.e., residual vector length), and I{k} is
+        the number of model parameters, not to be confused with the
+        commonly used index variable of the same name.
+
+        Although it provides no absolute indication of fitness, the
+        lower the AICc, the better the model is considered to be. Use
+        it for deciding what components of the model should be
+        included for a particular country/region.
+        
+        Returns a 3-tuple with AICc, N, k
+        """
+        N = len(r.R)
+        k = self.p.Nd
+        AIC = 2*k + N*np.log(r.SSE/N)
+        AICc = AIC + 2*(k**2 + k)/(N-k-1)
+        return AICc, N, k
     
+    def fit_info(self, sp, r):
+        """
+        Adds info to subplot I{sp} about the goodness of fit for residuals
+        I{R} in the supplied instance I{r} of L{Results}.
+        """
+        def tb(*args):
+            sp.add_textBox('SW', *args)
+
+        # Significance of non-normality
+        tb("Non-normality: p < {:.4f}", stats.normaltest(r.R)[1])
+        # AICc
+        AICc, N, k = self.AICc(r)
+        tb("AICc is {:+.2f} with SSE={:.5g}, N={:d}, k={:d}",
+           AICc, r.SSE, N, k)
+        
     def subplot_upper(self, sp, values):
         """
         Does the upper subplot with model fit vs data.
@@ -1060,6 +1207,8 @@ class Reporter(object):
         plotted.
         """
         sp.add_line('-', 2)
+        sp.set_tickSpacing('x', 7.0, 1.0)
+        sp.add_textBox('NW', self.ev.f_text)
         for k, nb in enumerate(self.ev.bounds):
             sp.add_textBox('SE', "{}: {:.5g}", nb[0], values[k])
         # Data vs best-fit model
@@ -1070,18 +1219,18 @@ class Reporter(object):
         Does a middle subplot with residuals between the data I{X_data}
         and modeled data I{X_curve}.
         """
+        r = self.ev.residuals(values)
+        if r is None: return
         sp.set_ylabel("Residual")
         sp.set_xlabel("Modeled (fitted) new cases/day (square-root transform)")
         sp.set_zeroLine(color="red", linestyle='-', linewidth=3)
         sp.add_line('')
         sp.add_marker('o', 4)
-        sp.set_colors("black")
-        R, XD = self.ev.residuals(values)
+        sp.set_colors("purple")
         sp.add_textBox(
             'NW', "Residuals: Modeled vs actual new cases/day (transformed)")
-        sp.add_textBox(
-            'SW', "Non-normality: p < {:.4f}", stats.normaltest(R)[1])
-        sp(XD, R)
+        self.fit_info(sp, r)
+        sp(r.XD, r.R, zorder=3)
         
     def subplot_lower(self, sp, values):
         """
@@ -1089,7 +1238,7 @@ class Reporter(object):
         days from first report.
         """
         sp.add_line('-', 2)
-        sp.set_colors("red")
+        sp.set_tickSpacing('x', 7.0, 1.0)
         self.model_future(sp, values)
         
     def __call__(self, values, counter, SSE):
@@ -1098,8 +1247,12 @@ class Reporter(object):
         observations, with lots of extrapolation to the right.
         """
         def tb(*args):
-            sp.add_textBox(self.ev.summaryPosition, *args)
-
+            if len(args[0]) < 3:
+                pos = args[0]
+                args = args[1:]
+            else: pos = self.ev.summaryPosition
+            sp.add_textBox(pos, *args)
+        
         # Make a frozen local copy of the values list to work with, so
         # outdated stuff doesn't get plotted
         values = list(values)
@@ -1112,14 +1265,14 @@ class Reporter(object):
         self.pt.set_xlabel("Days after January 22, 2020")
         self.pt.use_minorTicks('x', 1.0)
         with self.pt as sp:
-            tb("Reported cases in {} vs days after first case.",
+            tb('S', "Reported cases in {} vs days after first case.",
                self.ev.countryCode)
-            tb("Annotations show residuals between model and data.")
+            tb('S', "Annotations show residuals between model and data.")
             t_data = self.subplot_upper(sp, values)
             self.subplot_middle(sp, values, t_data)
             tb("Expected cases reported in {} vs days after first",
                self.ev.countryCode)
-            tb("case. Dots show predictions each day for each")
+            tb("case. Dots show daily model predictions for each")
             tb("of a final population of {:d} evolved parameter", len(self.p))
             tb("combinations. Annotations show actual values in")
             tb("past, best-fit projected values in future.")
@@ -1146,10 +1299,11 @@ class Runner(object):
         self.args = args
         self.ev = Evaluator()
         if args.t:
+            self.N_cores = 1
             self.q = ThreadQueue(returnFailure=True)
         else:
-            N = args.N if args.N else ProcessQueue.cores()-1
-            self.q = ProcessQueue(N, returnFailure=True)
+            self.N_cores = args.N if args.N else ProcessQueue.cores()-1
+            self.q = ProcessQueue(self.N_cores, returnFailure=True)
         self.fh = open("covid19.log", 'w') if args.l else True
         msg(self.fh)
 
@@ -1194,6 +1348,36 @@ class Runner(object):
             return self.shutdown()
         values = list(values)
         if self.q: return self.q.call(self.ev, values)
+
+    @defer.inlineCallbacks
+    def reEvaluate(self):
+        """
+        Re-evaluates loaded individuals, keeping the previous history if
+        not too much has changed SSE-wise.
+        """
+        def done(i, k, SSE_prev):
+            SSE = float(i.SSE)
+            if not SSE or np.isinf(SSE_prev) or np.isinf(SSE):
+                info = ": !!!"
+            else:
+                rd = (SSE-SSE_prev) / SSE_prev
+                if abs(rd) > 1E-3:
+                    info = sub(": {:+.1f}%", 100*rd)
+                    iChanged.add(i)
+                else: info = ""
+            msg(2, "{:03d}  {:>8.1f} --> {:>8.1f}  {}", k, SSE_prev, SSE, info)
+        
+        msg(-1, "Re-evaluating {:d} loaded Individuals...", len(self.p), '-')
+        iChanged = set()
+        dt = DeferredTracker(interval=0.05)
+        yield self.p.history.purgePop()
+        for k, i in enumerate(self.p):
+            SSE_prev = float(i.SSE)
+            d = i.evaluate().addCallback(done, k, SSE_prev)
+            dt.put(d)
+            yield dt.deferUntilFewer(self.N_cores)
+        yield dt.deferToAll()
+        msg("")
     
     @defer.inlineCallbacks
     def __call__(self):
@@ -1206,9 +1390,15 @@ class Runner(object):
                 args[1], func=self.evaluate, bounds=bounds)
         else:
             self.p = Population(self.evaluate, names, bounds, popsize=args.p)
-            yield self.p.setup().addErrback(oops)
         reporter = Reporter(self.ev, self.p)
         self.p.addCallback(reporter)
+        if len(self.p):
+            yield self.reEvaluate()
+        elif self.p.running is None:
+            OK = yield self.p.setup()
+            if not OK:
+                yield self.shutdown()
+        self.p.initialize()
         F = [float(x) for x in args.F.split(',')]
         de = DifferentialEvolution(
             self.p,

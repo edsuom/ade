@@ -338,6 +338,8 @@ class Population(object):
     @ivar Np_max: Maximum population size. Default is 500, which is
         really pretty big.
 
+    @ivar Nd: The number of parameters for each individual.
+    
     @ivar targetFraction: The desired total score of improvements in
         each iteration in order for I{ade}'s adaptive algorithm to not
         change the current differential weight. See L{replacement} and
