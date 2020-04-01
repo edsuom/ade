@@ -234,7 +234,7 @@ class Covid19Data(Data):
     """
     basename = "covid19"
     reDate = re.compile(r'([0-9]+)/([0-9]+)/([0-9]+)')
-    summaryPosition = 'E'
+    summaryPosition = 'NW'
 
     re_ps_yes = None
     re_ps_no = None
@@ -311,20 +311,50 @@ class Covid19Data(Data):
         return d
 
 
-class Covid19Data_US(Covid19Data):
+class Covid19Data_US_LGFL(Covid19Data):
     """
-    US, first-order ODE
+    US, first-order ODE, 6-parameter model: linear combination of
+    logistic growth with curve flattening, and linear.
+
+    AICc with 3/31/20 data was ...
     """
     countryCode = 'US'
-    bounds_lg = [
+    bounds = [
+        #--- Logistic Growth with curve flattening (list these first) ---------
+        # Total cases after exponential growth completely stopped
+        ('L',   (2e5, 5e6)),
+        # The growth rate, proportional to the maximum number of
+        # new cases being reported per day from logistic growth 
+        ('r',   (0.2, 0.5)),
+        # Maximum reduction of r from curve flattening effect
+        ('rf',  (0.0, 2.0)),
+        # Time for flattening to have about half of its full effect (days)
+        ('th',  (1, 30)),
+        # Time at which flattening is occurring fastest (days after 1/22/20)
+        ('t0', (50, 80)),
+        #--- Linear (list this last) ------------------------------------------
+        # Constant number of new cases reported each day since beginning
+        ('b',   (0, 1000)),
+        #----------------------------------------------------------------------
+    ]
+    k0 = 50
+
+
+class Covid19Data_US_LGPLL(Covid19Data):
+    """
+    US, first-order ODE, 7-parameter model: linear combination of
+    logistic growth, power law, and linear.
+
+    AICc with 3/31/20 data was +4 after 100 generations.
+    """
+    countryCode = 'US'
+    bounds = [
         #--- Logistic Growth (list these first) -------------------------------
         # Total cases after exponential growth completely stopped
         ('L',   (1e5, 5e6)),
         # The growth rate, proportional to the maximum number of
         # new cases being reported per day from logistic growth 
         ('r',   (0.03, 0.28)),
-    ]
-    bounds_pl = [
         #--- Power-Law (list these second) ------------------------------------
         # Scaling coefficient
         ('a',   (1500, 5000)),
@@ -334,15 +364,67 @@ class Covid19Data_US(Covid19Data):
         ('ts',  (55, 58)),
         # Decay time constant (two years is 730 days)
         ('t0',  (10, 1e6)),
-    ]
-    bounds_l = [
         #--- Linear (list this last) ------------------------------------------
         # Constant number of new cases reported each day since beginning
         ('b',   (0, 400)),
         #----------------------------------------------------------------------
     ]
-    #bounds = bounds_lg #+ bounds_pl + bounds_l
-    bounds = bounds_lg + bounds_pl + bounds_l
+    k0 = 50
+
+
+class Covid19Data_US_LGL(Covid19Data):
+    """
+    US, first-order ODE, 3-parameter model: logistic growth and
+    linear.
+
+    AICc with 3/31/20 data was +1.7 after 50 generations, but the
+    upper limit seems unreasonably low (optimistic).
+    """
+    countryCode = 'US'
+    summaryPosition = 'E'
+    bounds = [
+        #--- Logistic Growth (list these first) -------------------------------
+        # Total cases after exponential growth completely stopped
+        ('L',   (2e5, 7e5)),
+        # The growth rate, proportional to the maximum number of
+        # new cases being reported per day from logistic growth 
+        ('r',   (0.2, 0.35)),
+        #--- Linear (list this last) ------------------------------------------
+        # Constant number of new cases reported each day since beginning
+        ('b',   (0, 1e3)),
+        #----------------------------------------------------------------------
+    ]
+    k0 = 50
+
+class Covid19Data_US_PLL(Covid19Data):
+    """
+    US, first-order ODE, 5-parameter model: linear combination of
+    power law and linear.
+
+    AICc with 3/31/20 data was -1.8 after 50 generations. That is
+    significantly better than US7 or US3, but the model doesn't track
+    known data much earlier than a week ago.
+
+    The I{t0} parameter goes absurdly high with no significant effect
+    on model fitness; there is no apparently no exponential decay to
+    be seen in the power-law behavior, here or in US7.
+    """
+    countryCode = 'US'
+    bounds = [
+        #--- Power-Law --------------------------------------------------------
+        # Scaling coefficient
+        ('a',   (200, 2000)),
+        # Power-law exponent
+        ('n',   (0.8, 1.7)),
+        # Start of local country/region epidemic (days after 1/22/20)
+        ('ts',  (50, 57)),
+        # Decay time constant (two years is 730 days)
+        ('t0',  (10, 1e6)),
+        #--- Linear (list this last) ------------------------------------------
+        # Constant number of new cases reported each day since beginning
+        ('b',   (200, 1200)),
+        #----------------------------------------------------------------------
+    ]
     k0 = 50
 
 
@@ -674,6 +756,58 @@ class Evaluator(Picklable):
         firstDay = self.dates[0]
         return (firstDay + timedelta(days=k)).strftime("%m/%d")
 
+    xd_logistic_flattened_text = "x*r*(2 - x/L - rf*tanh(0.55*(t-t0)/th))"
+    def xd_logistic_flattened(self, t, x, L, r, rf, th, t0):
+        """
+        Logistic growth model (Verhulst model),
+        U{https://services.math.duke.edu/education/ccp/materials/diffeq/logistic/logi1.html},
+        with curve flattening (my own non-expert addition, caveat
+        emptor).
+        
+        Given a scalar time (in days) followed by arguments defining
+        curve parameters, returns the number of B{new} Covid-19
+        cases expected to be reported on that day.::
+
+            xd(t, x) = x*r*(2 - x/L - rf*tanh(0.55*(t-t0)/th))
+            
+        This requires integration of a first-order differential
+        equation, which is performed in L{curve}.
+
+        The hyperbolic tangent has been a very useful function for use
+        in the nonlinear models I've developed for MOSFET circuit
+        simulation. it provides a smooth transition from one
+        simulation regime to another. In the case of COVID-19
+        infections, it seemed to me that there was such a smooth
+        transition happening as the effect of social distancing
+        measures have become felt in various countries/regions.
+
+        There are three main parameters to a hyperbolic tangent
+        component of a model: The maximum magnitude (never quite
+        achieved, only as a limit), the rate of transition, and the
+        time at which transition is happening most rapidly. In this
+        modified logistic growth model, those three terms appear as
+        I{rf} (max flattening reduction to I{r}), I{th} (days for
+        about 1/2 of flattening effect to occur), and I{t0} (days when
+        flattening effect being felt fastest).
+
+        The Jacobian with respect to I{x} is provided by
+        L{jacobian_logistic_flattened}.
+        """
+        X = np.array(x)
+        return r*X*(2 - X/L - rf*np.tanh(0.55*(t-t0)/th))
+
+    def x2d_logistic_flattened(self, t, x, L, r, rf, th, t0):
+        """
+        Jacobian for L{xd_logistic_flattened}, with respect to I{x}::
+
+            xd(t, x) = x*r*(2 - x/L - rf*tanh(0.55*(t-t0)/th))
+            xd(t, x) = -r/L*x^2 - r*(2 + rf*tanh(0.55*(t-t0)/th))*x
+
+            x2d(t, x) = -2*r/L*x - r*(2 + rf*tanh(0.55*(t-t0)/th))
+        """
+        X = np.array(x)
+        return -2*r/L*X - r*(2 + rf*np.tanh(0.55*(t-t0)/th))
+    
     xd_logistic_text = "x*r*(1 - x/L)"
     def xd_logistic(self, t, x, L, r):
         """
@@ -755,6 +889,11 @@ class Evaluator(Picklable):
         """
         Sets up my model function and its Jacobian.
         """
+        def has_param(name):
+            for thisName, bound in self.bounds:
+                if thisName == name:
+                    return True
+        
         def curve_text():
             """
             Returns a string with the right side of the equation M{xd(t, x) =
@@ -764,27 +903,43 @@ class Evaluator(Picklable):
             text = sub("{}(t, x) = ", "x2d" if self.second_deriv else "xd")
             text += " + ".join(self.ftList)
             return text
-        
+
+        def append(xd_name, N, k):
+            """
+            Appends my method with I{xd_name} to my I{fList}, with a slice of
+            the I{N} parameters following and including I{k} assigned
+            to it, and appends its name to my I{ftList}.
+
+            Returns the new value of I{k}.
+            """
+            k1 = k + N
+            s = slice(k, k1)
+            self.fList.append((getattr(self, xd_name), s))
+            self.ftList.append(getattr(self, xd_name + '_text'))
+            return k1
+                    
         if self.f_text is None:
             k = 0
-            self.ftList = []; self.fList = []; self.jacobian = None
+            self.fList = []
+            self.ftList = []
+            self.jacobian = None
             N = len(self.bounds)
-            if N in (2, 3, 6, 7):
-                # Logistic growth
-                self.ftList.append(self.xd_logistic_text)
+            if has_param('rf'):
+                # Logistic growth (with curve flattening)
+                k = append('xd_logistic_flattened', 5, k)
+                # This model component has a non-zero Jacobian
+                self.jacobian = self.x2d_logistic_flattened
+            elif has_param('r'):
+                # Logistic growth (conventional)
+                k = append('xd_logistic', 2, k)
                 # This model component has a non-zero Jacobian
                 self.jacobian = self.x2d_logistic
-                self.fList.append((self.xd_logistic, slice(k, k+2)))
-                k += 2
-            if N in (4, 6, 5, 7):
+            if has_param('n'):
                 # Power law
-                self.ftList.append(self.xd_powerlaw_text)
-                self.fList.append((self.xd_powerlaw, slice(k, k+4)))
-                k += 4
-            if N in (3, 5, 7):
+                k = append('xd_powerlaw', 4, k)
+            if has_param('b'):
                 # Linear (constant differential)
-                self.ftList.append(self.xd_linear_text)
-                self.fList.append((self.xd_linear, slice(k, k+1)))
+                k = append('xd_linear', 1, k)
             self.f_text = curve_text()
     
     def curve(self, t0, t1, values):
