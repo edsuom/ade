@@ -329,22 +329,22 @@ class Covid19Data_US(Covid19Data):
     """
     countryCode = 'US'
     bounds = [
-        #--- Logistic Growth with curve flattening (list these first) ---------
+        #--- Logistic Growth with curve flattening (L, r, rf, th, t0) ---------
+        # Upper limit to number of total cases (upper bound is population)
+        ('L',   (3e6, 3.3e8)),
         # The initial exponential growth rate
-        ('r',   (0.111, 0.129)),
-        # Reduction in effective r given current number of cases (when
-        # rc*x = 1, number of cases x has reached absolute limit)
-        ('rc',   (0.0, 1.2e-6)),
-        # Max reduction in effective r from curve flattening effect
-        # (>2 would be negative growth)
-        ('rf',  (0.75, 1.07)),
+        ('r',   (0.3, 0.43)),
+        # Max fractional reduction in effective r from curve flattening effect
+        # (0.0 for no flattening, 1.0 to completely flatten to zero growth)
+        ('rf',  (0.6, 0.9)),
         # Time for flattening to have about half of its full effect (days)
-        ('th',  (2.5, 3.7)),
-        # Time at which flattening is occurring fastest (days after 1/22/20)
-        ('t0', (61, 64)),
-        #--- Linear (list this last) ------------------------------------------
+        ('th',  (5, 12)),
+        # Time (days after 1/22/20) at the middle of the transition
+        # from regular logistic-growth behavior to fully flattened
+        ('t0', (61, 65)),
+        #--- Linear (b) -------------------------------------------------------
         # Constant number of new cases reported each day since beginning
-        ('b',   (0, 20)),
+        ('b',   (0, 30)),
         #----------------------------------------------------------------------
     ]
     k0 = 42
@@ -360,7 +360,7 @@ class Covid19Data_US_LGPLL(Covid19Data):
     countryCode = 'US'
     bounds = [
         #--- Logistic Growth (list these first) -------------------------------
-        # Total cases after exponential growth completely stopped
+        # Upper limit to number of total cases
         ('L',   (1e5, 5e6)),
         # The growth rate, proportional to the maximum number of
         # new cases being reported per day from logistic growth 
@@ -373,7 +373,7 @@ class Covid19Data_US_LGPLL(Covid19Data):
         # Start of local country/region epidemic (days after 1/22/20)
         ('ts',  (55, 58)),
         # Decay time constant (two years is 730 days)
-        ('t0',  (10, 1e6)),
+        ('tc',  (10, 1e6)),
         #--- Linear (list this last) ------------------------------------------
         # Constant number of new cases reported each day since beginning
         ('b',   (0, 400)),
@@ -394,7 +394,7 @@ class Covid19Data_US_LGL(Covid19Data):
     summaryPosition = 'E'
     bounds = [
         #--- Logistic Growth (list these first) -------------------------------
-        # Total cases after exponential growth completely stopped
+        # Upper limit to number of total cases
         ('L',   (2e5, 7e5)),
         # The growth rate, proportional to the maximum number of
         # new cases being reported per day from logistic growth 
@@ -415,7 +415,7 @@ class Covid19Data_US_PLL(Covid19Data):
     significantly better than US7 or US3, but the model doesn't track
     known data much earlier than a week ago.
 
-    The I{t0} parameter goes absurdly high with no significant effect
+    The I{tc} parameter goes absurdly high with no significant effect
     on model fitness; there is no apparently no exponential decay to
     be seen in the power-law behavior, here or in US7.
     """
@@ -429,7 +429,7 @@ class Covid19Data_US_PLL(Covid19Data):
         # Start of local country/region epidemic (days after 1/22/20)
         ('ts',  (50, 57)),
         # Decay time constant (two years is 730 days)
-        ('t0',  (10, 1e6)),
+        ('tc',  (10, 1e6)),
         #--- Linear (list this last) ------------------------------------------
         # Constant number of new cases reported each day since beginning
         ('b',   (200, 1200)),
@@ -463,7 +463,7 @@ class Covid19Data_US_2d(Covid19Data):
         # Start of local country/region epidemic (days after 1/22/20)
         ('ts',  (42, 58)),
         # Decay time constant (two years is 730 days)
-        ('t0',  (2, 600)),
+        ('tc',  (2, 600)),
     ]
     bounds_l = [
         #--- Linear (list this last) ------------------------------------------
@@ -479,26 +479,25 @@ class Covid19Data_Italy(Covid19Data):
     countryCode = 'Italy'
     summaryPosition = 'NW'
     bounds = [
-        #--- Logistic Growth --------------------------------------------------
-        # Total cases after exponential growth completely stopped
-        ('L',   (2e4, 1e6)),
-        # The growth rate, proportional to the maximum number of
-        # new cases being reported per day from logistic growth 
-        ('r',   (0.05, 0.3)),
-        #--- Power-Law Component ----------------------------------------------
-        # Scaling coefficient
-        ('a',   (10, 1000)),
-        # Power-law exponent
-        ('n',   (0.02, 1.0)),
-        # Start of local country/region epidemic (days after 1/22/20)
-        ('ts',  (15, 52)),
-        # Decay time constant
-        ('t0',  (1e1, 1e5)),
-        #--- Linear -----------------------------------------------------------
+        #--- Logistic Growth with curve flattening (L, r, rf, th, t0) ---------
+        # Upper limit to number of total cases
+        ('L',   (2e5, 6e7)),
+        # The initial exponential growth rate
+        ('r',   (0.1, 0.3)),
+        # Max fractional reduction in effective r from curve flattening effect
+        # (0.0 for no flattening, 1.0 to completely flatten to zero growth)
+        ('rf',  (0.72, 1.0)),
+        # Time for flattening to have about half of its full effect (days)
+        ('th',  (5, 20)),
+        # Time (days after 1/22/20) at the middle of the transition
+        # from regular logistic-growth behavior to fully flattened
+        ('t0', (53, 66)),
+        #--- Linear (b) -------------------------------------------------------
         # Constant number of new cases reported each day since beginning
-        ('b',   (0, 10)),
+        ('b',   (0, 200)),
+        #----------------------------------------------------------------------
     ]
-    k0 = 40
+    k0 = 51
 
 
 class Covid19Data_SouthKorea(Covid19Data):
@@ -596,18 +595,25 @@ class Results(object):
             setattr(self, name, np.flip(Z))
 
 
-class Evaluator(Picklable):
+class Model(object):
     """
-    I evaluate fitness of one of two different models, or both in
-    linear combination, against the number of new COVID-19 cases
-    reported each day.
+    I define a model for the number of new daily reported cases for
+    each day after 1/22/20. The model is a linear combination of one
+    or more sub-models:
 
-    One model is the logistic (Verhulst) model: "A biological
-    population with plenty of food, space to grow, and no threat from
-    predators, tends to grow at a rate that is proportional to the
-    population....Of course, most populations are constrained by
-    limitations on resources--even in the short run--and none is
-    unconstrained forever."
+        - One of two mutually exclusive logistic growth models, a
+          conventional one and the author's own curve-flattened version,
+    
+        - A power-law model with exponential decay, and
+
+        - A linear model (constant number of new daily reported cases).
+
+    The conventional logistic growth model is the logistic (Verhulst)
+    model: "A biological population with plenty of food, space to
+    grow, and no threat from predators, tends to grow at a rate that
+    is proportional to the population....Of course, most populations
+    are constrained by limitations on resources--even in the short
+    run--and none is unconstrained forever."
     U{https://services.math.duke.edu/education/ccp/materials/diffeq/logistic/logi1.html}
 
     It requires the integration of a first-order differential
@@ -615,12 +621,31 @@ class Evaluator(Picklable):
 
         xd(t, x) = x*r*(1 - x/L)
 
-    Or, to use the modification the author of this code has made, this
+    The author of this code (EAS) proposes a modification to that
+    model with a C{flatten} function reducing the growth rate with a
+    smooth transition to a curve-flattened regime. Here is the
     equation for logistic growth with curve flattening:::
 
-        xd(t, x) = x*r*(2 - rc*x - rf*tanh(0.55*(t-t0)/th))
+        xd(t, x) = r*x*(1 - x/L)*flatten(t)
+        flatten(t) = 0.5*rf*(1 - tanh(1.1*(t-t0)/th)) - rf + 1
     
-    The other is the power-law model with exponential cutoff
+    where
+
+        - I{L} is the maximum number of possible cases,
+
+        - I{rf} is the fractional reduction in growth rate at the
+          conclusion of the flattened-curve regime,
+
+        - I{th} is the time interval (in days) over which the middle
+          half of a smooth transition occurs from regular
+          logistic-growth behavior to a fully flattened curve with
+          I{rf} the non-flattened growth rate, and
+
+        - I{t0} is the time (in days after 1/22/20) at the middle of
+          the transition from regular logistic-growth behavior to a
+          fully flattened curve.
+    
+    The other model is the power-law model with exponential cutoff
     function of Vasquez (2006):::
 
         xd(t) = a * (t-ts)^n * exp(-(t-ts)/t0)
@@ -629,162 +654,95 @@ class Evaluator(Picklable):
     combination of both with the single parameter I{b}:::
 
         xd(t) += b*t
-    
-    The data in my 1-D array I{XD} contains daily numbers of B{new}
-    reported COVID-19 cases. The modeled value of the functions xd{x}
-    is the number of new cases expected to be reported and I{t} is the
-    time since the first observation (in days).
-    
-    Construct an instance of me, run the L{setup} method, and wait (in
-    non-blocking Twisted-friendly fashion) for the C{Deferred} it
-    returns to fire. Then call the instance a bunch of times with
-    parameter values for a L{curve} to get a (deferred)
-    sum-of-squared-error fitness of the curve to the actual data.
-
-    You select a model by defining its uniquely named parameters in
-    the I{bounds} list of your chosen subclass of L{Covid19Data}. For
-    example, to use a linear combination of both models, that list
-    should define I{L} and L{r} for the logistic growth component and
-    I{a}, I{n}, I{ts}, and I{t0} for the power-law component. If a
-    linear component is desired (constant number of new cases each
-    day), define it with parameter I{b}.
-
-    @ivar XD: The actual number of new cases per day, each day, for
-        the selected country or region since the first reported case
-        in the Johns Hopkins dataset on January 22, 2020, B{after} my
-        L{transform} has been applied.
     """
-    scale_SSE = 1e-2
-    f_text = None
-
-    def __getattr__(self, name):
-        return getattr(self.data, name)
-
-    def __len__(self):
-        return len(self.data.t)
-    
-    def kt(self, t):
+    def __init__(self, names, second_deriv=False):
         """
-        Returns an index to my I{t} and I{X} vectors for the specified
-        number of days I{t} after 1/22/20.
-
-        If I{t} is an array, an array of integer indices will be
-        returned.
-        """
-        K = np.searchsorted(self.data.t, t)
-        N = len(self)
-        return np.clip(K, 0, N-1)
-    
-    def Xt(self, t):
-        """
-        Returns the value of I{X} at the specified number of days I{t}
-        after 1/22/20. If the days are beyond the limits of the data
-        on hand, the latest data value will be used.
-        """
-        return self.data.X[self.kt(t)]
-
-    def setup(self, klass, daysAgo=0):
-        """
-        Call with a subclass I{klass} of L{Covid19Data} with data and
-        bounds for evaluation of my model.
-
-        Computes a differential vector I{XD} that contains the
-        differences between a particular day's cumulative cases and
-        the previous day's. The length this vector is the same as
-        I{X}, with a zero value for the first day.
+        C{Model(names, second_deriv=False)}
         
-        Returns a C{Deferred} that fires with two equal-length
-        sequences, the names and bounds of all parameters to be
-        determined.
+        Sets up my model function and its Jacobian with a list of
+        parameter I{names}, in the order that their I{values} will
+        appear in L{__call__}.
 
-        Also creates a dict of I{indices} in those sequences, keyed by
-        parameter name.
-
-        If the supplied I{klass} has a I{second_deriv} attribute set
-        C{True}, the model is considered the second derivative of the
-        cumulative number of cases, rather than the first
-        derivative. In other words, what gets modeled is the increase
-        of the increase.
-
-        That will cause I{X} will be returned from the initial value
-        problem done by L{curve}, rather than C{f(t, X)}. Seems weird,
-        but this unlikely (and, admittedly, accidental) version of the
-        model worked very effectively at predicting at making
-        near-term predictions in previous weeks.
-
-        @keyword daysAgo: Set to a positive number of days ago
-            to limit the latter end of the John Hopkins data. Useful
-            for back-testing or when the current day's data dump is
-            believed to be not yet complete.
-        @type daysAgo: int
+        @keyword second_deriv: Set C{True} to have the model consider
+            the second derivative of the number of reported cases
+            instead of the first. (Not supported or recommended.)
         """
-        def done(null):
-            # Calculate differential and show data on console
-            self.XD = np.zeros_like(self.X)
-            msg("Cumulative and new cases reported thus far for {}",
-                self.countryCode, '-')
-            xPrev = None
-            for k, x in enumerate(self.X):
-                xd = 0 if xPrev is None else x-xPrev
-                xPrev = x
-                msg("{:03d}\t{}\t{:d}\t{:d}",
-                    k, self.dayText(k), int(x), int(xd))
-                self.XD[k] = self.transform(xd)
-            # Set up curve for all fitting and plotting
-            self.curve_def()
-            # Done, return names and bounds to caller
-            return names, bounds
+        def has_param(name):
+            return name in names
+        
+        def curve_text():
+            """
+            Returns a string with the right side of the equation M{xd(t, x) =
+            ...}, or M{x2d(t, x) = ...} if my I{second_deriv} is
+            C{True}.
+            """
+            text = sub("{}(t, x) = ", "x2d" if second_deriv else "xd")
+            text += " + ".join(self.ftList)
+            return text
 
-        if not issubclass(klass, Covid19Data):
-            raise TypeError("You must supply a subclass of Covid19Data")
-        data = self.data = klass()
-        names = []; bounds = []
-        self.second_deriv = getattr(klass, 'second_deriv', False)
-        self.f_residuals = self.residuals_2d \
-            if self.second_deriv else self.residuals_1d
-        for name, theseBounds in data.bounds:
-            names.append(name)
-            bounds.append(theseBounds)
-        return data.setup(daysAgo).addCallbacks(done, oops)
+        def append(xd_name, N, k):
+            """
+            Appends my method with I{xd_name} to my I{fList}, with its
+            Jacobian and a slice of the I{N} parameters following and
+            including I{k} assigned to it. Appends its name to my
+            I{ftList}.
 
-    def transform(self, XD, inverse=False):
-        """
-        Applies a transform to the numbers of new cases per day each day,
-        real or modeled. Set I{inverse} C{True} to apply the inverse
-        of the transform.
-
-        The crude transform currently used is just a square root of
-        the absolute magnitude, with sign preserved.  The seems like a
-        reasonable initial compromise between a log transform (useful
-        for a purely exponential model), and not transforming at
-        all. Will investigate Cox-Box as an option.
-        """
-        if inverse:
-            return np.sign(XD) * XD**2
-        return np.sign(XD) * np.sqrt(np.abs(XD))
+            Returns the new value of I{k}.
+            """
+            k1 = k + N
+            s = slice(k, k1)
+            self.fList.append((
+                getattr(self, xd_name),
+                getattr(self, xd_name + '_jac'), s))
+            self.ftList.append(getattr(self, xd_name + '_text'))
+            return k1
+                    
+        k = 0
+        self.fList = []
+        self.ftList = []
+        self.second_deriv = second_deriv
+        N = len(names)
+        if has_param('rf'):
+            # Logistic growth (with curve flattening)
+            k = append('xd_logistic_flattened', 5, k)
+        elif has_param('r'):
+            # Logistic growth (conventional)
+            k = append('xd_logistic', 2, k)
+        if has_param('n'):
+            # Power law
+            k = append('xd_powerlaw', 4, k)
+        if has_param('b'):
+            # Linear (constant differential)
+            k = append('xd_linear', 1, k)
+        self.f_text = curve_text()
+        
+    #--- Logistic Growth Model with Curve Flattening --------------------------
     
-    def dayText(self, k):
-        """
-        Returns text indicating the date I{k} days after the first
-        reported case.
-        """
-        firstDay = self.dates[0]
-        return (firstDay + timedelta(days=k)).strftime("%m/%d")
+    xd_logistic_flattened_text \
+        = "r*x*(1 - x/L)*(0.5*rf*(1 - tanh(1.1*(t-t0)/th)) - rf + 1)"
 
+    def flatten(self, t, rf, th, t0):
+        """
+        Impements the flattening function on time vector I{t} (in days)
+        that scales growth rate:::
+
+            flatten(t, rf, th, t0) = 0.5*rf*(1 - tanh(1.1*(t-t0)/th)) - rf + 1
+        """
+        return 0.5*rf*(1 - np.tanh(1.1*(t-t0)/th)) - rf + 1
     
-    xd_logistic_flattened_text = "x*r*(2 - rc*x - rf*tanh(0.55*(t-t0)/th))"
-    def xd_logistic_flattened(self, t, x, r, rc, rf, th, t0):
+    def xd_logistic_flattened(self, t, x, L, r, rf, th, t0):
         """
         Modified logistic growth model (Verhulst model),
         U{https://services.math.duke.edu/education/ccp/materials/diffeq/logistic/logi1.html},
-        with I{L} replaced by I{rc} and curve flattening (my own
-        non-expert addition, caveat emptor).
+        with curve flattening (my own non-expert addition, caveat
+        emptor).
         
         Given a scalar time (in days) followed by arguments defining
         curve parameters, returns the number of B{new} Covid-19
         cases expected to be reported on that day.::
 
-            xd(t, x) = x*r*(2 - rc*x - rf*tanh(0.55*(t-t0)/th))
+            xd(t, x) = r*x*(1 - x/L)*flatten(t, rf, th, t0)
+            flatten(t, rf, th, t0) = 0.5*rf*(1 - tanh(1.1*(t-t0)/th)) - rf + 1
             
         This requires integration of a first-order differential
         equation, which is performed in L{curve}.
@@ -800,48 +758,55 @@ class Evaluator(Picklable):
         There are three main parameters to a hyperbolic tangent
         component of a model: The maximum magnitude (never quite
         achieved, only as a limit), the rate of transition, and the
-        time at which transition is happening most rapidly. In this
-        modified logistic growth model, those three terms appear as
-        I{rf} (max flattening reduction to I{r}), I{th} (days for
-        about 1/2 of flattening effect to occur), and I{t0} (days when
+        time at which transition is happening most rapidly, i.e., the
+        middle. In this modified logistic growth model, those three
+        terms appear as I{rf} (max fractional flattening reduction to
+        I{r}), I{th} (days for about 1/2 of flattening effect to
+        occur), and I{t0} (days after 1/22/20 for the middle, when
         flattening effect being felt fastest).
 
-        One jarring aspect of this modified model is that the
-        effective growth rate can go negative with high enough values
-        of I{rc} and I{rf}. Let's take a look at each of those
-        parameters in turn.
+        Let's take a look at each of those parameters in turn.
 
         In a conventional logistic growth model, the cumulative number
         of population members I{x} starts to level off as C{x/L}
-        starts to approach 1.0. The function C{f(t, x)} never goes
-        negative because its value tapers off to zero as I{x}
-        approaches I{L}. The value of I{x} never can exceed I{L}. In
-        the author's modification, however, there is another term that
-        subtracts from the constant (2.0 instead of 1.0):::
+        starts to approach 1.0. The conventional logistic-growth
+        function C{f(t, x)} never goes negative because its value
+        tapers off to zero as I{x} approaches I{L}. The value of I{x}
+        never can exceed I{L}. In the author's modification, there is
+        another term, C{flatten(t)} that further scales the growth as
+        a function of time:::
         
-            rf*tanh(0.55*(t-t0)/th)
+            flatten(t, rf, th, t0) = 0.5*rf*(1 - tanh(1.1*(t-t0)/th)) - rf + 1
 
         Once I{t} passes I{t0} (a parameter value that is evolving to
-        days in the single digits with U.S. data as of 4/1/20).
+        days in the single digits with U.S. data as of 4/1/20), the
+        growth will have been reduced half of the way from its
+        unmodified value to a full reduction of I{rf}, where I{rf} is
+        the fractional amount of the final reduction. For example, if
+        I{rf} is 0.2, the growth rate at I{t0} will be 10% lower than
+        it would have been without any curve flattening, and then will
+        approach the limit of a 20% growth rate reduction.
         
         The Jacobian with respect to I{x} is provided by
         L{jacobian_logistic_flattened}.
         """
         X = np.array(x)
-        return r*X*(2 - rc*X - rf*np.tanh(0.55*(t-t0)/th))
-
-    def xd_logistic_flattened_jac(self, t, x, r, rc, rf, th, t0):
+        return r*X*(1 - X/L)*self.flatten(t, rf, th, t0)
+    
+    def xd_logistic_flattened_jac(self, t, x, L, r, rf, th, t0):
         """
         Jacobian for L{xd_logistic_flattened}, with respect to I{x}::
 
-            xd(t, x) = x*r*(2 - rc*x - rf*tanh(0.55*(t-t0)/th))
-            xd(t, x) = -r*rc*x^2 - r*(2 + rf*tanh(0.55*(t-t0)/th))*x
+            xd(t, x) = r*x*(1 - r*x/L)*flatten(t)
+            xd(t, x) = r*flatten(t)*x - r/L*flatten(t)*x^2
 
-            x2d(t, x) = -2*r*rc*x - r*(2 + rf*tanh(0.55*(t-t0)/th))
+            x2d(t, x) = -2*r/L*flatten(t)*x - r*flatten(t)
+            x2d(t, x) = -r*flatten(t)*(2*x/L + 1)
         """
         X = np.array(x)
-        return -2*r*rc*X - r*(2 + rf*np.tanh(0.55*(t-t0)/th))
-
+        return -r*self.flatten(t, rf, th, t0)*(2*X/L + 1)
+    
+    #--- Logistic Growth Model (conventional) ---------------------------------
     
     xd_logistic_text = "x*r*(1 - x/L)"
     def xd_logistic(self, t, x, L, r):
@@ -873,10 +838,11 @@ class Evaluator(Picklable):
         """
         x = np.array(x)
         return r*(1 - 2*x/L)
+
+    #--- Power Law with Exponential Decay -------------------------------------
     
-    
-    xd_powerlaw_text = "a*(t-ts)^n*exp(-(t-ts)/t0)"
-    def xd_powerlaw(self, t, x, a, n, ts, t0):
+    xd_powerlaw_text = "a*(t-ts)^n*exp(-(t-ts)/tc)"
+    def xd_powerlaw(self, t, x, a, n, ts, tc):
         """
         Power law model,
         U{https://www.medrxiv.org/content/10.1101/2020.02.16.20023820v2.full.pdf}
@@ -885,7 +851,7 @@ class Evaluator(Picklable):
         defining curve parameters, returns the number of B{new}
         Covid-19 cases expected to be reported on that day.::
 
-            xd(t, x) = a * (t-ts)^n * exp(-(t-ts)/t0)
+            xd(t, x) = a * (t-ts)^n * exp(-(t-ts)/tc)
 
         Note that there is actually no dependence on I{x}. It is just
         included as an argument for consistency with
@@ -900,7 +866,7 @@ class Evaluator(Picklable):
         The Jacobian with respect to I{x} is zero.
         """
         def xd(t, x):
-            return a*t**n * np.exp(-t/t0) * np.ones_like(x)
+            return a*t**n * np.exp(-t/tc) * np.ones_like(x)
 
         # NOTE: Using t -= ts changed t in place, which wasn't cool
         t = t - ts
@@ -912,13 +878,14 @@ class Evaluator(Picklable):
             XD = xd(t, x)
         return XD
 
-    def xd_powerlaw_jac(self, t, x, a, n, ts, t0):
+    def xd_powerlaw_jac(self, t, x, a, n, ts, tc):
         """
         Jacobian for L{xd_powerlaw} with respect to I{x} is constant zero,
         since it is independent of I{x}.
         """
         return np.zeros_like(x)
 
+    #--- Linear (constant number of new daily cases) --------------------------
     
     xd_linear_text = "b"
     def xd_linear(self, t, x, b):
@@ -936,67 +903,13 @@ class Evaluator(Picklable):
         """
         return np.zeros_like(x)
 
-
-    def curve_def(self):
-        """
-        Sets up my model function and its Jacobian.
-        """
-        def has_param(name):
-            for thisName, bound in self.bounds:
-                if thisName == name:
-                    return True
-        
-        def curve_text():
-            """
-            Returns a string with the right side of the equation M{xd(t, x) =
-            ...}, or M{x2d(t, x) = ...} if my I{second_deriv} is
-            C{True}.
-            """
-            text = sub("{}(t, x) = ", "x2d" if self.second_deriv else "xd")
-            text += " + ".join(self.ftList)
-            return text
-
-        def append(xd_name, N, k):
-            """
-            Appends my method with I{xd_name} to my I{fList}, with its
-            Jacobian and a slice of the I{N} parameters following and
-            including I{k} assigned to it. Appends its name to my
-            I{ftList}.
-
-            Returns the new value of I{k}.
-            """
-            k1 = k + N
-            s = slice(k, k1)
-            self.fList.append((
-                getattr(self, xd_name),
-                getattr(self, xd_name + '_jac'), s))
-            self.ftList.append(getattr(self, xd_name + '_text'))
-            return k1
-                    
-        if self.f_text is None:
-            k = 0
-            self.fList = []
-            self.ftList = []
-            N = len(self.bounds)
-            if has_param('rf'):
-                # Logistic growth (with curve flattening)
-                k = append('xd_logistic_flattened', 5, k)
-            elif has_param('r'):
-                # Logistic growth (conventional)
-                k = append('xd_logistic', 2, k)
-            if has_param('n'):
-                # Power law
-                k = append('xd_powerlaw', 4, k)
-            if has_param('b'):
-                # Linear (constant differential)
-                k = append('xd_linear', 1, k)
-            self.f_text = curve_text()
+    #--------------------------------------------------------------------------
     
-    def curve(self, t0, t1, values):
+    def __call__(self, values, t0, t1, X0):
         """
-        Call with a starting time I{t0}, the number of days from
-        first reported case, an ending time I{t1}, also in days
-        from first report, and a list of parameter I{values}.
+        Call my instance with a list of parameter I{values}, starting
+        I{t0} and ending times I{t1}, both in days from first report,
+        and the fixed (known) model value I{X0} at I{t0}.
 
         Unless there was a problem with the ODE solver, returns an
         instance of L{Results} with the following attributes:
@@ -1057,7 +970,7 @@ class Evaluator(Picklable):
         # (due to logistic component likely included) on X
         r = Results(t0, t1)
         sol = solve_ivp(
-            f, [t0, t1], [self.Xt(t0)],
+            f, [t0, t1], [X0],
             method='Radau', t_eval=r.t, vectorized=True, jac=jac)
         if not sol.success:
             return
@@ -1065,6 +978,155 @@ class Evaluator(Picklable):
         if t1 < t0: r.flip()
         r.XD = f(r.t, r.X)
         return r
+    
+            
+class Evaluator(Picklable):
+    """
+    I evaluate fitness of the model defined by my L{Model} instance
+    I{model} against the number of new COVID-19 cases reported each
+    day.
+
+    The data in my 1-D array I{XD} contains daily numbers of B{new}
+    reported COVID-19 cases. The modeled value of the functions xd{x}
+    is the number of new cases expected to be reported and I{t} is the
+    time since the first observation (in days).
+    
+    Construct an instance of me, run the L{setup} method, and wait (in
+    non-blocking Twisted-friendly fashion) for the C{Deferred} it
+    returns to fire. Then call the instance a bunch of times with
+    parameter values for a L{curve} to get a (deferred)
+    sum-of-squared-error fitness of the curve to the actual data.
+
+    You select a model by defining its uniquely named parameters in
+    the I{bounds} list of your chosen subclass of L{Covid19Data}. For
+    example, to use a linear combination of both models, that list
+    should define I{L} and L{r} for the logistic growth component and
+    I{a}, I{n}, I{ts}, and I{t0} for the power-law component. If a
+    linear component is desired (constant number of new cases each
+    day), define it with parameter I{b}.
+
+    @ivar XD: The actual number of new cases per day, each day, for
+        the selected country or region since the first reported case
+        in the Johns Hopkins dataset on January 22, 2020, B{after} my
+        L{transform} has been applied.
+    """
+    scale_SSE = 1e-2
+    f_text = None
+
+    def __getattr__(self, name):
+        return getattr(self.data, name)
+
+    def __len__(self):
+        return len(self.data.t)
+    
+    def kt(self, t):
+        """
+        Returns an index to my I{t} and I{X} vectors for the specified
+        number of days I{t} after 1/22/20.
+
+        If I{t} is an array, an array of integer indices will be
+        returned.
+        """
+        K = np.searchsorted(self.data.t, t)
+        N = len(self)
+        return np.clip(K, 0, N-1)
+    
+    def Xt(self, t):
+        """
+        Returns the value of I{X} at the specified number of days I{t}
+        after 1/22/20. If the days are beyond the limits of the data
+        on hand, the latest data value will be used.
+        """
+        return self.data.X[self.kt(t)]
+
+    def setup(self, klass, daysAgo=0):
+        """
+        Call with a subclass I{klass} of L{Covid19Data} with data and
+        bounds for evaluation of the instance I{model} of L{Model}
+        that I construct.
+
+        Computes a differential vector I{XD} that contains the
+        differences between a particular day's cumulative cases and
+        the previous day's. The length this vector is the same as
+        I{X}, with a zero value for the first day.
+        
+        Returns a C{Deferred} that fires with two equal-length
+        sequences, the names and bounds of all parameters to be
+        determined.
+
+        Also creates a dict of I{indices} in those sequences, keyed by
+        parameter name.
+
+        If the supplied I{klass} has a I{second_deriv} attribute set
+        C{True}, the model is considered the second derivative of the
+        cumulative number of cases, rather than the first
+        derivative. In other words, what gets modeled is the increase
+        of the increase.
+
+        That will cause I{X} will be returned from the initial value
+        problem done by L{curve}, rather than C{f(t, X)}. Seems weird,
+        but this unlikely (and, admittedly, accidental) version of the
+        model worked very effectively at predicting at making
+        near-term predictions in previous weeks.
+
+        @keyword daysAgo: Set to a positive number of days ago
+            to limit the latter end of the John Hopkins data. Useful
+            for back-testing or when the current day's data dump is
+            believed to be not yet complete.
+        @type daysAgo: int
+        """
+        def done(null):
+            # Calculate differential and show data on console
+            self.XD = np.zeros_like(self.X)
+            msg("Cumulative and new cases reported thus far for {}",
+                self.countryCode, '-')
+            xPrev = None
+            for k, x in enumerate(self.X):
+                xd = 0 if xPrev is None else x-xPrev
+                xPrev = x
+                msg("{:03d}\t{}\t{:d}\t{:d}",
+                    k, self.dayText(k), int(x), int(xd))
+                self.XD[k] = self.transform(xd)
+            # Set up model for all fitting and plotting
+            self.model = Model(names, second_deriv)
+            # Done, return names and bounds to caller
+            return names, bounds
+
+        if not issubclass(klass, Covid19Data):
+            raise TypeError("You must supply a subclass of Covid19Data")
+        data = self.data = klass()
+        names = []; bounds = []
+        second_deriv = getattr(klass, 'second_deriv', False)
+        self.f_residuals = self.residuals_2d \
+            if second_deriv else self.residuals_1d
+        for name, theseBounds in data.bounds:
+            names.append(name)
+            bounds.append(theseBounds)
+        return data.setup(daysAgo).addCallbacks(done, oops)
+
+    def transform(self, XD, inverse=False):
+        """
+        Applies a transform to the numbers of new cases per day each day,
+        real or modeled. Set I{inverse} C{True} to apply the inverse
+        of the transform.
+
+        The crude transform currently used is just a square root of
+        the absolute magnitude, with sign preserved.  The seems like a
+        reasonable initial compromise between a log transform (useful
+        for a purely exponential model), and not transforming at
+        all. Will investigate Cox-Box as an option.
+        """
+        if inverse:
+            return np.sign(XD) * XD**2
+        return np.sign(XD) * np.sqrt(np.abs(XD))
+    
+    def dayText(self, k):
+        """
+        Returns text indicating the date I{k} days after the first
+        reported case.
+        """
+        firstDay = self.dates[0]
+        return (firstDay + timedelta(days=k)).strftime("%m/%d")
 
     def residuals_1d(self, values):
         """
@@ -1082,7 +1144,7 @@ class Evaluator(Picklable):
         """
         t0 = self.data.t[-1]
         t1 = self.data.t[self.k0]
-        r = self.curve(t0, t1, values)
+        r = self.model(values, t0, t1, self.Xt(t0))
         if r is None: return
         r.XD = self.transform(r.XD)
         K = [self.kt(x) for x in r.t]
@@ -1110,7 +1172,7 @@ class Evaluator(Picklable):
         """
         t0 = self.data.t[0]
         t1 = self.data.t[-1]
-        r = self.curve(t0, t1, values)
+        r = self.model(values, t0, t1, self.Xt(t0))
         if r is None: return 
         # Yes, we want r.X, not r.XD, because this is a
         # second-derivative model
@@ -1173,12 +1235,12 @@ class Reporter(object):
         C{Reporter(evaluator, population)}
         """
         self.ev = evaluator
-        self.ev.curve_def()
         self.p = population
         self.prettyValues = population.pm.prettyValues
         self.pt = Plotter(
-            3, filePath=self.plotFilePath, width=10, height=14, h2=[0, 2])
+            3, filePath=self.plotFilePath, width=12, height=17, h2=[0, 2])
         self.pt.use_grid()
+        self.pt.set_fontsize('textbox', 12)
         ImageViewer(self.plotFilePath)
 
     @property
@@ -1225,7 +1287,8 @@ class Reporter(object):
         I{k1} smaller than I{k0}. In any event, the returned I{t} and
         I{X} 1-D arrays will be in ascending order of time.
         """
-        r = self.ev.curve(float(k0), float(k1), values)
+        t0, t1 = [float(x) for x in [k0, k1]]
+        r = self.ev.model(values, t0, t1, self.ev.Xt(t0))
         if r is None: return
         return r.t, r.X
 
@@ -1287,12 +1350,12 @@ class Reporter(object):
             x = X_data[k-k0]
             xe = (xc - x)/x
             sp.add_annotation(
-                k-k0, "{}: {:+.0f}%",
+                k-k0, "{}: {:+.1f}%",
                 self.ev.dayText(k), int(round(100*xe)), kVector=1)
             
         k0 = self.ev.k0
         kToday, k_offset = self.kForToday
-        if self.ev.second_deriv:
+        if self.ev.model.second_deriv:
             t, X_curve = self.curvePoints(values, k0, kToday)
         else: t, X_curve = self.curvePoints(values, kToday, k0)
         t -= k_offset
@@ -1407,7 +1470,7 @@ class Reporter(object):
             sp.add_textBox('SW', *args)
 
         # Significance of non-normality
-        tb("Non-normality: p < {:.4f}", stats.normaltest(r.R)[1])
+        tb("Non-normality: p = {:.4f}", stats.normaltest(r.R)[1])
         # AICc
         AICc, N, k = self.AICc(r)
         tb("AICc is {:+.2f} with SSE={:.5g}, N={:d}, k={:d}",
@@ -1422,7 +1485,7 @@ class Reporter(object):
         """
         sp.add_line('-', 2)
         sp.set_tickSpacing('x', 7.0, 1.0)
-        sp.add_textBox('NW', self.ev.f_text)
+        sp.add_textBox('NW', self.ev.model.f_text)
         for k, nb in enumerate(self.ev.bounds):
             sp.add_textBox('SE', "{}: {:.5g}", nb[0], values[k])
         # Data vs best-fit model
