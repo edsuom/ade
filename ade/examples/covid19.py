@@ -134,14 +134,18 @@ The comma-separated fields are as follows:
 Uses asynchronous differential evolution to efficiently find a
 population of best-fit combinations of parameters for a first-order
 differential equation modeling the number of new Covid-19 cases per
-day:::
+day. A variety of models are available. The desired linear combination
+of them (two are exclusive, logistic growth and my own logistic growth
+with curve flattening. The model(s) are selected based on what
+parameter boundaries are defined in a subclass of L{Covid19Data}. You
+can define any number of subclasses for any number of countries or
+regions. There is one for each model combination for U.S. reported
+cases.
 
-    xd(t, x) =  x*r*(1-x/L) + a*(t-ts)^n * exp(-(t-ts)/t0) + b*t
-
-against data for daily numbers of new reported COVID-19 cases, where
-I{xd} is the number of new cases expected to be reported each day,
-I{t} is the time since the first observation, in days, and I{x} is the
-number of total reported cases at time I{t}.
+The model is compared to data for daily numbers of new reported
+COVID-19 cases, where I{xd} is the number of new cases expected to be
+reported each day, I{t} is the time since the first observation, in
+days, and I{x} is the number of total reported cases at time I{t}.
 
 With the exception of the residual subplot in the middle, the plot
 shows cumulative numbers of total cases C{x(t)}, not the differential
@@ -318,26 +322,29 @@ class Covid19Data_US(Covid19Data):
 
     The default model, because it is fitting the curve really well.
 
-    AICc with 3/31/20 data was ...
+    AICc with 3/31/20 data was -5, much better than any of the other
+    models, and curve fit extends further back into the past. Hardly
+    any non-normality to the residuals, and very little correlated
+    between parameters.
     """
     countryCode = 'US'
     bounds = [
         #--- Logistic Growth with curve flattening (list these first) ---------
         # The initial exponential growth rate
-        ('r',   (0.07, 0.2)),
+        ('r',   (0.111, 0.129)),
         # Reduction in effective r given current number of cases (when
         # rc*x = 1, number of cases x has reached absolute limit)
-        ('rc',   (0.0, 4e-6)),
+        ('rc',   (0.0, 1.2e-6)),
         # Max reduction in effective r from curve flattening effect
         # (>2 would be negative growth)
-        ('rf',  (0.6, 1.6)),
+        ('rf',  (0.75, 1.07)),
         # Time for flattening to have about half of its full effect (days)
-        ('th',  (1, 12)),
+        ('th',  (2.5, 3.7)),
         # Time at which flattening is occurring fastest (days after 1/22/20)
-        ('t0', (55, 70)),
+        ('t0', (61, 64)),
         #--- Linear (list this last) ------------------------------------------
         # Constant number of new cases reported each day since beginning
-        ('b',   (0, 400)),
+        ('b',   (0, 20)),
         #----------------------------------------------------------------------
     ]
     k0 = 42
@@ -607,6 +614,11 @@ class Evaluator(Picklable):
     equation:::
 
         xd(t, x) = x*r*(1 - x/L)
+
+    Or, to use the modification the author of this code has made, this
+    equation for logistic growth with curve flattening:::
+
+        xd(t, x) = x*r*(2 - rc*x - rf*tanh(0.55*(t-t0)/th))
     
     The other is the power-law model with exponential cutoff
     function of Vasquez (2006):::
@@ -794,6 +806,24 @@ class Evaluator(Picklable):
         about 1/2 of flattening effect to occur), and I{t0} (days when
         flattening effect being felt fastest).
 
+        One jarring aspect of this modified model is that the
+        effective growth rate can go negative with high enough values
+        of I{rc} and I{rf}. Let's take a look at each of those
+        parameters in turn.
+
+        In a conventional logistic growth model, the cumulative number
+        of population members I{x} starts to level off as C{x/L}
+        starts to approach 1.0. The function C{f(t, x)} never goes
+        negative because its value tapers off to zero as I{x}
+        approaches I{L}. The value of I{x} never can exceed I{L}. In
+        the author's modification, however, there is another term that
+        subtracts from the constant (2.0 instead of 1.0):::
+        
+            rf*tanh(0.55*(t-t0)/th)
+
+        Once I{t} passes I{t0} (a parameter value that is evolving to
+        days in the single digits with U.S. data as of 4/1/20).
+        
         The Jacobian with respect to I{x} is provided by
         L{jacobian_logistic_flattened}.
         """
@@ -1136,7 +1166,7 @@ class Reporter(object):
     """
     plotFilePath = "covid19.png"
     minShown = 10
-    daysForward = 29
+    daysForward = 30
     
     def __init__(self, evaluator, population):
         """
@@ -1297,14 +1327,19 @@ class Reporter(object):
             self.annotate_past(sp, X_data, k)
 
         def annotate_future(daysInFuture):
+            """
+            Add annotation for I{daysInFuture}, returning C{True} if it
+            actually was added.
+            """
             k_curve = daysInFuture + k_offset
-            if k_curve < 0: return
-            if k_curve >= len(X_curve): return
+            if k_curve < 0 or k_curve >= len(X_curve):
+                return
             sp.add_annotation(
                 k_curve, "{}: {:,.0f}",
                 self.ev.dayText(k0+daysInFuture),
                 self.cases(X_curve, k_curve), kVector=1)
-
+            return True
+            
         N_back = 4
         k0, k_offset = self.kForToday
         k1 = k0 + self.daysForward
@@ -1317,9 +1352,10 @@ class Reporter(object):
         # This next week
         for k in range(7):
             annotate_future(k)
-        # One to three weeks from today
-        for weeks in range(1, 4):
-            annotate_future(7*weeks)
+        # Days after next week, in one-week intervals
+        for weeks in range(1, 10):
+            if not annotate_future(7*weeks):
+                break
         # Start with a few of the most recent actual data points
         sp.add_axvline(self.ev.t[-1])
         ax = sp.semilogy(t_data, X_data)
