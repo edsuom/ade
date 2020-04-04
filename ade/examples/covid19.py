@@ -238,6 +238,7 @@ class Covid19Data(Data):
     """
     basename = "covid19"
     reDate = re.compile(r'([0-9]+)/([0-9]+)/([0-9]+)')
+    modelPosition = 'NW'
     summaryPosition = 'NW'
 
     re_ps_yes = None
@@ -477,18 +478,17 @@ class Covid19Data_US_2d(Covid19Data):
 
 class Covid19Data_Italy(Covid19Data):
     countryCode = 'Italy'
-    summaryPosition = 'NW'
     bounds = [
         #--- Logistic Growth with curve flattening (L, r, rf, th, t0) ---------
-        # Upper limit to number of total cases
+        # Upper limit to number of total cases (upper bound is population)
         ('L',   (2e5, 6e7)),
         # The initial exponential growth rate
         ('r',   (0.1, 0.3)),
         # Max fractional reduction in effective r from curve flattening effect
         # (0.0 for no flattening, 1.0 to completely flatten to zero growth)
-        ('rf',  (0.72, 1.0)),
+        ('rf',  (0.5, 1.0)),
         # Time for flattening to have about half of its full effect (days)
-        ('th',  (5, 20)),
+        ('th',  (4, 15)),
         # Time (days after 1/22/20) at the middle of the transition
         # from regular logistic-growth behavior to fully flattened
         ('t0', (53, 66)),
@@ -497,83 +497,151 @@ class Covid19Data_Italy(Covid19Data):
         ('b',   (0, 200)),
         #----------------------------------------------------------------------
     ]
-    k0 = 51
+    k0 = 40
 
 
 class Covid19Data_SouthKorea(Covid19Data):
     countryCode = 'Korea, South'
-    summaryPosition = 'E'
+    modelPosition = 'M'
     bounds = [
-        #--- Logistic Growth --------------------------------------------------
-        # Total cases after exponential growth completely stopped
-        ('L',   (1.0, 500)),
-        # The growth rate, proportional to the maximum number of
-        # new cases being reported per day from logistic growth 
-        ('r',   (0.01, 0.4)),
-        #--- Power-Law Component ----------------------------------------------
-        # Scaling coefficient
-        ('a',   (2.0, 500.0)),
-        # Power-law exponent
-        ('n',   (0.01, 3.5)),
-        # Start of local country/region epidemic (days after 1/22/20)
-        ('ts',  (17, 38)),
-        # Decay time constant
-        ('t0',  (0.3, 10.0)),
-        #--- Linear -----------------------------------------------------------
+        #--- Logistic Growth with curve flattening (L, r, rf, th, t0) ---------
+        # Upper limit to number of total cases (upper bound is population)
+        ('L',   (5e4, 5e7)),
+        # The initial exponential growth rate
+        ('r',   (0.1, 0.8)),
+        # Max fractional reduction in effective r from curve flattening effect
+        # (0.0 for no flattening, 1.0 to completely flatten to zero growth)
+        ('rf',  (0.9, 1.0)),
+        # Time for flattening to have about half of its full effect (days)
+        ('th',  (3, 8)),
+        # Time (days after 1/22/20) at the middle of the transition
+        # from regular logistic-growth behavior to fully flattened
+        ('t0', (33, 45)),
+        #--- Linear (b) -------------------------------------------------------
         # Constant number of new cases reported each day since beginning
-        ('b',   (0, 0.8)),
+        ('b',   (0, 130)),
+        #----------------------------------------------------------------------
     ]
-    k0 = 20
+    k0 = 34
 
 
 class Covid19Data_Finland(Covid19Data):
     countryCode = 'Finland'
-    summaryPosition = 'NW'
     bounds = [
-        #--- Logistic Growth --------------------------------------------------
-        # Total cases after exponential growth completely stopped
-        ('L',   (1.0, 1e6)),
-        # The growth rate, proportional to the maximum number of
-        # new cases being reported per day from logistic growth 
-        ('r',   (0.01, 0.2)),
-        #--- Power-Law Component ----------------------------------------------
-        # Scaling coefficient
-        ('a',   (0.0, 100.0)),
-        # Power-law exponent
-        ('n',   (0.01, 1.8)),
-        # Start of local country/region epidemic (days after 1/22/20)
-        ('ts',  (30, 60)),
-        # Decay time constant
-        ('t0',  (10, 1e4)),
-        #--- Linear -----------------------------------------------------------
+        #--- Logistic Growth with curve flattening (L, r, rf, th, t0) ---------
+        # Upper limit to number of total cases (upper bound is population)
+        ('L',   (2e3, 5.5e6)),
+        # The initial exponential growth rate
+        ('r',   (0.05, 0.4)),
+        # Max fractional reduction in effective r from curve flattening effect
+        # (0.0 for no flattening, 1.0 to completely flatten to zero growth)
+        ('rf',  (0.5, 1.0)),
+        # Time for flattening to have about half of its full effect (days)
+        ('th',  (1, 12)),
+        # Time (days after 1/22/20) at the middle of the transition
+        # from regular logistic-growth behavior to fully flattened
+        ('t0', (55, 75)),
+        #--- Linear (b) -------------------------------------------------------
         # Constant number of new cases reported each day since beginning
-        ('b',   (0, 15)),
+        ('b',   (0, 25)),
+        #----------------------------------------------------------------------
     ]
-    k0 = 40
+    k0 = 53
 
 
 class Covid19Data_Singapore(Covid19Data):
     countryCode = 'Singapore'
-    summaryPosition = 'NW'
     bounds = [
-        #--- Logistic Growth --------------------------------------------------
-        # Total cases after exponential growth completely stopped
-        ('L',   (1e4, 3e8)),
-        # The growth rate, proportional to the maximum number of
-        # new cases being reported per day from logistic growth 
-        ('r',   (0.005, 0.15)),
-        #--- Power-Law Component ----------------------------------------------
-        # Scaling coefficient
-        ('a',   (0.0, 40)),
-        # Power-law exponent
-        ('n',   (0.005, 1.9)),
-        # Start of local country/region epidemic (days after 1/22/20)
-        ('ts',  (40, 60)),
-        # Decay time constant
-        ('t0',  (1, 1e5)),
-        #--- Linear -----------------------------------------------------------
+        #--- Logistic Growth with curve flattening (L, r, rf, th, t0) ---------
+        # Upper limit to number of total cases (upper bound is population)
+        ('L',   (2e3, 5.9e6)),
+        # The initial exponential growth rate
+        ('r',   (0.03, 0.4)),
+        # Max fractional reduction in effective r from curve flattening effect
+        # (0.0 for no flattening, 1.0 to completely flatten to zero growth)
+        ('rf',  (0.3, 0.98)),
+        # Time for flattening to have about half of its full effect (days)
+        ('th',  (1, 15)),
+        # Time (days after 1/22/20) at the middle of the transition
+        # from regular logistic-growth behavior to fully flattened
+        ('t0', (52, 72)),
+        #--- Linear (b) -------------------------------------------------------
         # Constant number of new cases reported each day since beginning
         ('b',   (0, 10)),
+        #----------------------------------------------------------------------
+    ]
+    k0 = 40
+
+
+class Covid19Data_Germany(Covid19Data):
+    countryCode = 'Germany'
+    bounds = [
+        #--- Logistic Growth with curve flattening (L, r, rf, th, t0) ---------
+        # Upper limit to number of total cases (upper bound is population)
+        ('L',   (1e5, 8.4e7)),
+        # The initial exponential growth rate
+        ('r',   (0.17, 0.62)),
+        # Max fractional reduction in effective r from curve flattening effect
+        # (0.0 for no flattening, 1.0 to completely flatten to zero growth)
+        ('rf',  (0.6, 1.0)),
+        # Time for flattening to have about half of its full effect (days)
+        ('th',  (6, 21)),
+        # Time (days after 1/22/20) at the middle of the transition
+        # from regular logistic-growth behavior to fully flattened
+        ('t0', (50, 67)),
+        #--- Linear (b) -------------------------------------------------------
+        # Constant number of new cases reported each day since beginning
+        ('b',   (0, 150)),
+        #----------------------------------------------------------------------
+    ]
+    k0 = 40
+
+
+class Covid19Data_Spain(Covid19Data):
+    countryCode = 'Spain'
+    bounds = [
+        #--- Logistic Growth with curve flattening (L, r, rf, th, t0) ---------
+        # Upper limit to number of total cases (upper bound is population)
+        ('L',   (3e5, 4.7e7)),
+        # The initial exponential growth rate
+        ('r',   (0.1, 0.3)),
+        # Max fractional reduction in effective r from curve flattening effect
+        # (0.0 for no flattening, 1.0 to completely flatten to zero growth)
+        ('rf',  (0.3, 0.8)),
+        # Time for flattening to have about half of its full effect (days)
+        ('th',  (1, 6)),
+        # Time (days after 1/22/20) at the middle of the transition
+        # from regular logistic-growth behavior to fully flattened
+        ('t0', (60, 70)),
+        #--- Linear (b) -------------------------------------------------------
+        # Constant number of new cases reported each day since beginning
+        ('b',   (0, 50)),
+        #----------------------------------------------------------------------
+    ]
+    k0 = 51
+
+
+class Covid19Data_France(Covid19Data):
+    countryCode = 'France'
+    summaryPosition = 'E'
+    bounds = [
+        #--- Logistic Growth with curve flattening (L, r, rf, th, t0) ---------
+        # Upper limit to number of total cases (upper bound is population)
+        ('L',   (2e5, 6.5e7)),
+        # The initial exponential growth rate
+        ('r',   (0.1, 0.6)),
+        # Max fractional reduction in effective r from curve flattening effect
+        # (0.0 for no flattening, 1.0 to completely flatten to zero growth)
+        ('rf',  (0.6, 1.0)),
+        # Time for flattening to have about half of its full effect (days)
+        ('th',  (10, 30)),
+        # Time (days after 1/22/20) at the middle of the transition
+        # from regular logistic-growth behavior to fully flattened
+        ('t0', (40, 70)),
+        #--- Linear (b) -------------------------------------------------------
+        # Constant number of new cases reported each day since beginning
+        ('b',   (0, 150)),
+        #----------------------------------------------------------------------
     ]
     k0 = 40
 
@@ -1364,7 +1432,11 @@ class Reporter(object):
         annotate_past(k0)
         # Error in expected vs actual reported cases, going back
         # several days starting with today
-        for k in range(kToday-1, k0-1, -1):
+        kList = range(kToday-1, k0-1, -1)
+        Nfd = len(kList) / 15
+        for kk, k in enumerate(kList):
+            if kk > 7:
+                if Nfd and kk % Nfd: continue
             annotate_error(k)
         sp.add_axvline(-1)
         ax = sp.semilogy(t, X_data)
@@ -1485,7 +1557,7 @@ class Reporter(object):
         """
         sp.add_line('-', 2)
         sp.set_tickSpacing('x', 7.0, 1.0)
-        sp.add_textBox('NW', self.ev.model.f_text)
+        sp.add_textBox(self.ev.modelPosition, self.ev.model.f_text)
         for k, nb in enumerate(self.ev.bounds):
             sp.add_textBox('SE', "{}: {:.5g}", nb[0], values[k])
         # Data vs best-fit model
