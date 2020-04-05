@@ -345,20 +345,20 @@ class Covid19Data_US(Covid19Data):
     bounds = [
         #--- Logistic Growth with curve flattening (L, r, rf, th, t0) ---------
         # Upper limit to number of total cases (upper bound is population)
-        ('L',   (3e6, 3.3e8)),
+        ('L',   (2e6, 3.3e8)),
         # The initial exponential growth rate
-        ('r',   (0.31, 0.42)),
+        ('r',   (0.34, 0.56)),
         # Max fractional reduction in effective r from curve flattening effect
         # (0.0 for no flattening, 1.0 to completely flatten to zero growth)
-        ('rf',  (0.60, 0.82)),
+        ('rf',  (0.75, 1.0)),
         # Time for flattening to have about half of its full effect (days)
-        ('th',  (5, 9)),
+        ('th',  (8, 20)),
         # Time (days after 1/22/20) at the middle of the transition
         # from regular logistic-growth behavior to fully flattened
-        ('t0', (62, 64)),
+        ('t0', (58, 66)),
         #--- Linear (b) -------------------------------------------------------
         # Constant number of new cases reported each day since beginning
-        ('b',   (0, 10)),
+        ('b',   (0, 60)),
         #----------------------------------------------------------------------
     ]
     k0 = 42
@@ -496,18 +496,18 @@ class Covid19Data_Spain(Covid19Data):
         # Upper limit to number of total cases (upper bound is population)
         ('L',   (3e5, 4.7e7)),
         # The initial exponential growth rate
-        ('r',   (0.14, 0.22)),
+        ('r',   (0.15, 0.23)),
         # Max fractional reduction in effective r from curve flattening effect
         # (0.0 for no flattening, 1.0 to completely flatten to zero growth)
-        ('rf',  (0.57, 0.77)),
+        ('rf',  (0.65, 1.0)),
         # Time for flattening to have about half of its full effect (days)
-        ('th',  (3, 7)),
+        ('th',  (5, 12)),
         # Time (days after 1/22/20) at the middle of the transition
         # from regular logistic-growth behavior to fully flattened
-        ('t0', (64, 68)),
+        ('t0', (65, 69)),
         #--- Linear (b) -------------------------------------------------------
         # Constant number of new cases reported each day since beginning
-        ('b',   (0, 55)),
+        ('b',   (0, 40)),
         #----------------------------------------------------------------------
     ]
     k0 = 51
@@ -523,7 +523,7 @@ class Covid19Data_Italy(Covid19Data):
         ('r',   (0.07, 0.16)),
         # Max fractional reduction in effective r from curve flattening effect
         # (0.0 for no flattening, 1.0 to completely flatten to zero growth)
-        ('rf',  (0.7, 0.8)),
+        ('rf',  (0.7, 0.82)),
         # Time for flattening to have about half of its full effect (days)
         ('th',  (5, 9)),
         # Time (days after 1/22/20) at the middle of the transition
@@ -547,9 +547,9 @@ class Covid19Data_Germany(Covid19Data):
         ('r',   (0.22, 0.62)),
         # Max fractional reduction in effective r from curve flattening effect
         # (0.0 for no flattening, 1.0 to completely flatten to zero growth)
-        ('rf',  (0.6, 1.0)),
+        ('rf',  (0.8, 1.0)),
         # Time for flattening to have about half of its full effect (days)
-        ('th',  (8, 23)),
+        ('th',  (8, 24)),
         # Time (days after 1/22/20) at the middle of the transition
         # from regular logistic-growth behavior to fully flattened
         ('t0', (49, 65)),
@@ -570,18 +570,18 @@ class Covid19Data_France(Covid19Data):
         # Upper limit to number of total cases (upper bound is population)
         ('L',   (1e6, 6.5e7)),
         # The initial exponential growth rate
-        ('r',   (0.2, 0.5)),
+        ('r',   (0.12, 0.4)),
         # Max fractional reduction in effective r from curve flattening effect
         # (0.0 for no flattening, 1.0 to completely flatten to zero growth)
-        ('rf',  (0.4, 0.8)),
+        ('rf',  (0.2, 0.8)),
         # Time for flattening to have about half of its full effect (days)
-        ('th',  (5, 15)),
+        ('th',  (1, 10)),
         # Time (days after 1/22/20) at the middle of the transition
         # from regular logistic-growth behavior to fully flattened
-        ('t0', (44, 60)),
+        ('t0', (50, 75)),
         #--- Linear (b) -------------------------------------------------------
         # Constant number of new cases reported each day since beginning
-        ('b',   (0, 40)),
+        ('b',   (0, 10)),
         #----------------------------------------------------------------------
     ]
     k0 = 40
@@ -591,21 +591,22 @@ class Covid19Data_Iran(Covid19Data):
     countryCode = 'Iran'
     bounds = [
         #--- Logistic Growth with curve flattening (L, r, rf, th, t0) ---------
-        # Upper limit to number of total cases (upper bound is population)
-        ('L',   (6e5, 8.4e7)),
+        # Upper limit to number of total cases (upper bound <
+        # population of 8.4e7)
+        ('L',   (8e4, 6e5)),
         # The initial exponential growth rate
-        ('r',   (0.1, 0.7)),
+        ('r',   (0.08, 0.4)),
         # Max fractional reduction in effective r from curve flattening effect
         # (0.0 for no flattening, 1.0 to completely flatten to zero growth)
-        ('rf',  (0.6, 1.0)),
+        ('rf',  (0.4, 0.8)),
         # Time for flattening to have about half of its full effect (days)
-        ('th',  (2, 23)),
+        ('th',  (0.5, 9)),
         # Time (days after 1/22/20) at the middle of the transition
         # from regular logistic-growth behavior to fully flattened
-        ('t0', (40, 65)),
+        ('t0', (36, 49)),
         #--- Linear (b) -------------------------------------------------------
         # Constant number of new cases reported each day since beginning
-        ('b',   (0, 120)),
+        ('b',   (0, 250)),
         #----------------------------------------------------------------------
     ]
     k0 = 40
@@ -618,14 +619,14 @@ class Covid19Data_UK(Covid19Data):
         #--- Logistic Growth with curve flattening (L, r, rf, th, t0) ---------
         # Upper limit to number of total cases (upper bound <<
         # population of 6.8e7)
-        ('L',   (5e4, 2e6)),
+        ('L',   (5e4, 5e5)),
         # The initial exponential growth rate
         ('r',   (0.20, 0.25)),
         # Max fractional reduction in effective r from curve flattening effect
         # (0.0 for no flattening, 1.0 to completely flatten to zero growth)
         ('rf',  (0.15, 0.40)),
         # Time for flattening to have about half of its full effect (days)
-        ('th',  (0.1, 3)),
+        ('th',  (1, 3)),
         # Time (days after 1/22/20) at the middle of the transition
         # from regular logistic-growth behavior to fully flattened
         ('t0', (65, 67)),
@@ -669,18 +670,18 @@ class Covid19Data_Singapore(Covid19Data):
         # Upper limit to number of total cases (upper bound is population)
         ('L',   (2e3, 5.9e6)),
         # The initial exponential growth rate
-        ('r',   (0.05, 0.3)),
+        ('r',   (0.08, 0.25)),
         # Max fractional reduction in effective r from curve flattening effect
         # (0.0 for no flattening, 1.0 to completely flatten to zero growth)
-        ('rf',  (0.3, 0.8)),
+        ('rf',  (0.3, 0.7)),
         # Time for flattening to have about half of its full effect (days)
-        ('th',  (0.5, 10)),
+        ('th',  (0.5, 6)),
         # Time (days after 1/22/20) at the middle of the transition
         # from regular logistic-growth behavior to fully flattened
-        ('t0', (52, 72)),
+        ('t0', (56, 69)),
         #--- Linear (b) -------------------------------------------------------
         # Constant number of new cases reported each day since beginning
-        ('b',   (0, 5)),
+        ('b',   (0, 2)),
         #----------------------------------------------------------------------
     ]
     k0 = 40
@@ -693,18 +694,18 @@ class Covid19Data_Finland(Covid19Data):
         # Upper limit to number of total cases (upper bound is population)
         ('L',   (2e3, 5.5e6)),
         # The initial exponential growth rate
-        ('r',   (0.05, 0.4)),
+        ('r',   (0.05, 0.3)),
         # Max fractional reduction in effective r from curve flattening effect
         # (0.0 for no flattening, 1.0 to completely flatten to zero growth)
-        ('rf',  (0.5, 1.0)),
+        ('rf',  (0.2, 0.7)),
         # Time for flattening to have about half of its full effect (days)
-        ('th',  (1, 12)),
+        ('th',  (1, 6)),
         # Time (days after 1/22/20) at the middle of the transition
         # from regular logistic-growth behavior to fully flattened
-        ('t0', (55, 75)),
+        ('t0', (58, 73)),
         #--- Linear (b) -------------------------------------------------------
         # Constant number of new cases reported each day since beginning
-        ('b',   (0, 25)),
+        ('b',   (0, 10)),
         #----------------------------------------------------------------------
     ]
     k0 = 53
@@ -1236,11 +1237,16 @@ class Evaluator(Picklable):
             bounds.append(theseBounds)
         return data.setup(daysAgo).addCallbacks(done, oops)
 
-    def transform(self, XD, inverse=False):
+    def transform(self, XD=None, inverse=False):
         """
-        Applies a transform to the numbers of new cases per day each day,
-        real or modeled. Set I{inverse} C{True} to apply the inverse
-        of the transform.
+        Applies a transform to the numbers of new cases per day each day
+        I{XD}, real or modeled. Set I{inverse} C{True} to apply the
+        inverse of the transform.
+
+        To use your own (presumably modeled) I{XD}, supply it via that
+        keyword. Otherwise, I will do an inverse transform on my own
+        I{XD} attribute. In that case, the I{inverse} keyword is
+        ignored because it is assumed to be C{True}.
 
         The crude transform currently used is just a square root of
         the absolute magnitude, with sign preserved.  The seems like a
@@ -1248,17 +1254,27 @@ class Evaluator(Picklable):
         for a purely exponential model), and not transforming at
         all. Will investigate Cox-Box as an option.
         """
+        if XD is None:
+            XD = self.XD
+            inverse = True
         if inverse:
             return np.sign(XD) * XD**2
         return np.sign(XD) * np.sqrt(np.abs(XD))
     
-    def dayText(self, k):
+    def dayText(self, k=None):
         """
         Returns text indicating the date I{k} days after the first
         reported case.
+
+        To get text for the last (most recent) reported case, leave
+        I{k} C{None}.
         """
-        firstDay = self.dates[0]
-        return (firstDay + timedelta(days=k)).strftime("%m/%d")
+        if k is None:
+            day = self.dates[-1]
+        else:
+            firstDay = self.dates[0]
+            day = firstDay + timedelta(days=k)
+        return day.strftime("%m/%d")
 
     def residuals_1d(self, values):
         """
@@ -1362,15 +1378,23 @@ class Reporter(object):
     minShown = 10
     daysForward = 30
     
-    def __init__(self, evaluator, population):
+    def __init__(self, evaluator, population, includeRatio=False):
         """
-        C{Reporter(evaluator, population)}
+        C{Reporter(evaluator, population, includeRatio=False)}
         """
         self.ev = evaluator
         self.p = population
+        self.includeRatio = includeRatio
         self.prettyValues = population.pm.prettyValues
+        if includeRatio:
+            N = 4
+            height = 19
+        else:
+            N = 3
+            height = 17
         self.pt = Plotter(
-            3, filePath=self.plotFilePath, width=12, height=17, h2=[0, 2])
+            1, N,
+            filePath=self.plotFilePath, width=12, height=height, h2=[0, 2])
         self.pt.use_grid()
         self.pt.set_fontsize('textbox', 12)
         ImageViewer(self.plotFilePath)
@@ -1418,8 +1442,8 @@ class Reporter(object):
 
     def curvePoints(self, values, k0, k1):
         """
-        Obtains modeled numbers of cumulative reported cases from I{k0} to
-        I{k1} days after first reported case.
+        Obtains modeled numbers of new daily cases and cumulative reported
+        cases from I{k0} to I{k1} days after first reported case.
         
         Given a sequence of parameter I{values} and a first I{k0} and
         second I{k1} number of days from first reported case, returns
@@ -1432,16 +1456,20 @@ class Reporter(object):
         the known number of reported cases then. Integration for
         extrapolation will have I{k1} greater than I{k0}. For
         backwards integration (to do historical comparisons), set
-        I{k1} smaller than I{k0}. In any event, the returned I{t} and
-        I{X} 1-D arrays will be in ascending order of time.
+        I{k1} smaller than I{k0}. In any event, the I{t} and I{X} 1-D
+        arrays in the returned I{r} object will be in ascending order
+        of time.
+
+        Returns an instance I{r} of I{Results} with the modeled arrays.
         """
         t0, t1 = [float(x) for x in [k0, k1]]
         r = self.ev.model(values, t0, t1, self.ev.Xt(t0))
         if r is None: return
-        return r.t, r.X
+        return r
 
-    def add_model(self, ax, t, X):
-        ax.semilogy(t, X, color='red', marker='o', linewidth=2, markersize=3)
+    def add_model(self, ax, t, X, semilog=False):
+        f = getattr(ax, 'semilogy' if semilog else 'plot')
+        f(t, X, color='red', marker='o', linewidth=2, markersize=3)
 
     def add_scatter(self, ax, k0, k1, k_offset=0):
         """
@@ -1455,8 +1483,8 @@ class Reporter(object):
         Xc = np.empty_like(tc)
         X0 = self.ev.Xt(k0)
         for ki in range(Ni):
-            t, X = self.curvePoints(list(self.p[ki]), k0, k1)
-            tc[:,ki], Xc[:,ki] = t+0.1*stats.norm.rvs(size=Nt), X
+            r = self.curvePoints(list(self.p[ki]), k0, k1)
+            tc[:,ki], Xc[:,ki] = r.t+0.1*stats.norm.rvs(size=Nt), r.X
         tc = tc.flatten() - k_offset
         Xc = self.clipLower(Xc.flatten())
         ax.semilogy(tc, Xc, color='black', marker=',', linestyle='')
@@ -1465,7 +1493,7 @@ class Reporter(object):
     def cases(X, k):
         return int(round(X[k]))
         
-    def annotate_past(self, sp, X, k):
+    def annotate_past(self, sp, X, k=None):
         """
         Given a 1-D array I{X} of case numbers that will be displayed as
         the first line in the supplied subplot I{sp}, adds an
@@ -1473,14 +1501,19 @@ class Reporter(object):
 
         The last item in array I{X} must be the most recent actual
         number of cases.
+
+        To just annotate the last item in I{X}, leave I{k} C{None}.
         """
-        # Length of X, just actual data to be plotted up to most
-        # recent
-        N = len(X)
-        # Convert index from all data to just data to be plotted
-        kX = k - (len(self.ev) - N)
-        if kX >= N: return
-        if kX < 0: return
+        if k is None:
+            kX = -1
+        else:
+            # Length of X, just actual data to be plotted up to most
+            # recent
+            N = len(X)
+            # Convert index from all data to just data to be plotted
+            kX = k - (len(self.ev) - N)
+            if kX >= N: return
+            if kX < 0: return
         sp.add_annotation(
             kX, "{}: {:,.0f}", self.ev.dayText(k), self.cases(X, kX))
     
@@ -1489,6 +1522,11 @@ class Reporter(object):
         Plots the past data against the best-fit model in subplot I{sp},
         given the supplied parameter I{values}, with the model curve
         anchored at the right to today's actual reported cases.
+
+        Returns a 4-tuple of equal-length 1-D arrays with (1) the
+        actual time I{t}, (2) the actual cumulative numbers of cases
+        I{X_data}, (3) the actual numbers of new daily cases, and (4)
+        the modeled number of new daily cases.
         """
         def annotate_error(k):
             kk = k - k0 - 1
@@ -1502,10 +1540,13 @@ class Reporter(object):
         k0 = self.ev.k0
         kToday, k_offset = self.kForToday
         if self.ev.model.second_deriv:
-            t, X_curve = self.curvePoints(values, k0, kToday)
-        else: t, X_curve = self.curvePoints(values, kToday, k0)
+            r = self.curvePoints(values, k0, kToday)
+        else: r = self.curvePoints(values, kToday, k0)
+        t, X_curve = r.t, r.X
         t -= k_offset
-        X_data = self.clipLower(self.ev.X[self.ev.kt(t)])
+        K = self.ev.kt(t)
+        X_data = self.clipLower(self.ev.X[K])
+        XD = self.ev.transform()[K]
         # Date of first reported case number plotted
         self.annotate_past(sp, X_data, k0+1)
         # Error in expected vs actual reported cases, going back
@@ -1522,7 +1563,8 @@ class Reporter(object):
             annotate_error(k)
         ax = sp.semilogy(t, X_data)
         # Add the best-fit model values for comparison
-        self.add_model(ax, t, X_curve)
+        self.add_model(ax, t, X_curve, semilog=True)
+        return t, X_data, XD, r.X, r.XD
     
     def model_future(self, sp, values):
         """
@@ -1538,6 +1580,9 @@ class Reporter(object):
         between today (when this is run) and the date of the last data
         point is subtracted from the "days after 1/22/20" index before
         being applied to the method L{dayText}.
+
+        Returns the modeled time I{t}, cumulative cases I{X_curve},
+        and new daily cases I{XD}.
         """
         def annotate_past(k):
             self.annotate_past(sp, X_data, k)
@@ -1561,7 +1606,9 @@ class Reporter(object):
         k1 = k0 + self.daysForward
         t_data, X_data = [
             getattr(self.ev, name)[-N_back:] for name in ('t', 'X')]
-        t, X_curve = self.curvePoints(values, k0, k1)
+        r = self.curvePoints(values, k0, k1)
+        t = r.t - k_offset
+        X_curve = r.X
         # Vertical line "today"
         t0 = self.ev.t[-1]
         sp.add_axvline(t0)
@@ -1580,10 +1627,11 @@ class Reporter(object):
         sp.add_axvline(self.ev.t[-1])
         ax = sp.semilogy(t_data, X_data)
         # Add the best-fit model extrapolation
-        self.add_model(ax, t-k_offset, X_curve)
+        self.add_model(ax, t, X_curve, semilog=True)
         # Add scatterplot sorta-probalistic predictions
         self.add_scatter(ax, k0, k1, k_offset)
-
+        return t, X_curve, r.XD
+    
     def AICc(self, r):
         """
         Computes the Akaike Information Criterion, corrected for small
@@ -1637,8 +1685,10 @@ class Reporter(object):
         """
         Does the upper subplot with model fit vs data.
 
-        Returns the I{t} vector for the actual-data dates being
-        plotted.
+        Returns the I{t} I{X} vectors for the actual data being
+        plotted, the I{XD} vector for the actual data, the I{X} vector
+        for the modeled data, and the I{XD} vector for the modeled
+        data.
         """
         sp.add_line('-', 2)
         sp.set_tickSpacing('x', 7.0, 1.0)
@@ -1646,12 +1696,13 @@ class Reporter(object):
         for k, nb in enumerate(self.ev.bounds):
             sp.add_textBox('SE', "{}: {:.5g}", nb[0], values[k])
         # Data vs best-fit model
-        self.model_past(sp, values)
+        return self.model_past(sp, values)
 
     def subplot_middle(self, sp, values, t):
         """
         Does a middle subplot with residuals between the data I{X_data}
-        and modeled data I{X_curve}.
+        and modeled data I{X_curve}, given model parameter I{values}
+        and evaluation times (days after 1/22/20) I{t}.
         """
         r = self.ev.residuals(values)
         if r is None: return
@@ -1670,11 +1721,35 @@ class Reporter(object):
         """
         Does the lower subplot with extrapolation, starting at my I{k0}
         days from first report.
+
+        Returns the I{t} and I{X} vectors for the future modeled data
+        being plotted, plus the modeled I{XD} vector.
         """
         sp.add_line('-', 2)
         sp.set_tickSpacing('x', 7.0, 1.0)
-        self.model_future(sp, values)
-        
+        return self.model_future(sp, values)
+
+    def subplot_bottom(self, sp, ta, Ra, tm, Rm):
+        """
+        Draws a fourth subplot on the very bottom showing the modeled
+        ratio between new and total cases, both past (actual) and
+        future (modeled).
+
+        Call with actual-data time and ratio vectors I{ta}, I{Ra} and
+        modeled time and ratio vectors I{tm}, I{Rm}.
+        """
+        Ra = 100 * Ra
+        Rm = 100 * Rm
+        sp.add_axvline(-1)
+        sp.add_annotation(
+            ta[-1], "{} had {:.1f}% of all\ncase reports thus far",
+            self.ev.dayText(), Ra[-1])
+        sp.add_textBox(
+            'NE', "New cases each day as a percentage of total cases thus far")
+        sp.set_ylabel("% New")
+        ax = sp(ta, Ra)
+        self.add_model(ax, tm, Rm)
+    
     def __call__(self, values, counter, SSE):
         """
         Prints out a new best parameter combination and its curve vs
@@ -1702,20 +1777,25 @@ class Reporter(object):
             tb('S', "Reported cases in {} vs days after first case.",
                self.ev.countryCode)
             tb('S', "Annotations show residuals between model and data.")
-            t_data = self.subplot_upper(sp, values)
-            self.subplot_middle(sp, values, t_data)
-            tb("Expected cases reported in {} vs days after first",
+            ta, Xa, XDa, Xam, XDam = self.subplot_upper(sp, values)
+            self.subplot_middle(sp, values, ta)
+            tb("Expected cases reported in {} vs days after",
                self.ev.countryCode)
-            tb("case. Dots show daily model predictions for each")
+            tb("first case. Dots show daily model predictions for each")
             tb("of a final population of {:d} evolved parameter", len(self.p))
             tb("combinations. Annotations show actual values in")
             tb("past, best-fit projected values in future.")
             for line in DISCLAIMER.split('\n'):
                 sp.add_textBox("SE", line)
-            self.subplot_lower(sp, values)
+            tm, Xm, XDm = self.subplot_lower(sp, values)
+            if self.includeRatio:
+                tm = np.concatenate([ta, tm])
+                Xm = np.concatenate([Xam, Xm])
+                XDm = np.concatenate([XDam, XDm])
+                self.subplot_bottom(sp, ta, XDa/Xa, tm, XDm/Xm)
         self.pt.show()
 
-    
+
 class Runner(object):
     """
     I run everything to fit a curve to thermistor data using
@@ -1824,7 +1904,7 @@ class Runner(object):
                 args[1], func=self.evaluate, bounds=bounds)
         else:
             self.p = Population(self.evaluate, names, bounds, popsize=args.p)
-        reporter = Reporter(self.ev, self.p)
+        reporter = Reporter(self.ev, self.p, args.r)
         self.p.addCallback(reporter)
         if len(self.p):
             yield self.reEvaluate()
@@ -1888,10 +1968,10 @@ args = Args(
 )
 args('-d', '--days-ago', 0,
      "Limit latest data to N days ago rather than up to today")
-args('-m', '--maxiter', 50, "Maximum number of DE generations to run")
+args('-m', '--maxiter', 75, "Maximum number of DE generations to run")
 args('-e', '--bitter-end', "Keep working to the end even with little progress")
-args('-p', '--popsize', 30, "Population: # individuals per unknown parameter")
-args('-C', '--CR', 0.8, "DE Crossover rate CR")
+args('-p', '--popsize', 40, "Population: # individuals per unknown parameter")
+args('-C', '--CR', 0.7, "DE Crossover rate CR")
 args('-F', '--F', "0.5,1.0", "DE mutation scaling F: two values for range")
 args('-b', '--best', "Use DE/best/1 instead of DE/rand/1")
 args('-n', '--not-adaptive', "Don't use automatic F adaptation")
@@ -1903,5 +1983,7 @@ args('-l', '--logfile',
      "Write results to logfile 'covid19.log' instead of STDOUT")
 args('-P', '--pickle', "covid19.dat",
      "Pickle dump file for finalized ade.Population object ('-' for none)")
+args('-r', '--include-ratio',
+     "Include subplot with ratio of new vs cumulative cases")
 args("<Country/State Name> [<pickle file>]")
 args(main)
