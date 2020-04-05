@@ -276,7 +276,8 @@ class Analysis(object):
 
         With no I{baseFilePath} specified: If my I{fileSpec} has been
         set, a numerical suffix gets appended to the base name (but
-        not the extension), making each figure/PNG file unique. The
+        not the extension) to all files after the first one generated,
+        ensuring that each generated figure/PNG file is unique. The
         unique file path is returned along with the desired width in
         pixels. Otherwise, a pair of C{None} objects is returned.
         """
@@ -287,7 +288,9 @@ class Analysis(object):
             directory, baseName, ext, count, width = self.fileSpec
             count += 1
             self.fileSpec[3] = count
-            fileName = sub("{}-{:02d}.{}", baseName, count, ext)
+            fileName = sub(
+                "{}-{:d}.{}", baseName, count, ext) if count > 1 else sub(
+                    "{}.{}", baseName, ext)
             return os.path.join(directory, fileName), width
         directory, fileName = os.path.split(baseFilePath)
         baseName, ext = os.path.splitext(fileName)
@@ -308,15 +311,13 @@ class Analysis(object):
             kw['width'] = width
             N, Nc, Nr = Plotter.parseArgs(*args, **kw)[2:]
             kw['height'] = 0.8*width * Nr/Nc
-        pt = Plotter(*args, **kw)
-        pt.add_line(""); pt.use_minorTicks('y'); pt.use_grid()
-        return pt
+        return Plotter(*args, **kw)
     
     def plot(self, names, **kw):
         """
-        Plots the values versus SSE for each of the parameters in
-        I{names}. Accepts keywords used for L{value_vs_SSE} (though
-        only I{inPop} is honored in this method), plus I{noShow}.
+        Plots values versus SSE for each parameter in I{names}. Accepts
+        keywords used for L{value_vs_SSE} (only I{inPop} is honored in
+        this method), plus I{noShow}, I{semilog}, and I{sp}.
         
         If there are two integer values in I{names}, they are used to
         select a range of my I{names} sequence. (Seldom used.)
@@ -328,9 +329,43 @@ class Analysis(object):
 
         @keyword semilog: Set C{True} to plot parameter values on a
             logarithmic scale.
+
+        @keyword sp: Set to an instance of C{yampex.Plotter} in
+            subplot context and I will render each subplots using it,
+            with automatic subplot advancement for each
+            parameter. It's up to you to make sure the C{Plotter}
+            object got set up with subplots in the desired
+            arrangement, and to call it in context before calling this
+            method. See the docstring for C{yampex.Plotter.__call__}
+            for details.
         """
+        def setup(pt_sp):
+            pt_sp.add_line("")
+            pt_sp.use_minorTicks('y'); pt_sp.use_grid()
+            pt_sp.add_marker('o', 2.0); pt_sp.add_color('red')
+            pt_sp.set_xlabel("SSE")
+            if semilog:
+                pt_sp.plot_semilogy()
+            if not inPop:
+                pt_sp.add_marker('o', 2.0); pt_sp.add_color('blue')
+                pt_sp.add_marker('.', 1.5); pt_sp.add_color('#303030')
+        
+        def doSubplots(sp, kList):
+            """
+            Using Plotter-in-subplot-context object I{sp}, plots the subplots
+            for the parameter indices in I{kList}.
+            """
+            for k in kList:
+                name = names[k]
+                sp.set_title(name)
+                ax = sp(XYp[0], XYp[k+1])
+                if not inPop:
+                    ax.plot(XYn[0], XYn[k+1])
+                    ax.plot(XYr[0], XYr[k+1])
+        
         noShow = kw.pop('noShow', False)
         semilog = kw.pop('semilog', False)
+        sp = kw.pop('kw', None)
         names = self.args2names(names)
         inPop = kw.get('inPop', False)
         kw['inPop'] = True
@@ -346,26 +381,18 @@ class Analysis(object):
         # of 1-D Numpy arrays
         N = len(XYp) - 1
         kList = range(N)
+        if sp is not None:
+            setup(sp)
+            doSubplots(sp, kList)
+            return
         while kList:
             N = self.pick_N(kList)
             kkList = kList[:N]; kList = kList[N:]
             Nc = 1 if N == 1 else 3 if N > 6 else 2
             pt = self.makePlotter(N, Nc=Nc)
-            pt.add_marker('o', 2.0); pt.add_color('red')
-            pt.set_xlabel("SSE")
-            if semilog:
-                pt.plot_semilogy()
-            if not inPop:
-                pt.add_marker('o', 2.0); pt.add_color('blue')
-                pt.add_marker('.', 1.5); pt.add_color('#303030')
+            setup(pt)
             with pt as sp:
-                for k in kkList:
-                    name = names[k]
-                    sp.set_title(name)
-                    ax = sp(XYp[0], XYp[k+1])
-                    if not inPop:
-                        ax.plot(XYn[0], XYn[k+1])
-                        ax.plot(XYr[0], XYr[k+1])
+                doSubplots(sp, kkList)
         if noShow: return pt
         pt.showAll()
 
