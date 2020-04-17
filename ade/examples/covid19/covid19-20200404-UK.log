@@ -1,0 +1,782 @@
+Decompressing and parsing covid19.csv.bz2...
+Cumulative and new cases reported thus far for United Kingdom
+------------------------------------------------------------------------------------------------------------------------
+000	01/22	0	0
+001	01/23	0	0
+002	01/24	0	0
+003	01/25	0	0
+004	01/26	0	0
+005	01/27	0	0
+006	01/28	0	0
+007	01/29	0	0
+008	01/30	0	0
+009	01/31	2	2
+010	02/01	2	0
+011	02/02	2	0
+012	02/03	2	0
+013	02/04	2	0
+014	02/05	2	0
+015	02/06	2	0
+016	02/07	3	1
+017	02/08	3	0
+018	02/09	3	0
+019	02/10	8	5
+020	02/11	8	0
+021	02/12	9	1
+022	02/13	9	0
+023	02/14	9	0
+024	02/15	9	0
+025	02/16	9	0
+026	02/17	9	0
+027	02/18	9	0
+028	02/19	9	0
+029	02/20	9	0
+030	02/21	9	0
+031	02/22	9	0
+032	02/23	9	0
+033	02/24	13	4
+034	02/25	13	0
+035	02/26	13	0
+036	02/27	15	2
+037	02/28	20	5
+038	02/29	23	3
+039	03/01	36	13
+040	03/02	40	4
+041	03/03	51	11
+042	03/04	85	34
+043	03/05	115	30
+044	03/06	163	48
+045	03/07	206	43
+046	03/08	273	67
+047	03/09	321	48
+048	03/10	382	61
+049	03/11	456	74
+050	03/12	456	0
+051	03/13	798	342
+052	03/14	1140	342
+053	03/15	1140	0
+054	03/16	1543	403
+055	03/17	1950	407
+056	03/18	2626	676
+057	03/19	2689	63
+058	03/20	3983	1294
+059	03/21	5018	1035
+060	03/22	5683	665
+061	03/23	6650	967
+062	03/24	8077	1427
+063	03/25	9529	1452
+064	03/26	11658	2129
+065	03/27	14543	2885
+066	03/28	17089	2546
+067	03/29	19522	2433
+068	03/30	22141	2619
+069	03/31	25150	3009
+070	04/01	29474	4324
+071	04/02	33718	4244
+072	04/03	38168	4450
+073	04/04	41903	3735
+
+Initializing 180 population members having 6 parameters
+------------------------------------------------------------------------------------------------------------------------
+
+SSE=12.13 on eval 1: L=5.78374e+06 b=17.7029 r=0.193035 rf=0.295563 t0=66.808 th=2.97473**
+
+*!0!0
+
+SSE=11.369 on eval 6: L=2.43279e+06 b=5.33832 r=0.205053 rf=0.423618 t0=66.6857 th=1.64997
+
+!111112201111112121111!111011110!1022111112110110111112011!110060211012111111
+
+SSE=11.021 on eval 83: L=280979* b=23.3444 r=0.243952 rf=0.420848 t0=65.9653 th=0.982315
+
+!1011111212121121111111111111111111111
+211121121111111112111111111112111211111111121211111211111101
+
+Population: 180 individuals with SSE 11.021 to 67.31, avg eval time 0.39 sec. Top 7:
+
+        SSE |     11.021       11.198       11.199       11.205       11.213       11.215       11.222  
+------------------------------------------------------------------------------------------------------------------------
+          L | 2.8098e+05*   6.783e+06   4.5567e+06   5.4997e+06   9.3217e+06   5.2893e+06   4.4821e+06  
+          b |     23.344       5.8079       19.086       14.754       7.5118       2.0986       22.907  
+          r |    0.24395      0.20703       0.2194       0.2286      0.20872      0.21923        0.233  
+         rf |    0.42085      0.39021      0.44872      0.43202      0.41226      0.39556      0.44542  
+         t0 |     65.965       66.493       66.445       66.066       66.166       66.294       65.888  
+         th |    0.98231       2.2052       1.8158       1.2803       2.8793**     1.2259      0.61236  
+------------------------------------------------------------------------------------------------------------------------
+Best individual:
+<SSE=11.0215 L=280979* b=23.3444 r=0.243952 rf=0.420848 t0=65.9653 th=0.982315>
+
+
+Population: 180 individuals with SSE 11.021 to 67.31, avg eval time 0.39 sec. Top 7:
+
+        SSE |     11.021       11.198       11.199       11.205       11.213       11.215       11.222  
+------------------------------------------------------------------------------------------------------------------------
+          L | 2.8098e+05*   6.783e+06   4.5567e+06   5.4997e+06   9.3217e+06   5.2893e+06   4.4821e+06  
+          b |     23.344       5.8079       19.086       14.754       7.5118       2.0986       22.907  
+          r |    0.24395      0.20703       0.2194       0.2286      0.20872      0.21923        0.233  
+         rf |    0.42085      0.39021      0.44872      0.43202      0.41226      0.39556      0.44542  
+         t0 |     65.965       66.493       66.445       66.066       66.166       66.294       65.888  
+         th |    0.98231       2.2052       1.8158       1.2803       2.8793**     1.2259      0.61236  
+------------------------------------------------------------------------------------------------------------------------
+Best individual:
+<SSE=11.0215 L=280979* b=23.3444 r=0.243952 rf=0.420848 t0=65.9653 th=0.982315>
+
+Performing DE with CR=0.8, F=U(0.5, 1.0), DE/rand-1.00/1/bin
+------------------------------------------------------------------------------------------------------------------------
+Press the 'Enter' key to abort.
+
+
+
+Generation 1/50  F=U(0.5, 1.0)  N_hist=180
+------------------------------------------------------------------------------------------------------------------------
+0X1XXXXXX12X111111XX111XXXXX1XX11XXX31XXX1XX01X12XXXXXX12XXX11111X01XX002101X11X11XX211X1X1X1XX01X1XX10111X0XXXXXX1X1221
+11XXXX0X1XX11X1XX11X1XXX122XXXX1X211X2XXXX0111X11111X1X1X110
+
+
+Generation 2/50  F=U(0.5, 1.0)  N_hist=360
+------------------------------------------------------------------------------------------------------------------------
+1XX1XX1XXXX1XXXX1XXXXXX10XXXX11X1XX0110010XXX1XX0X11XXXXX1XX0X21X1X10X1XX1XX101XXXX1XXX0XXXXXXX11XX1XX1111X11XXX1XX1XXXX
+X10XXXXXX1X11XX11XX0XX11110X111X10XX1XXXX1X000X1X11XX0X1XX11
+
+
+Generation 3/50  F=U(0.5, 1.0)  N_hist=540
+------------------------------------------------------------------------------------------------------------------------
+X1XX1XXXX101XX11XXX11XXXXXX111XXXXXXXX1X0XXXXX0XXXX1XXXX10XX1XXXXXXX1X1XXXXX11X110X10X1XXXXXX1XX11XXX0XXXXXXXXX1X11XXX1X
+XXXXX1XX1XXXXX11XX10XXX0XX1110X00XXXX1XXXXX11XXXX0XXXX1XXXXX
+
+
+Generation 4/50  F=U(0.5, 1.0)  N_hist=720
+------------------------------------------------------------------------------------------------------------------------
+XX1XXX1X0X1X1X0XXXXXXX1XX0XXX11XXXXXX111XX10X1XXXXXXX1XXXX1XX0X0XXX1X00XXX10XXXXXXXX100X1XXXX1XXXX101XX000XXXXXXXX0111+X
+X01X0X0XX1XXXXX1XXXXX1X1X1XXXXXX01X0XXXX0XXXX1XXXX01XXXXX011X
+
+
+Generation 5/50  F=U(0.5, 1.0)  N_hist=900
+------------------------------------------------------------------------------------------------------------------------
+XXXX10X0XX0XXXXXXXXXXXXXX00XX1X11XXXX1XXX0XXX1XX1XXX1XXXXXXXXX1XXXX1XX0XXX0XX0XX0X0XXX0XXX01X0XXXXXX1XXXXXXXXXX110XXX10X
+0XXX1X0XX0X010XXX1XXXXXX0X11XX110XXXX1X00XXX0XXX11X11XXXXXXX
+
+
+Generation 6/50  F=U(0.5, 1.0)  N_hist=1080
+------------------------------------------------------------------------------------------------------------------------
+0X0XXXX00XX1X0XXXX0X0X1XXXX0000X0X0XXX0X0X0XX0X001XX0XXX001XXXXXXXXXXXXXX0XXXXXXX1XXXXXXXXXXXXXXXXXXXXXXXXX00XXXXXXXX0X0
+1XX1XXXXXXXXXX0X1XX00XX1XX0XXX11XXXX01XXXXX1XXX00XXXXXXXX0X0
+
+
+Generation 7/50  F=U(0.5, 1.0)  N_hist=1260
+------------------------------------------------------------------------------------------------------------------------
+00XXXXXXX1XX1X1XXXXXXXXXX0000XX11XXX1X0X0XX0X0XX01XXXXXX00XXXXX00XX0XXXXXXXXXXXXXXXXXX1XXXXXXXXX0XX00X0XXXX0XX00XXXXXXX0
+XXXXXXXXXXX0X0X10XXXXXX0XXX1X0XX1XXXX0X0XX0XXXXXXXXXXXXXXXXX
+
+
+Generation 8/50  F=U(0.5, 1.0)  N_hist=1440
+------------------------------------------------------------------------------------------------------------------------
+X0XXXXX0X1XXXX1X0XX1XXXXX1XXXX0XXXX0XXXXXXX11X0XXXXXXXXXXX0X11X010X00XXXXXXXXX1XXXXXXXX0XXXXX0XX10XXXXXXXXX00X0X0XX0XXXX
+XXXXXX0X0XXXXXXX0XX01X0X0XXXXXXXXX0XXXXXXXXXXXXXXXXXXXXXXXXX
+
+
+Generation 9/50  F=U(0.5, 1.0)  N_hist=1620
+------------------------------------------------------------------------------------------------------------------------
+X0XX0XX0XXXXXXXX000XXXXXX00XXXXXXXXXXXX1XXXXXXXXXXXX0XXXXX1XXXXXXXXXXX0XXX1X0XXXXXX0X00XXX1XXXXXXX0X0XXXXXXXXX0XXXX0XXX0
+XXXX01XXXXXXXXXXXXXXXXXXXXX010XXXXXXX0XXXXXX0XXX0X00XXXXXXXX
+
+
+Generation 10/50  F=U(0.5, 1.0)  N_hist=1800
+------------------------------------------------------------------------------------------------------------------------
+0X00XXXXXX0XXX0X1XXXXX110XXX01X00XXXX0X0XXXX0XXXXXXXXXX00XXXX0XXXXXXXXXXXXXXXXXXX1XXXXX0XX0XXXX0X0XXXXXXX10XXXXXX000000X
+0XXX0XXXXXXXXXXX000XX0XXXXXXXXXXXXXXXXXXX00XXX0XXXX1XXXXXXXX
+
+
+Generation 11/50  F=U(0.5, 1.0)  N_hist=1979
+------------------------------------------------------------------------------------------------------------------------
+0000000XX01XX0XXXXXXXXXXXXXXX0XXXXXXXXXXXX0XX0XX0X00XXXXXXXXXXXXXXX0X0000XXXXXXXXXXXXX1X0XXXXX0X1XXX100XXXXXX00XXXXX000X
+0XXXXXXXXXXX0XXXXX000XXXX0XXX0XXXXXXXXXXXXXXXXXXXXXX0XXXXXXX
+
+
+Generation 12/50  F=U(0.5, 1.0)  N_hist=2160
+------------------------------------------------------------------------------------------------------------------------
+00XXX0XXX00XXXXXXX0XXXXXXXX0XXXXXXXXXXXXXXXXXXX1XXXXX0XX00000XXXXXXXX0XX0XXXXXXXXXX0XXXXX0X10X00XXXXXXXXXXX0X0X000XXXXXX
+XXX0X0XXXXXXXXXXXX0XXXXXXXXXXXXXXXX00XXXXXXXXXX0XXXXXXXXXXXX
+
+
+Generation 13/50  F=U(0.5, 1.0)  N_hist=2340
+------------------------------------------------------------------------------------------------------------------------
+00X00XXXXXX0XXXXX0XXXXXXXXXXXXXXXX0XXX0XXXXX0XXXXXXX0XXXXXX00X0X0XX0XXXXXXX0XXXX0XXXX0X0X0XXXX00XXXXXXXXXXXXXXXXXXXXXX0X
+XXXXXXXXXXX00XX0XX0XXXXXXXXXXX0XXXXXX0XXXXXXXXXXXXX00XXXXXXX
+
+
+Generation 14/50  F=U(0.5, 1.0)  N_hist=2520
+------------------------------------------------------------------------------------------------------------------------
+000XXX00XX0XXXXXXXXXXXX0X0XX0X0XXXXXXXXXXXXXXX0X00XXXXXXXXX0XXXXXXX00XXX0XXXXXXXXXXX0XX00X0XX0XXXX0XXX00XXXXXXXXXXXXXX0X
+0XXXXXX00000XXXXXXXXXXXXXXXXXXXXX0XXX1
+
+SSE=10.762 on eval 2688: L=285946* b=1.21422* r=0.229559 rf=0.361251 t0=66.006 th=0.117989*
+
++0XXXXXXXXX0XXXXX0XXXXX
+
+
+Generation 15/50  F=U(0.5, 1.0)  N_hist=2700
+------------------------------------------------------------------------------------------------------------------------
+00X00XXXXXXX0XXXXXXXXXXXXXXXXXXXXXXXXXXXX0XXX00XXXXXXXXXXXX0XXX0XXXXXXXXXXXX0XXXXXX00XXXXX0X0XX1000XXXXXXXXXXXXXXXX0XXXX
+XXXX0XXXXXXXXXXXXXXXXXXX0XX0XXXXXXXXXXXXXXXXXXXX00XXXXXXXXXX
+
+
+Generation 16/50  F=U(0.5, 1.0)  N_hist=2880
+------------------------------------------------------------------------------------------------------------------------
+0X0000XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX00X0XXXXXXXXXXXXXXXXXX0XXXXXXXX0XXXXXXXXX0X0XXXX0X0XXXXXXXXXXXXXXXXXXXXXXXX0
+XXXXXX0XXX000X00XXXXXXXXXXXXXXXXXXXXXXXX0XXXXXXXXXXXXXXXXXXX
+
+
+Generation 17/50  F=U(0.5, 1.0)  N_hist=3060
+------------------------------------------------------------------------------------------------------------------------
+00X0000X0XXXXXXXXXXXXXXXXXXXXXXXXXXXXXX0X0XXXXXX0XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX0XXXXX0XXXXX0XXXXXXXXXXXXXXX000XXXXX
+XXX00XX0XXXX0XXXXXXXXXXXXX0XXX0XXXXXXXXXXXXX0XXXXXXXXXXXXXXX
+
+
+Generation 18/50  F=U(0.5, 1.0)  N_hist=3240
+------------------------------------------------------------------------------------------------------------------------
+000XX0XXXXXXXXXXXX0XXXXXXX0XXX1XXXX00XXXXXXXXXXXXXXXXXXX0XXX0XXXXXXXXXXXXXXXXX0XXX0X0XXXXXXXXXXXXXXXXXXXXXXXXXXX0XXXX0XX
+XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX00+XXXX0XXX0X0X0XXXX
+
+
+Generation 19/50  F=U(0.5, 1.0)  N_hist=3420
+------------------------------------------------------------------------------------------------------------------------
+0X0XXXXXXXXX0XXXXX000X0XX00XXXXXXXXXX0XXXX0XXXXXXXXXXXXX0XXXXXXXXXXXXXXXXXXXXXX0XXXXXXXXXXXXXXXXXXXXXX0000XX0XXXXXXXXX0X
+XXXXX0XXXXXX0XX0X0XXXXXX00XXXXXXXXXXXXXXXXXXXXXX0XXXXXXXXXXX
+
+
+Generation 20/50  F=U(0.5, 1.0)  N_hist=3600
+------------------------------------------------------------------------------------------------------------------------
+X0XX0XX0XXXXXXXXXXXXXXXXXXXXXXXXX0XXXXXXXXXX0XXXX000XXXXXXXXXXX0XXXXXXXXXXXXXXX0XXXXXXX00XXXXXXXXXXXX0XXXXX0XXXXXXXXXXXX
+XX0XXXXXX0XXXXXXXXX0XXXXXX0X0XX0XXXXXXXXXXXXXXXX0XXXXXXXXXXX
+
+
+Generation 21/50  F=U(0.5, 1.0)  N_hist=3780
+------------------------------------------------------------------------------------------------------------------------
+X00XXX1+00XXX10XXXXX00XXXXXXXX00XXXX0XXXXXXXXXXXXXXXX0XXXX000XXXXXXXX0XXXXXXXXXXX0XX1XXXXXXXXX0XXXXXXXXXXXXXXX0XXX0XXXXX
+0XXXXXXXXXXXXXX0XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+
+
+Generation 22/50  F=U(0.5, 1.0)  N_hist=3960
+------------------------------------------------------------------------------------------------------------------------
+00XX0000X0XXX0XXXXXXXXXXX0XXXXX0XXXXXXXXXXXXXXXXXX0XXXXXXXXXXXXX0XXXXXXXXXXXX0XXXXXXXX00XXXXXX0XXXXXXXXX0XXXXXXXXXXXXXXX
+XXXXX0XXXXXX00XXXXXXXX0XX0XXXXXXXXXXXXXXXXXXXXXXXXXXXXX0XXXX
+
+
+Generation 23/50  F=U(0.5, 1.0)  N_hist=4140
+------------------------------------------------------------------------------------------------------------------------
+000XXXXX0XXXXXXXXXXXXXX0XXX0XXXXXXXX01XXXXXXXXX0XXXXX00XXXXXXXXXXXXXXXX0XXX0XXXXXXXXXXX0XX0XXX0XXXXXXXX0XXXXXXXXXXX0XXXX
+XX0XXXXXXXXXXX0XXXX0XXXXXX0XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+
+
+Generation 24/50  F=U(0.5, 1.0)  N_hist=4320
+------------------------------------------------------------------------------------------------------------------------
+X0000XXXXXXX00XXXXXXXXXXXXXXXXXXX0XXX0XXX0XXXX1XXX0X1XX0XXXXXX0XXXXXXXXXXXXXXXXXX0X0XXXXXXXXX0XXXXXXX0XX0XXXXXXXXXXXX0XX
+XXXXXXXXXXXXXXXXXXXXXXX0XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX0XXXX
+
+
+Generation 25/50  F=U(0.5, 1.0)  N_hist=4499
+------------------------------------------------------------------------------------------------------------------------
+000X000XXXXXXXXXXXXXXXXXXXXX0XXXXXXXXXXX0XXXXXXXXXXXXXXXXXX00XXXXXXXXXXX1XXXXXX0XXXXX00XXX0XXXXXXX0XXXXXXXXXXXXXXXXXX00X
+X0XXXXXXXXXXXXXXXXXXXX0XXXXXXXXXXX00XXXXXXXXXXXXXXXXXXXXX0XX
+
+
+Generation 26/50  F=U(0.5, 1.0)  N_hist=4680
+------------------------------------------------------------------------------------------------------------------------
+0X00XXXX00XXXXXXXXXXXX0XXXXXXXXXXXXXXXXX0XXXXXXXXXXXXXXX0XXXXXXX0XXXXX0XXXXXXXXXXXXX0X0XXXXXXXX0XXXXXX0XX0XXXXXXX0X00XXX
+XXXXXXXXXX0X0XXXXXXXXX0XXXXXXXXXXXXXXXX0XXXXXXXXXXXXXXXXXXXX
+
+
+Generation 27/50  F=U(0.5, 1.0)  N_hist=4860
+------------------------------------------------------------------------------------------------------------------------
+0X0X0XX0XXXXXXXXXX0XXXXXXXXXX00XX0XXXXXXXXXXXXXXXXXX0XXXXXXXXXXXXXXXXXXXX0XXXXXXXX0XXXXXXXXX0XX0X0XX1X0XXXXXXXXXXXXXX0X0
+XXX0XXXXXXXXXXX0XXXXX0XXXXXXXXXXXXXXXX00XXXXXXX0XXXXXXXXXXXX
+
+
+Generation 28/50  F=U(0.5, 1.0)  N_hist=5040
+------------------------------------------------------------------------------------------------------------------------
+00XX01XXXXXXX0XXXXXXXXXXXXX0XX0XXXXXXXXXXXXX0XXXXXXXXXXXXXXXXXX0X0XXXX0XXXX0XXXXXXXXXXXXXXXXXXXXX0XXXXXXXXXX0XXXXXXXXXXX
+XXXXX0XXXXXXX0XXXXXXXXXXXX000X0XXXXXXXXXXX0XX0XXXXXXXXXXXXXX
+
+
+Generation 29/50  F=U(0.445, 1.0)  N_hist=5220
+------------------------------------------------------------------------------------------------------------------------
+00XX0XXXXX0XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX0XXXXXX0XXXXXXXX0XXXXXXX0XX0XXX00XXX00X0XXXXXXXXXXXXXXXXX0X0100XXXXXXXXXXXXX
+XXXXXXXXXXXXXXXXXX0XXXXXXX0XXXXXXXXXXXXXXXXXXXXXXXXXXXXX0XXX
+
+
+Generation 30/50  F=U(0.493056632402, 1.0)  N_hist=5399
+------------------------------------------------------------------------------------------------------------------------
+XXXXXXX0XXXXXXXXX00XXXXXXX0XXXXXXXXXXXXXXXX0XXXXXX0XXXXXXXXXXXXXXXX0XXXX0X0XXXXXX0XXXX00X0XXXXXX0XXXXXXXX0X0XXXXXXXXXXXX
+XXXX0XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+
+
+Generation 31/50  F=U(0.438820402838, 1.0)  N_hist=5580
+------------------------------------------------------------------------------------------------------------------------
+0X0XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX1XXXXXXX00X0XXXXXXXXXXX00XXXXXXX0XXXXXXX0XXXXX0X0XXXXXXXXXXXXXXXXXXXX00XXXXXXXX
+XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX0XXXXXXXXXXXXXXXXXXXXXXX
+
+
+Generation 32/50  F=U(0.390550158526, 1.0)  N_hist=5760
+------------------------------------------------------------------------------------------------------------------------
+000000XXXXXXXXXXXXXXXXXXXXX0XX00XXX0XXXXXXXXXX0XXXXXXXXXXXX0XXXXX0XXXXXXXXXXXXXXXXXXXXXXXXXXXXX0XX00XX00XXXXXXXXXXXXXXXX
+XXXXX0XXXXXXXXXXXXXXXX0XXXXX1XXXXX0XXXXXXX0XXXXXXXXXXXXXXXXX
+
+
+Generation 33/50  F=U(0.432726620105, 1.0)  N_hist=5940
+------------------------------------------------------------------------------------------------------------------------
+0XXXXXXXXX00X0XXXXXXXXX00XXXX1XXXXX0XX0XXXXXXXXXXXXXXXXXXXXXXXXXXXX0XXXXXXXXXXXXXXXXXXX0X01X0XXX0XXXXXXXXXXXX01XXXXXXXXX
+XXXX0XXXXXXXXXXXX1XX0X0XXXXXXXXXX0XXXXXXXXX0X0XXXXXX1
+
+SSE=10.488 on eval 6117: L=187492* b=10.1033 r=0.225349 rf=0.315591 t0=65.9815 th=0.370972
+
++10XXXXX
+
+
+Generation 34/50  F=U(0.479457820359, 1.0)  N_hist=6120
+------------------------------------------------------------------------------------------------------------------------
+0XXX0XXXX0XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX0XXXXXXXXX0XXXXXXXXXXXXXXXXXXXXXXXXXX00XXXXXXXXXXX1XXXXXXXXX
+XXXXXXXXXX0XX0XXXXXX0XXXXX0XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+
+
+Generation 35/50  F=U(0.5, 1.0)  N_hist=6300
+------------------------------------------------------------------------------------------------------------------------
+00X0X1XXXXXXXXXXXXXXXX0XXXXX0XXXXXXXX0XX01XXXXXXXXXXXXXX0XX0XXXXXXXXXXXXXX0XXXXX001XXXXXXXX0XXXXXXXXXXXXXXXXX0XX0X00XXXX
+XX0XXXXXXXXXXXXXXXXXXXXXXX00XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+
+
+Generation 36/50  F=U(0.5, 1.0)  N_hist=6480
+------------------------------------------------------------------------------------------------------------------------
+000X01X0X00XXXXXXXXXXXXXXXXXXXXXXXXXXX0XXX0X0XXX0XXXXXXXXXXXXX0XXXXXXXX0XXXXXXXXXXXXXXXX10X0XXXXXXXXXXXXXXXXXXXXXXX0XX0X
+X00XXXXXXXXXX0XXXXX1XXXXXXXXXXXXXXXXX1XX101XXXXXXXXX10XXXXXX
+
+
+Generation 37/50  F=U(0.5, 1.0)  N_hist=6660
+------------------------------------------------------------------------------------------------------------------------
+01X00XXX0XXXXXXXXXXXXXXXXXXXXXXXXX0XX0XXXX0XXXXX0XX0XXXXXXXXXXXXX0XXXXXXXXXXXXXXXX0XXXXXXXXXXXXX0XXXXXX0XXXX0X0X01XX00XX
+X0XXXXXXXX1XXXXXXX1XXXXXXXXXX0XXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+
+
+Generation 38/50  F=U(0.5, 1.0)  N_hist=6840
+------------------------------------------------------------------------------------------------------------------------
+0X0X11XXXXXXX0XXX00XXXXXX0XXX0XXXXXXXXXX0XXX00XX0XXXXXXXXXXXXXXXX0XXXXXX0X000X0XXXX0XXXXXX1XXXXXXX00XXXXXXX0XXXXXXXX0XXX
+0XXXXXXXXXXXXXXXXXXXXXXXX0XXXXX0XXXX0XXXXXXXXXXXXXXXXXXXXXXX
+
+
+Generation 39/50  F=U(0.5, 1.0)  N_hist=7020
+------------------------------------------------------------------------------------------------------------------------
+X00XX0XXXXXX10XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX0XXXXXXXXXXXXXXXXX0XXXXXXXXXXX0XXXXXX00XXX0XXXXXXXXXX1X0X1X0XXXXXXXXXXXXX
+XXX0XXXXXXXXXXX0XXXXXXXX00XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+
+
+Generation 40/50  F=U(0.5, 1.0)  N_hist=7200
+------------------------------------------------------------------------------------------------------------------------
+0X0XX0XXXXXX0X0XX0XXXX0XXX0XXXX0XXXXXX0XXXXXXXXX00XXXXXXXXXX0XX0X01XXXXXXXXXXXXX0XXXXXXXXXXXXXXXXX0XX1XXXXXX0XXXXX00XX0X
+X0XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX0XXXXXXXX0XXXXXXXXXXXXXXXX
+
+
+Generation 41/50  F=U(0.5, 1.0)  N_hist=7380
+------------------------------------------------------------------------------------------------------------------------
+000XXXXX0XX0XXX0XXX0XXXXXXXXXXXXXXXXX0X0XXXX00X1XX0XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX0XXXXXX0XXXXXXXXXXXX0+1XX0XXXXX
+XXXXXXXX0XXXXXXX0XX0XXXXXXXXXXXXXXXXXXXX0XXXXX0XXXXXXXXXXXXX0
+
+
+Generation 42/50  F=U(0.5, 1.0)  N_hist=7559
+------------------------------------------------------------------------------------------------------------------------
+0000XXXX10XXXXXXX0X0XXXXXXXXXXXXXXXXXXXXXXXXX1XXXXXXXXXXXXXXXXXXXX0XXXXXXXXXXXXXXX0XXXXXXXXX0XXXXXXXXX0X0X1XXXXX0XXXX00X
+XXXXXXXXXXX01110XXXXXXXXXXXXX1XXXXXXXXXXX1XXXXXXXXXXXXXXXXXX
+
+
+Generation 43/50  F=U(0.5, 1.0)  N_hist=7740
+------------------------------------------------------------------------------------------------------------------------
+00X0010X00X1XXXXXXXXXXXX0X0X1XXXXXXXXXXXXXXXXXX1+00XXXXX1XXXXXXXXXXXXXXXXXXXXX0XXXXXXXXXXXXXX0X0XXXXXXXXXXX0XXXXXXXXXXXX
+XXX0XXXXX0XXXXXXXXXXXXX1XXXX0XXXX0XXX00XXXXXXXXXXXXXXXXXXXXXX
+
+
+Generation 44/50  F=U(0.5, 1.0)  N_hist=7920
+------------------------------------------------------------------------------------------------------------------------
+0X0XX000XXXXXXXXXXXXXXXXXXX00X0XXXXXXXXXXXXXXXX0XXXXX0XXXXXXXXXXXXXXX00XXXXXXX0XXXXXXXXX00XXXXXXXXXXXX1X0X0X0XXXXXXXXXXX
+01XXXXXXXXX0XXXXXXXXXXXXXXXXXXXXX0XXXXXXXXXXXXXXXXXXXXXXXXXX
+
+
+Generation 45/50  F=U(0.5, 1.0)  N_hist=8100
+------------------------------------------------------------------------------------------------------------------------
+0XXXXX0XXXXX00XXXXXXXXXXXXX10X0XXXXX00XXXXXXXXXXXXXXXXXXXXX0X1XXXXXXXXXXXXXXXXXX0XXXXXXXXXXXXXXXXXXXXX0XXXXXXX0XXXXX1X10
+XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX1XXXXXXXXXXXXX0XXXXXXXXXXXXX
+
+
+Generation 46/50  F=U(0.5, 1.0)  N_hist=8280
+------------------------------------------------------------------------------------------------------------------------
+0001000XX0XX1000XXX1XXXXXXX0XX0XXXXXXXXXXXXXXXXXXXXX0XXXXXXXXXXXXXXXX0XXX00X00XXXXXXXXXXXXXXXXXX0XXX0XXXXXXXXXXXXXXXXXXX
+XXXXXXXXXXXXXXXXXX0XX0X0X0XXXXX0XXXXXXXXXXX1XXXXXX0XXXXXXXXX
+
+
+Generation 47/50  F=U(0.5, 1.0)  N_hist=8460
+------------------------------------------------------------------------------------------------------------------------
+10X0X0001001X00XXXXXXXXX0XXXXXXXXXXXXXXXXXXX0XXXXXXXX0X00XXXXX0X0XXXXXXXX0XXXXX0XXXXXXXX0XXXX0XXXXXX10XXXXXX1+XXX0XXXXXX
+XXXX00100XXX0XXXXXXXXX0XXXXX00XXXXXXXXXX0XXXX0XXXXXXXXXXXXXXX
+
+
+Generation 48/50  F=U(0.5, 1.0)  N_hist=8640
+------------------------------------------------------------------------------------------------------------------------
+00X1XX1X00XX0XXXXXX0XXXXXXXXXXXXX00XX00XXXXXXXXXXXXXXXXX0X0X00XXXXX1X00XXXXXXXX0X0XXXXXXXXXXX0X0XXXXXXXXXXXX0XXXXXX1000X
+XXXXXXXXXXXXX0XXXXX1XX0XX00XXXXXXXXXXXXXXXXXXXXXXX0XXXXXXXXX
+
+
+Generation 49/50  F=U(0.5, 1.0)  N_hist=8819
+------------------------------------------------------------------------------------------------------------------------
+001X000X00XXXXXX0XXXXXXX0X0XXXX0X0XXXXXX0XXX0XXXXXXXXXXXXXX0XXXXXXXXXX1XXXXXXXX00XXXXXXXXXXXXXXXXXXXXXXXXXXXXX0X0XXXXXX0
+0XXXXX00X01X0XXXXXXXXXXXX0XXXXX000XXXXXXXXXXXXX1XXXXXXXXXXXX
+
+
+Generation 50/50  F=U(0.5, 1.0)  N_hist=8999
+------------------------------------------------------------------------------------------------------------------------
+00010XXXXXXXXX0XXX0XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX0X0XXXXXXXXXXXXX11XXXXX0XXXXXX1XXXXXXXXXXXXX0XXXXXXXXXXXXXXXX0XXX
+XXXXXXXXXXXXXXXX100XXXXX0XXXXXXXXXXX0XXXXXXXXXX0XXXXXXXX1XXX
+
+Maximum number of iterations reached.
+
+SSE=10.309 on eval 9180: L=131936* b=2.28474 r=0.225819 rf=0.257605* t0=65.8532 th=0.362102
+
+
+Shutting down DE...
+DE shutdown complete.
+
+Final population:
+Population: 180 individuals with SSE 10.309 to 11.023, avg eval time 0.0299 sec. Top 7:
+
+        SSE |     10.309       10.365       10.378         10.4       10.402       10.411       10.417  
+------------------------------------------------------------------------------------------------------------------------
+          L | 1.3194e+05*  1.3562e+05*  1.2666e+05*  1.3301e+05*  1.3386e+05*  1.2714e+05*  1.6634e+05* 
+          b |     2.2847       13.565       7.4203       14.838       8.4552       16.592       11.659  
+          r |    0.22582      0.22495      0.23742      0.23175      0.22491      0.23964      0.22186  
+         rf |     0.2576*      0.2544*     0.27436      0.29243      0.27179      0.27983      0.28373  
+         t0 |     65.853       65.726       65.669        65.76       65.879        65.97       65.968  
+         th |     0.3621      0.26762      0.37149      0.27244      0.46062      0.63321      0.15189* 
+------------------------------------------------------------------------------------------------------------------------
+Best individual:
+<SSE=10.3093 L=131936* b=2.28474 r=0.225819 rf=0.257605* t0=65.8532 th=0.362102>
+
+
+Elapsed time: 123.59 seconds
+
+Saved final population of best parameter combinations to covid19.dat
+Shutting down...
+Task Queue is shut down
+Goodbye
+Decompressing and parsing covid19.csv.bz2...
+Cumulative and new cases reported thus far for United Kingdom
+------------------------------------------------------------------------------------------------------------------------
+000	01/22	0	0
+001	01/23	0	0
+002	01/24	0	0
+003	01/25	0	0
+004	01/26	0	0
+005	01/27	0	0
+006	01/28	0	0
+007	01/29	0	0
+008	01/30	0	0
+009	01/31	2	2
+010	02/01	2	0
+011	02/02	2	0
+012	02/03	2	0
+013	02/04	2	0
+014	02/05	2	0
+015	02/06	2	0
+016	02/07	3	1
+017	02/08	3	0
+018	02/09	3	0
+019	02/10	8	5
+020	02/11	8	0
+021	02/12	9	1
+022	02/13	9	0
+023	02/14	9	0
+024	02/15	9	0
+025	02/16	9	0
+026	02/17	9	0
+027	02/18	9	0
+028	02/19	9	0
+029	02/20	9	0
+030	02/21	9	0
+031	02/22	9	0
+032	02/23	9	0
+033	02/24	13	4
+034	02/25	13	0
+035	02/26	13	0
+036	02/27	15	2
+037	02/28	20	5
+038	02/29	23	3
+039	03/01	36	13
+040	03/02	40	4
+041	03/03	51	11
+042	03/04	85	34
+043	03/05	115	30
+044	03/06	163	48
+045	03/07	206	43
+046	03/08	273	67
+047	03/09	321	48
+048	03/10	382	61
+049	03/11	456	74
+050	03/12	456	0
+051	03/13	798	342
+052	03/14	1140	342
+053	03/15	1140	0
+054	03/16	1543	403
+055	03/17	1950	407
+056	03/18	2626	676
+057	03/19	2689	63
+058	03/20	3983	1294
+059	03/21	5018	1035
+060	03/22	5683	665
+061	03/23	6650	967
+062	03/24	8077	1427
+063	03/25	9529	1452
+064	03/26	11658	2129
+065	03/27	14543	2885
+066	03/28	17089	2546
+067	03/29	19522	2433
+068	03/30	22141	2619
+069	03/31	25150	3009
+070	04/01	29474	4324
+071	04/02	33718	4244
+072	04/03	38168	4450
+073	04/04	41903	3735
+
+Initializing 180 population members having 6 parameters
+------------------------------------------------------------------------------------------------------------------------
+
+SSE=20.298 on eval 1: L=1.68939e+06 b=21.0749 r=0.223161 rf=0.180624 t0=66.7065 th=0.87004
+
+*
+
+SSE=18.753 on eval 2: L=1.92364e+06** b=1.86991 r=0.214364 rf=0.169203 t0=65.0595* th=2.67885
+
+!1
+
+SSE=17.308 on eval 4: L=584819 b=28.9202** r=0.239704 rf=0.260827 t0=65.6576 th=2.5206
+
+!
+
+SSE=11.177 on eval 5: L=270599 b=23.5335 r=0.238441 rf=0.35633 t0=65.9253 th=1.04979
+
+!111202!112112112112111111112211210221311211
+
+SSE=10.516 on eval 49: L=102705* b=29.1582** r=0.240087 rf=0.21925 t0=65.3969 th=1.4398
+
+!11111121212111112111221212211221221111212121212221111111112121121212211
+121121111122101131112211112121311111111222111113112122211111
+
+Population: 180 individuals with SSE 10.516 to 29.062, avg eval time 0.807 sec. Top 7:
+
+        SSE |     10.516       10.723       11.086         11.1        11.14       11.162       11.177  
+------------------------------------------------------------------------------------------------------------------------
+          L | 1.0271e+05*   1.722e+05   4.3135e+05   7.3801e+05   2.2884e+05   4.6804e+05    2.706e+05  
+          b |     29.158**     13.511       16.049       6.8475       1.2339*      6.1145       23.533  
+          r |    0.24009      0.22298      0.21597      0.21321      0.20784       0.2018*     0.23844  
+         rf |    0.21925      0.32646      0.36041      0.38191      0.32006      0.35858      0.35633  
+         t0 |     65.397       66.054       65.555       66.266           66       66.425       65.925  
+         th |     1.4398       1.4266       1.3547       2.4711       2.3726      0.70287       1.0498  
+------------------------------------------------------------------------------------------------------------------------
+Best individual:
+<SSE=10.5160 L=102705* b=29.1582** r=0.240087 rf=0.21925 t0=65.3969 th=1.4398>
+
+
+Population: 180 individuals with SSE 10.516 to 29.062, avg eval time 0.807 sec. Top 7:
+
+        SSE |     10.516       10.723       11.086         11.1        11.14       11.162       11.177  
+------------------------------------------------------------------------------------------------------------------------
+          L | 1.0271e+05*   1.722e+05   4.3135e+05   7.3801e+05   2.2884e+05   4.6804e+05    2.706e+05  
+          b |     29.158**     13.511       16.049       6.8475       1.2339*      6.1145       23.533  
+          r |    0.24009      0.22298      0.21597      0.21321      0.20784       0.2018*     0.23844  
+         rf |    0.21925      0.32646      0.36041      0.38191      0.32006      0.35858      0.35633  
+         t0 |     65.397       66.054       65.555       66.266           66       66.425       65.925  
+         th |     1.4398       1.4266       1.3547       2.4711       2.3726      0.70287       1.0498  
+------------------------------------------------------------------------------------------------------------------------
+Best individual:
+<SSE=10.5160 L=102705* b=29.1582** r=0.240087 rf=0.21925 t0=65.3969 th=1.4398>
+
+Performing DE with CR=0.8, F=U(0.5, 1.0), DE/rand-1.00/1/bin
+------------------------------------------------------------------------------------------------------------------------
+Press the 'Enter' key to abort.
+
+
+
+Generation 1/25  F=U(0.5, 1.0)  N_hist=180
+------------------------------------------------------------------------------------------------------------------------
+1121XXXX1212XXXX122XX2101X12X11XXXXX21XX1XX1XX1XXXXXXX11111XXX122XX11XXXXX1X111X121XX2X1XX1X211X11XX12X112X2X11XXX11X1XX
+X1XX1X21110X111XX1XX2XX11X12X211X2XX1XXXX1011X111XX1XX221XX2
+
+
+Generation 2/25  F=U(0.5, 1.0)  N_hist=360
+------------------------------------------------------------------------------------------------------------------------
+01X11XX1XXX1XX01X11+12XXXX0XXX0111XX11X1XX11XX1XXXXXXXX1211XXXX121111X11211XX01X1X1XX1XXXXX1X1XXXX1XX1X11XXXX1XX21101XX1
+2111X1X1XXX1XX1101XXX1XXXX1XXXX11XX11XX00XXX11X1X1XXXXX0XXXX0
+
+
+Generation 3/25  F=U(0.5, 1.0)  N_hist=540
+------------------------------------------------------------------------------------------------------------------------
+1X1XXXXX1X1X111X1X0X0+X1XX0X11X111XXX111XX1X111XXXXX0XXXX11XXXXXXXX0XXXXXXXX1XXXXX1X10XX1X111XXXXXX1XX11X001X11XX1XXXX0X
+1XXX111X0XXX0XX1X0XX1X1XXX1XXXXX11X1XX1XX1XXXX0XXX1XX1X1XX0XX
+
+
+Generation 4/25  F=U(0.5, 1.0)  N_hist=720
+------------------------------------------------------------------------------------------------------------------------
+X0XXX11XX1XXXX0XXX11XX0XXXXX1XX01111X1XXXXXXXXXX1XX1XX0XXX1XXXX011XXX11XXXXXXX111111X0X011XX1X1XXXXXXX1XX1XXXXX1X0X1XXXX
+1XX01XXXXX0XXX011X1XXX0X1X1X11XX1XX01XXX101111XX1XXXXXXXX1XX
+
+
+Generation 5/25  F=U(0.5, 1.0)  N_hist=900
+------------------------------------------------------------------------------------------------------------------------
+1X1XXXXX1X01XXXX1XXXXX0XXXX1XXXXXXX11XXX10XXXXXXXXXXX1X1XX11X1XXXXX1XXXXXXXXX1XX1XXXXXXXX1XXXXXXXXXXXXX1XXXXXX1XXXXXX100
+X1XX11XX1XXXX0X0XXXXXX10XXX1XXX01XXXXXXXX1XXX0XXX0X00XXX0X1X
+
+
+Generation 6/25  F=U(0.5, 1.0)  N_hist=1080
+------------------------------------------------------------------------------------------------------------------------
+11XXXXXXX1X0X0XX1XXX11XXXXXXXXXX01+XXXXXXXXXXXXXX00XX000XX0XXXXXX1XXX0XXXXXXXXXXX0X1XXXXXXXXX01XX1X1XX0X10XX0XXX0X01XX0X
+1XXXXXX10XXXXXXXX0XXXXXXX1XXXXXXXXXXX1X0XXXXXXXXXXX11X0XXXXXX
+
+
+Generation 7/25  F=U(0.5, 1.0)  N_hist=1260
+------------------------------------------------------------------------------------------------------------------------
+XXX1X1X0XXX0XXXXXXX1XXXXXX0XXXXXXXXX1XXXXXX1XXX0XXXXXX0X0XXXX0XXX1XXXXXX0XXXXXX0XX1XXXXXXXXXXXXX0XX0X10XXXXXXXXX0XX00XXX
+XXXX0011XXXXXXXXXXXXXXXXXXXXXXX0XXXXXXXXXXX0XXXXXXX1XXX1XX0X
+
+
+Generation 8/25  F=U(0.5, 1.0)  N_hist=1440
+------------------------------------------------------------------------------------------------------------------------
+1XXXXXXXXX1XX0X0XXXX0XXXXXXXX1X0XXX0XX1XXXXXXXX1XXXXXXXXXXXX11111XXXXX0XXXX1XX0XXXXXXXXX1XXXXXXXXXXXXXXX00XXXXXXXXX101XX
+000XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX1XX10X0XXXXXXXXXXXXXXX
+
+
+Generation 9/25  F=U(0.5, 1.0)  N_hist=1620
+------------------------------------------------------------------------------------------------------------------------
+01X00XXXX1XX0X11XXXXXX1XXXXXXXXX0XX0XXX1XXXXXXXX1X0X1XX1XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX0XXXXXXXXXXXXX0XXXXXXXXXXXXX100
+1X0000XXXXXXXXXXXXXXXXX0XXXXXXXXXX0X1XXXXXXXXXX1XXXXXXXXXXXX
+
+
+Generation 10/25  F=U(0.5, 1.0)  N_hist=1800
+------------------------------------------------------------------------------------------------------------------------
+000X10XXXX0XXXXXXX0XXXXX111XXXXXXXXXXXXXXXXXX10XXXX001XXX00XXXXXXXXXXXX01XX0XXXX0XXXXXXXXX0XXXXXXXXXXXXXXXXXXXXXX1XXXX1X
+0XXXXXXXXXXXXXXXXXXXXXXX0XXXXXXXXXXX1XXXXXX1XXXXXXXXXXX0XXXX
+
+
+Generation 11/25  F=U(0.5, 1.0)  N_hist=1979
+------------------------------------------------------------------------------------------------------------------------
+1XX00XX0001XXXXXXXXXXXXXXXXXXXXXX0XX0XXXX100X00XXXXXXXXXXXXXXXXXXXXXX0XXXXX1XX1XXXXXXXX10X1X0XXXXXXXXXXXXXXXXXXXXXXXXXXX
+X0XXXXXXXX0XXXXXXX0XXXXXX0X00X0X1XXXXX1XXXX0XXXXXXXXXXXXXXXX
+
+
+Generation 12/25  F=U(0.5, 1.0)  N_hist=2160
+------------------------------------------------------------------------------------------------------------------------
+00XX0XX01XXXXXXXXXXXXXXXXXXXXXXXXXXXXX1X0XXXXXXXXX0XXXXXXXXXXXXXXXXXXXXXXXXXXXX1X0XXXXX1XXXXXXXX0XXXXX1XXX00XX1X1XXXXXXX
+X1XXXXXXXX0X0XX0X1XX0XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+
+
+Generation 13/25  F=U(0.5, 1.0)  N_hist=2340
+------------------------------------------------------------------------------------------------------------------------
+0XXXXXXXXXXXXXXXXX0XXXXXXX10XXXX0XXXXXXXX1XXX0XXXXXXXXX0XXXXXXXXXXXXXX01XXX0XXXXXXXXXX0100XX1XXX0XXXXXXXXXXXXXX0X0X1XXXX
+X1XXXXXXXXXXX0XXXXXX0XXXXXXX1XXXXXXXXXXXX1XXXXXXXXXXXXXXXXXX
+
+
+Generation 14/25  F=U(0.5, 1.0)  N_hist=2520
+------------------------------------------------------------------------------------------------------------------------
+00100X10XXX10XXXXX0XXXXX1XXXXXXXXXXXX0XXXXXXXX0XXXXXXXXXXXXXXXXXXXX0X0XXXXXX1XX0XXXXXXXXX0XX0XXXXXXXXXXXXXX0XXXXX0XXXXXX
+XXXXXX100XXXXXXXXXXXXXXXXXXXX1X0XXX1XXXXXXXXXXXXXXXXXXXXXXXX
+
+
+Generation 15/25  F=U(0.5, 1.0)  N_hist=2700
+------------------------------------------------------------------------------------------------------------------------
+X10XX0X1XXXXXXXXXXXXXXXX0XXXXXXXXXXXXXXXXXXXXXXXXXXXXX0XX10XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX00X0X001XXXXXXXXXXXXXXXXXXX10
+0XXXXX0XXXX0XXXX0XXXXXXXXXXXXXXXXX1XXXXXXXXXXX0XXXXXXXXXXXXX
+
+
+Generation 16/25  F=U(0.5, 1.0)  N_hist=2880
+------------------------------------------------------------------------------------------------------------------------
+1XXXXXXXXXX0XXXXX0XXXXXX0XX0XXXXXXXXXX000XX10XXXXXXXXXX0XXXX0XXXXXXXXXXXXXXXX1XXXXXXXXX1X00000XXX0XXXXXXX10XXXXXXXXXXXX1
+XXX0XXXXXXXXXXXXX0XXXX1XXXXXXXXXXXXXXXXXXXXXXXXXXXXX00X0XXXX
+
+
+Generation 17/25  F=U(0.5, 1.0)  N_hist=3058
+------------------------------------------------------------------------------------------------------------------------
+XXX0X0XXXX0XXXX01XX0XXXX0XXX0XXXX0XXXXXXXXXXXX10XXXXXXXXX0XXXXXXX1XXXXXXXXXXXXXXXX0XXXXXX00XXXXXXXXXX0XXXXXXXXX0XXXXXXX1
+XX0XXXXXXXXXXXXXXXX0X1XXXXXXXX0XXXXXX0XX1X00XXXX1XXXXXX0XXXX
+
+
+Generation 18/25  F=U(0.5, 1.0)  N_hist=3240
+------------------------------------------------------------------------------------------------------------------------
+X1X0X1XXXXX0XXXXXX0XXXXXXXXXXXXXXXXX1XX0XXXXXXXXXXXXXXXXXXXX00XXXXXXXXXX010XXX0XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX0X0XXX
+XXXXXXXXXXXXXXXX0X000XX1XXX1X00XXXX0XXXXXXXXXXXXXXXXXXXXXXX0+
+
+
+Generation 19/25  F=U(0.5, 1.0)  N_hist=3419
+------------------------------------------------------------------------------------------------------------------------
+1X1XXXXXXX0XXXXXXX0XX0XXXXXXXX0XXXXXXXX0XXXXXXX0XXXXXXXXXX0XXXXXXXX1XXXXXXXXXXXXXX1XXXXXXXXXXXXXX1XXXXXX0X1XXX0XX0XXXXXX
+XX0XX0XX1XXXXXXXXXX1X1XXXX1XXXXXXX0X0XXXXXXX0XXX0000XXXXXXXX
+
+
+Generation 20/25  F=U(0.5, 1.0)  N_hist=3600
+------------------------------------------------------------------------------------------------------------------------
+X0XXX0XX0XXXXX00XXX0XXXXXXXXXXX00XXXXXXXXXXXXXXXXXXXXXXXX1XXXXXXX0XXXXXXXXXXXXXXXXXXXXXXXX1XXXXXXXXXXXXXXX0XXX1XXXXXXXX0
+XXXXXX001X1XXXXXXXXXXXX00XXXXXXXXXXXXXXXXX0XXXXXXX11XXXXXXXX
+
+
+Generation 21/25  F=U(0.5, 1.0)  N_hist=3780
+------------------------------------------------------------------------------------------------------------------------
+101XX11XXXXXXXXXXXXXXXX1XXXXX00XXXXXXXXXXXXX0XXXXXXXXXX0XXXXXX0XXXXX00X10XXX00XXXXXX0XXXXXXXXXXXXXXXX0XXXXX0XX0XXXXXXXX0
+0X0XXXXXX1XXXXXXXXXXXXXXXX0XXXXXXXXXXXXXXX0XXXXXXXXXX1XXX00X
+
+
+Generation 22/25  F=U(0.5, 1.0)  N_hist=3960
+------------------------------------------------------------------------------------------------------------------------
+1X000010XXX1XXXXXXXX01XXXXXXXXXXXXXXXXX0XXX0XXXXXXXX1XXXX000X0XXXXXXX0XXXXXXXX00XXXXX1XXX1XXXXXXXX0XXXXXX0XXXXXXX1XXX00X
+XXX1XXXXXXXXXXXXXXXXXXXXXXX1XXXXXX0X0XXXXXXXXXXXXXXXXXXXXXXX
+
+
+Generation 23/25  F=U(0.5, 1.0)  N_hist=4140
+------------------------------------------------------------------------------------------------------------------------
+0XX001XXXXXXXXXXXXX0XXXXXXXXXXXXXXXXXX1XXXXXXX1XXXXXXXXX0XXXXX0XX00XXXXXXXXXXXXXXXXXXXXXXXX0XXXXXXXXXX00XXXXXXXX0XXXXXXX
+XXXXXXXXXXXX0XX1XX1XXX0XXXXXXXXXXXX0X0X0XX1XXXX0XXXXXXXXXXXX
+
+
+Generation 24/25  F=U(0.5, 1.0)  N_hist=4319
+------------------------------------------------------------------------------------------------------------------------
+0000XXXX0XXXX0XXX1XX0XXXXXXXXXXXX1X01XXXXXXXXXXXXXXXXX00X0XXXXXXXXXXXXXXXXX1XXXXXXXXXXX01X0XXXXXXXXXXXXXXXXX1XXXXXXXXX0X
+X1XXXXXXXXXXXXXXXXXX1X0XXX1XXX1XXXXXXXXXXXXX0XXX1XXXXXXXXXXX
+
+
+Generation 25/25  F=U(0.5, 1.0)  N_hist=4500
+------------------------------------------------------------------------------------------------------------------------
+100XX10XXXXXXXXXXXXXXX0XXXXXXXXXX1XXXXXXXXXXX1XXXXXXXXXXXXXX1XXXXXXXXXXXXXXXXXXXXXXXXXXX0X0XXX0X00XXX1XXX1XXXX11XXXX0XXX
+X1XXXXXXXXXXXXXX0X0XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+
+Maximum number of iterations reached.
+
+SSE=10.318 on eval 4680: L=100804* b=7.63817 r=0.233431 rf=0.209866 t0=66.0292 th=0.828703
+
+
+Shutting down DE...
+DE shutdown complete.
+
+Final population:
+Population: 180 individuals with SSE 10.318 to 11.052, avg eval time 0.0349 sec. Top 7:
+
+        SSE |     10.318        10.34       10.349       10.374       10.392       10.394       10.397  
+------------------------------------------------------------------------------------------------------------------------
+          L |  1.008e+05*       91343*  1.1727e+05*       90088*  1.2599e+05*  1.0269e+05*  1.3084e+05* 
+          b |     7.6382       20.158       2.7126       29.252**     22.276       10.615       24.806  
+          r |    0.23343       0.2355       0.2194      0.23522      0.22427      0.23398      0.23917  
+         rf |    0.20987      0.15148*     0.19437      0.16245*     0.23945      0.22176      0.29023  
+         t0 |     66.029       65.687        66.04       65.946       65.706       66.394       65.747  
+         th |     0.8287      0.72556      0.30093      0.90661       0.5911      0.48797       0.4445  
+------------------------------------------------------------------------------------------------------------------------
+Best individual:
+<SSE=10.3177 L=100804* b=7.63817 r=0.233431 rf=0.209866 t0=66.0292 th=0.828703>
+
+
+Elapsed time: 65.88 seconds
+
+Saved final population of best parameter combinations to covid19.dat
+Shutting down...
+Task Queue is shut down
+Goodbye
