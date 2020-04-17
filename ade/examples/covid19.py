@@ -347,18 +347,18 @@ class Covid19Data_US(Covid19Data):
         # Upper limit to number of total cases (upper bound is population)
         ('L',   (2e6, 3.3e8)),
         # The initial exponential growth rate
-        ('r',   (0.35, 0.85)),
+        ('r',   (0.32, 0.85)),
         # Max fractional reduction in effective r from curve flattening effect
         # (0.0 for no flattening, 1.0 to completely flatten to zero growth)
-        ('rf',  (0.92, 1.0)),
+        ('rf',  (0.90, 1.0)),
         # Time for flattening to have about half of its full effect (days)
-        ('th',  (15, 27)),
+        ('th',  (12, 25)),
         # Time (days after 1/22/20) at the middle of the transition
         # from regular logistic-growth behavior to fully flattened
-        ('t0', (51, 66)),
+        ('t0', (51, 67)),
         #--- Linear (b) -------------------------------------------------------
         # Constant number of new cases reported each day since beginning
-        ('b',   (0, 180)),
+        ('b',   (0, 250)),
         #----------------------------------------------------------------------
     ]
     k0 = 42
