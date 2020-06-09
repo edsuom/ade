@@ -24,50 +24,98 @@
 
 
 """
-Example script I{covid19.py}: Identifying coefficients for a naive
-logistic growth model of the number of reported cases vs time in
-hours.
+Example script covid19.py: Identifying coefficients for a naive
+logistic growth model of the number of reported cases of Covid-19 in
+the U.S. vs time in days since the first case.
 
-This example reads a CSV file you may obtain from John Hopkins (one
-that was obtained as of the date of this commit/version). Each line
-contains the number of reported cases for one region of the world.
+This example reads a 6-field BZIP2-compressed CSV file
+"ade-covid19.csv.bz2" whose original you can obtain from The New York
+Times as "us-counties.csv." Each line contains:
 
-You probably want to see how many cases may be reported in your
-country. If those are Italy or the US, you're in luck (actually, not),
-because there are already subclasses of L{Covid19Data} for them. To
-try it out in the U.S. for example, if you're wondering whether this
-is a real crisis despite what our shithead president said and didn't
-do for weeks and weeks:
+    1. The date, YYYY-MM-DD format,
 
-1. Clone this repo, and update it to make sure you have the latest
-   commit,
+    2. U.S. county,
+
+    3. U.S. state,
+
+    4. FIPS identifier (5-digit integer),
+
+    5. Number of reported cases,
+
+    6. Number of reported deaths.
+
+Use this example script covid19.py to see a graphical representation
+of the number of cases in your county or state, or the entire U.S.,
+along with a projection using a six-parameter "logistic-growth with
+growth-regime transition" model. Here's how:
+
+1. Clone the "ade" repo, and update it to make sure you have the
+   latest commit,
 
 2. Do "pip install -e ." from within the top-level 'ade' directory
    of the repo,
 
 3. Run the command "ade-examples" to create a directory "~/ade-examples".
 
-4. Do the command line "./covid19.py US" inside the ~/ade-examples
-   directory. You'll want to have the "pqiv" program on your computer.
-   It should be as simple as doing "apt install pqiv".
+4. Do the command line "./covid19.py <state> <county>" or
+   "./covid19.py <state>" inside the ~/ade-examples directory. You'll
+   want to have the "pqiv" program on your computer.  It should be as
+   simple as doing "apt install pqiv". If you want to include
+   everything in the U.S., just do "./covid19.py" with no
+   arguments. In any case, there are a number of command-line options
+   you can use.
 
 This works on Linux; you'll probably know how to do the equivalent in
 lesser operating systems. The code might even run.
 
-The datafile time_series_19-covid-Confirmed.csv is for educational
-purposes and reproduced (via download from edsuom.com) under the Terms
-of Use for the data file, which is as follows:
+The latest copy of the "ade-covid19.csv.bz2" file available on the
+server is downloaded for this example per the generous terms of the
+New York Times for its public database. Here's the LICENSE file
+included with the original "us-counties.csv" file (unaltered except
+for BZIP2 compression):
 
-"This GitHub repo and its contents herein, including all data,
-mapping, and analysis, copyright 2020 Johns Hopkins University,
-all rights reserved, is provided to the public strictly for
-educational and academic research purposes.  The Website relies
-upon publicly available data from multiple sources, that do not
-always agree. The Johns Hopkins University hereby disclaims any
-and all representations and warranties with respect to the
-Website, including accuracy, fitness for use, and merchantability.
-Reliance on the Website for medical guidance or use of the Website
-in commerce is strictly prohibited."
+    "Copyright 2020 by The New York Times Company"
+    
+    "In light of the current public health emergency, The New York
+    Times Company is providing this database under the following
+    free-of-cost, perpetual, non-exclusive license. Anyone may copy,
+    distribute, and display the database, or any part thereof, and
+    make derivative works based on it, provided (a) any such use is
+    for non-commercial purposes only and (b) credit is given to The
+    New York Times in any public display of the database, in any
+    publication derived in part or in full from the database, and in
+    any other public use of the data contained in or derived from the
+    database."
+      
+    "By accessing or copying any part of the database, the user
+    accepts the terms of this license. Anyone seeking to use the
+    database for other purposes is required to contact The New York
+    Times Company at covid-data@nytimes.com to obtain permission."
+    
+    "The New York Times has made every effort to ensure the accuracy
+    of the information. However, the database may contain typographic
+    errors or inaccuracies and may not be complete or current at any
+    given time. Licensees further agree to assume all liability for
+    any claims that may arise from or relate in any way to their use
+    of the database and to hold The New York Times Company harmless
+    from any such claims."
+
+If you'd like to clone the New York Times database for yourself, the
+URL is https://github.com/nytimes/covid-19-data.git. Otherwise, just
+delete the copy of ade-covid19.csv.bz2 in your ~/ade-examples
+directory and the latest version on the author's server will be
+downloaded again.
+
+Let me say that I have been a subscriber to the Times for at least
+five years and will be for years to come. It's a fairly pricey
+subscription, but the outstanding journalism they do (including the
+work to assemble this database) is worth it. I was using the Johns
+Hopkins University database but got annoyed at how they continually
+kept adding more and more restrictive license terms while also
+imposing a two-day delay in the results in their public github
+repo. Fine, JHU, I get it ... you want your Coronavirus dashboard to
+be the place people go to look, not other people's work based on the
+data you compile. At least that's the impression I got.
 
 A few people may come across this source file out of their own
 interest in and concern about the COVID-19 coronavirus. I hope this
@@ -75,10 +123,18 @@ example of my open-source evolutionary optimization software of mine
 gives them some insights about the situation.
 
 BUT PLEASE NOTE THIS CRITICAL DISCLAIMER: First, I disclaim everything
-that John Hopkins does. I'm pretty sure their lawyers had good reason
-for putting that stuff in there, so I'm going to repeat it. Except
-think "Ed Suominen" when you are reading "The Johns Hopkins
-University."
+that the New York Times does. I'm pretty sure their lawyers had good
+reason for putting that stuff in there, so I'm going to repeat
+it. Except think "Ed Suominen" when you are reading "The New York
+Times":
+
+    The New York Times has made every effort to ensure the accuracy of
+    the information. However, the database may contain typographic
+    errors or inaccuracies and may not be complete or current at any
+    given time. Licensees further agree to assume all liability for
+    any claims that may arise from or relate in any way to their use
+    of the database and to hold The New York Times Company harmless
+    from any such claims.
 
 Second, I know very little about biology, beyond a layman's
 fascination with it and the way everything evolved. (Including this
@@ -116,31 +172,10 @@ projections about how bad this could get.
 It's on you. I neither can nor will take any responsibility for what
 you do. OK, ENOUGH DISCLAIMER.
 
-The comma-separated fields are as follows:
-
-    1. Region Name. Blank if nation-wide data. Of interest here is the
-       state in the U.S., which may have a space.
-
-    2. Country Name. "US" is of interest here. (It will come as no
-       surprise that the author is a U.S. citizen!)
-
-    3. Latitude.
-
-    4. Longitude.
-
-    5. This and the remaining fields are the number of cases reported
-       each day starting on January 22, 2020.
-
-Uses asynchronous differential evolution to efficiently find a
-population of best-fit combinations of parameters for a first-order
-differential equation modeling the number of new Covid-19 cases per
-day. A variety of models are available. The desired linear combination
-of them (two are exclusive, logistic growth and my own logistic growth
-with curve flattening. The model(s) are selected based on what
-parameter boundaries are defined in a subclass of L{Covid19Data}. You
-can define any number of subclasses for any number of countries or
-regions. There is one for each model combination for U.S. reported
-cases.
+This example uses asynchronous differential evolution to efficiently
+find a population of best-fit combinations of parameters for a
+first-order differential equation modeling the number of new Covid-19
+cases per day.
 
 The model is compared to data for daily numbers of new reported
 COVID-19 cases, where I{xd} is the number of new cases expected to be
@@ -176,7 +211,7 @@ from scipy import stats
 from scipy.integrate import solve_ivp
 
 from twisted.python import failure
-from twisted.internet import reactor, defer
+from twisted.internet import reactor, defer, task
 
 from asynqueue import ThreadQueue, ProcessQueue, DeferredTracker
 from yampex.plot import Plotter
@@ -216,55 +251,63 @@ def oops(failureObj):
 
 class Covid19Data(Data):
     """
-    Run L{setup} on my instance to decompress and load the
-    covid19.csv.bz2 CSV file from Johns Hopkins.
+    Run L{setup} on my instance to load the ade-covid19.csv.bz2 file
+    from the EAS server, a compressed version of the original
+    us-counties.csv provided by the New York Times.
 
-    The CSV file isn't included in the I{ade} package and will
-    automatically be downloaded from U{edsuom.com}. Here's the privacy
-    policy for my site (it's short, as all good privacy policies
-    should be)::
+    @cvar county: Set this to a U.S. county name if only a particular
+        county is of interest. (You'll also want to set I{state} to
+        avoid adding up numbers from the counties with the same name
+        in multiple states.)
 
-        Privacy policy: I don’t sniff out, track, or share anything
-        identifying individual visitors to this site. There are no
-        cookies or anything in place to let me see where you go on the
-        Internet--that’s creepy. All I get (like anyone else with a
-        web server), is plain vanilla server logs with “referral” info
-        about which web page sent you to this one.
-
-    @cvar second_deriv: Set this C{True} to have the model considered
-        the second derivative of the cumulative number of cases,
-        rather than the first derivative.
-
-    @cvar re_region_yes: Set this to a compiled regular expression
-        object for the region name to only include matching regions.
-
-    @cvar re_region_no: Set this to a regular expression object for
-        the region name to B{exclude} matching regions.
+    @cvar state: Set this to a U.S. state name if only a particular
+        state is of interest. Leaving both this and the county name
+        blank selects everything, i.e., the whole U.S. is of interest.
 
     @cvar relations: Set this to a dict of dicts that defines a linear
         relationship between two parameters and the maximum deviation
         from such a relationship that will be accepted in
         parameters. See L{ade.constraints.RelationsChecker}.
+
+    @ivar t:
     
     @see: The L{Data} base class.
     """
     basename = "covid19"
-    reDate = re.compile(r'([0-9]+)/([0-9]+)/([0-9]+)')
+    reDate = re.compile(r'(20[0-9]{2})-([0-9]{2})-([0-9]{2})')
     modelPosition = 'NW'
     summaryPosition = 'NW'
 
-    re_region_yes = None
-    re_region_no = None
-
+    county = None
+    state = None
+    
     relations = None
 
     def __len__(self):
         return len(self.dates)
 
-    def parseDates(self, result):
+    def includeRow(self, row):
         """
-        Parses dates from first line of I{result} list of text-value
-        lists.
+        Returns C{True} if the supplies I{row} of the CSV file 
+        matches my subclass's I{county} and I{state}.
+        """
+        if self.county and row[1] != self.county:
+            return
+        if self.state and row[2] != self.state:
+            return
+        return True
+        
+    def build_t(self, result):
+        """
+        Builds a list of the unique I{dates} from the first field in each
+        row from the I{result} list of rows from the CSV file.
+
+        Then builds an array I{t} of times in days (float) from the
+        first date.
+
+        Returns a dict of sets I{xref} keyed by date. Each set
+        contains the row indices of I{result} that contain cases
+        numbers for that date.
         """
         def g2i(k):
             return int(m.group(k))
@@ -272,38 +315,45 @@ class Covid19Data(Data):
         def hours(dateObj):
             seconds = (dateObj - firstDate).total_seconds()
             return seconds / 3600
-        
-        self.t = []
-        self.dates = []
+
+        xref = {}
         firstDate = None
-        for dateText in result.pop(0)[4:]:
+        self.dates = set()
+        for k, row in enumerate(result):
+            if k == 0: continue
+            dateText = row[0]
             m = self.reDate.match(dateText)
             if not m:
                 raise ValueError(sub(
                     "Couldn't parse '{}' as a date!", dateText))
-            thisDate = date(2000+g2i(3), g2i(1), g2i(2))
+            thisDate = date(g2i(1), g2i(2), g2i(3))
             if firstDate is None:
                 firstDate = thisDate
-            self.dates.append(thisDate)
-            self.t.append(hours(thisDate) / 24)
-        self.t = np.array(self.t, dtype=float)
-    
-    def valuerator(self, result):
-        """
-        Iterates over the lists of text-values in the I{result}, yielding
-        a 1-D array of daily reported case numbers for each list whose
-        region code and country code match the desired values.
-        """
-        for rvl in result:
-            if rvl[1] != self.countryCode:
-                continue
-            if self.re_region_no and self.re_region_no.search(rvl[0]):
-                continue
-            if self.re_region_yes and not self.re_region_yes.search(rvl[0]):
-                msg("Not included: {}, {}", rvl[0], rvl[1])
-                continue
-            yield np.array([int(x) for x in rvl[4:] if x])
+            self.dates.add(thisDate)
+            if thisDate not in xref:
+                xref[thisDate] = {k}
+            else: xref[thisDate].add(k)
+        # Convert set to sorted list
+        self.dates = sorted(list(self.dates))
+        # Build array t
+        self.t = np.array([hours(x)/24 for x in self.dates], dtype=float)
+        return xref
                 
+    def build_X(self, xref, result):
+        """
+        Builds an array of the total cases on each day represented by the
+        corresponding items in I{dates} and I{t}.
+
+        This can take a while if you haven't set me up to filter out
+        the vast majority of the rows with a I{state} and perhaps also
+        a I{county} attribute.
+        """
+        self.X = np.zeros_like(self.t)
+        for kt, date in enumerate(self.dates):
+            for kr in xref[date]:
+                row = result[kr]
+                self.X[kt] += int(row[4])
+        
     def parseValues(self, result, daysAgo):
         """
         Parses the date and reported case numbers from the lists of
@@ -312,13 +362,8 @@ class Covid19Data(Data):
 
         To not limit latest data, set I{daysAgo} to zero.
         """
-        self.parseDates(result)
-        NX = len(self)
-        self.X = np.zeros(NX)
-        for Y in self.valuerator(result):
-            NY = len(Y)
-            N = min([NX, NY])
-            self.X[:N] += Y[:N]
+        xref = self.build_t(result)
+        self.build_X(xref, result)
         if daysAgo:
             for name in ('t', 'dates', 'X'):
                 setattr(self, name, getattr(self, name)[:-daysAgo])
@@ -337,290 +382,59 @@ class Covid19Data(Data):
         return d
 
 
-class Covid19Data_US(Covid19Data):
+class C19_(Covid19Data):
     """
-    US, first-order ODE, 6-parameter model: linear combination of
-    logistic growth with curve flattening, and linear.
-
-    The default model, because it is fitting the curve really well.
-
-    AICc with 3/31/20 data was -5, much better than any of the other
-    models, and curve fit extends further back into the past. Hardly
-    any non-normality to the residuals, and very little correlated
-    between parameters.
+    For the entire U.S.
     """
-    countryCode = 'US'
     bounds = [
         #--- Logistic Growth with curve flattening (L, r, rf, th, t0) ---------
         # Upper limit to number of total cases (upper bound is population)
-        ('L',   (1e7, 3.3e8)),
+        ('L',   (5e6, 3.3e8)),
         # The initial exponential growth rate
-        ('r',   (0.36, 0.54)),
+        ('r',   (0.38, 0.54)),
         # Max fractional reduction in effective r from curve flattening effect
         # (0.0 for no flattening, 1.0 to completely flatten to zero growth)
-        ('rf',  (0.91, 0.95)),
+        ('rf',  (0.93, 0.97)),
         # Time for flattening to have about half of its full effect (days)
-        ('th',  (13, 17)),
+        ('th',  (14, 20)),
         # Time (days after 1/22/20) at the middle of the transition
         # from regular logistic-growth behavior to fully flattened
-        ('t0', (60, 67)),
+        ('t0', (60, 65)),
         #--- Linear (b) -------------------------------------------------------
         # Constant number of new cases reported each day since beginning
-        ('b',   (0, 150)),
+        ('b',   (0, 250)),
         #----------------------------------------------------------------------
     ]
     k0 = 42
     relations = {
-        'r':    {'t0': (-27.96, +74.87, 3.0)},
+        'r':    {'t0': (-29.486, +75.451, 3.0)},
     }
 
 
-class Covid19Data_Spain(Covid19Data):
-    countryCode = 'Spain'
+class C19_Washington(C19_):
+    """
+    Washington State. Our governor can beat up your governor.
+    """
     bounds = [
         #--- Logistic Growth with curve flattening (L, r, rf, th, t0) ---------
         # Upper limit to number of total cases (upper bound is population)
-        ('L',   (3e5, 4.7e7)),
+        ('L',   (1e5, 1e7)),
         # The initial exponential growth rate
-        ('r',   (0.15, 0.23)),
+        ('r',   (0.3, 0.8)),
         # Max fractional reduction in effective r from curve flattening effect
         # (0.0 for no flattening, 1.0 to completely flatten to zero growth)
-        ('rf',  (0.65, 1.0)),
+        ('rf',  (0.5, 0.97)),
         # Time for flattening to have about half of its full effect (days)
-        ('th',  (5, 12)),
+        ('th',  (5, 30)),
         # Time (days after 1/22/20) at the middle of the transition
         # from regular logistic-growth behavior to fully flattened
-        ('t0', (65, 69)),
-        #--- Linear (b) -------------------------------------------------------
-        # Constant number of new cases reported each day since beginning
-        ('b',   (0, 40)),
-        #----------------------------------------------------------------------
-    ]
-    k0 = 51
-
-
-class Covid19Data_Italy(Covid19Data):
-    countryCode = 'Italy'
-    bounds = [
-        #--- Logistic Growth with curve flattening (L, r, rf, th, t0) ---------
-        # Upper limit to number of total cases (upper bound is <
-        # population of 6e7)
-        ('L',   (2e5, 5.5e7)),
-        # The initial exponential growth rate
-        ('r',   (0.1, 0.3)),
-        # Max fractional reduction in effective r from curve flattening effect
-        # (0.0 for no flattening, 1.0 to completely flatten to zero growth)
-        ('rf',  (0.83, 0.98)),
-        # Time for flattening to have about half of its full effect (days)
-        ('th',  (9, 17)),
-        # Time (days after 1/22/20) at the middle of the transition
-        # from regular logistic-growth behavior to fully flattened
-        ('t0', (55, 64)),
-        #--- Linear (b) -------------------------------------------------------
-        # Constant number of new cases reported each day since beginning
-        ('b',   (0, 400)),
-        #----------------------------------------------------------------------
-    ]
-    k0 = 51
-
-    
-class Covid19Data_Germany(Covid19Data):
-    countryCode = 'Germany'
-    bounds = [
-        #--- Logistic Growth with curve flattening (L, r, rf, th, t0) ---------
-        # Upper limit to number of total cases (upper bound is population)
-        ('L',   (3e5, 8.4e7)),
-        # The initial exponential growth rate
-        ('r',   (0.22, 0.55)),
-        # Max fractional reduction in effective r from curve flattening effect
-        # (0.0 for no flattening, 1.0 to completely flatten to zero growth)
-        ('rf',  (0.88, 1.0)),
-        # Time for flattening to have about half of its full effect (days)
-        ('th',  (10, 21)),
-        # Time (days after 1/22/20) at the middle of the transition
-        # from regular logistic-growth behavior to fully flattened
-        ('t0', (52, 65)),
-        #--- Linear (b) -------------------------------------------------------
-        # Constant number of new cases reported each day since beginning
-        ('b',   (0, 130)),
-        #----------------------------------------------------------------------
-    ]
-    k0 = 40
-
-
-class Covid19Data_France(Covid19Data):
-    # As of 4/4, there was such a huge jump that a good curve fit
-    # seemed implausible. Residuals were significantly non-normal.
-    countryCode = 'France'
-    bounds = [
-        #--- Logistic Growth with curve flattening (L, r, rf, th, t0) ---------
-        # Upper limit to number of total cases (upper bound is population)
-        ('L',   (3e5, 6.5e7)),
-        # The initial exponential growth rate
-        ('r',   (0.05, 0.4)),
-        # Max fractional reduction in effective r from curve flattening effect
-        # (0.0 for no flattening, 1.0 to completely flatten to zero growth)
-        ('rf',  (0.2, 0.9)),
-        # Time for flattening to have about half of its full effect (days)
-        ('th',  (1, 15)),
-        # Time (days after 1/22/20) at the middle of the transition
-        # from regular logistic-growth behavior to fully flattened
-        ('t0',  (48, 79)),
+        ('t0', (60, 65)),
         #--- Linear (b) -------------------------------------------------------
         # Constant number of new cases reported each day since beginning
         ('b',   (0, 50)),
         #----------------------------------------------------------------------
     ]
-    k0 = 40
-
-
-class Covid19Data_Iran(Covid19Data):
-    countryCode = 'Iran'
-    bounds = [
-        #--- Logistic Growth with curve flattening (L, r, rf, th, t0) ---------
-        # Upper limit to number of total cases (upper bound <
-        # population of 8.4e7)
-        ('L',   (8e4, 5e5)),
-        # The initial exponential growth rate
-        ('r',   (0.05, 0.35)),
-        # Max fractional reduction in effective r from curve flattening effect
-        # (0.0 for no flattening, 1.0 to completely flatten to zero growth)
-        ('rf',  (0.1, 0.95)),
-        # Time for flattening to have about half of its full effect (days)
-        ('th',  (1, 10)),
-        # Time (days after 1/22/20) at the middle of the transition
-        # from regular logistic-growth behavior to fully flattened
-        ('t0', (37, 85)),
-        #--- Linear (b) -------------------------------------------------------
-        # Constant number of new cases reported each day since beginning
-        ('b',   (0, 200)),
-        #----------------------------------------------------------------------
-    ]
-    k0 = 46
-
-
-class Covid19Data_UK(Covid19Data):
-    countryCode = 'United Kingdom'
-    re_region_no = re.compile('.')
-    summaryPosition = 'E'
-    bounds = [
-        #--- Logistic Growth with curve flattening (L, r, rf, th, t0) ---------
-        # Upper limit to number of total cases (upper bound <<
-        # population of 6.8e7)
-        ('L',   (5e4, 2e5)),
-        # The initial exponential growth rate
-        ('r',   (0.20, 0.27)),
-        # Max fractional reduction in effective r from curve flattening effect
-        # (0.0 for no flattening, 1.0 to completely flatten to zero growth)
-        ('rf',  (0.10, 0.35)),
-        # Time for flattening to have about half of its full effect (days)
-        ('th',  (1, 3)),
-        # Time (days after 1/22/20) at the middle of the transition
-        # from regular logistic-growth behavior to fully flattened
-        ('t0', (65, 67)),
-        #--- Linear (b) -------------------------------------------------------
-        # Constant number of new cases reported each day since beginning
-        ('b',   (0, 40)),
-        #----------------------------------------------------------------------
-    ]
     k0 = 42
-
-    
-class Covid19Data_SouthKorea(Covid19Data):
-    countryCode = 'Korea, South'
-    modelPosition = 'M'
-    bounds = [
-        #--- Logistic Growth with curve flattening (L, r, rf, th, t0) ---------
-        # Upper limit to number of total cases (upper bound is population)
-        ('L',   (5e4, 5e7)),
-        # The initial exponential growth rate
-        ('r',   (0.1, 0.5)),
-        # Max fractional reduction in effective r from curve flattening effect
-        # (0.0 for no flattening, 1.0 to completely flatten to zero growth)
-        ('rf',  (0.95, 1.0)),
-        # Time for flattening to have about half of its full effect (days)
-        ('th',  (3, 7)),
-        # Time (days after 1/22/20) at the middle of the transition
-        # from regular logistic-growth behavior to fully flattened
-        ('t0', (37, 43)),
-        #--- Linear (b) -------------------------------------------------------
-        # Constant number of new cases reported each day since beginning
-        ('b',   (0, 150)),
-        #----------------------------------------------------------------------
-    ]
-    k0 = 34
-
-
-class Covid19Data_Argentina(Covid19Data):
-    countryCode = 'Argentina'
-    bounds = [
-        #--- Logistic Growth with curve flattening (L, r, rf, th, t0) ---------
-        # Upper limit to number of total cases (upper bound is population)
-        ('L',   (3e3, 4.5e7)),
-        # The initial exponential growth rate
-        ('r',   (0.07, 0.20)),
-        # Max fractional reduction in effective r from curve flattening effect
-        # (0.0 for no flattening, 1.0 to completely flatten to zero growth)
-        ('rf',  (0.4, 0.8)),
-        # Time for flattening to have about half of its full effect (days)
-        ('th',  (1, 20)),
-        # Time (days after 1/22/20) at the middle of the transition
-        # from regular logistic-growth behavior to fully flattened
-        ('t0', (65, 74)),
-        #--- Linear (b) -------------------------------------------------------
-        # Constant number of new cases reported each day since beginning
-        ('b',   (0, 3)),
-        #----------------------------------------------------------------------
-    ]
-    k0 = 50
-
-
-class Covid19Data_Singapore(Covid19Data):
-    countryCode = 'Singapore'
-    bounds = [
-        #--- Logistic Growth with curve flattening (L, r, rf, th, t0) ---------
-        # Upper limit to number of total cases (upper bound is population)
-        ('L',   (2e3, 5.9e6)),
-        # The initial exponential growth rate
-        ('r',   (0.08, 0.25)),
-        # Max fractional reduction in effective r from curve flattening effect
-        # (0.0 for no flattening, 1.0 to completely flatten to zero growth)
-        ('rf',  (0.3, 0.7)),
-        # Time for flattening to have about half of its full effect (days)
-        ('th',  (0.5, 6)),
-        # Time (days after 1/22/20) at the middle of the transition
-        # from regular logistic-growth behavior to fully flattened
-        ('t0', (56, 69)),
-        #--- Linear (b) -------------------------------------------------------
-        # Constant number of new cases reported each day since beginning
-        ('b',   (0, 2)),
-        #----------------------------------------------------------------------
-    ]
-    k0 = 40
-
-
-class Covid19Data_Finland(Covid19Data):
-    countryCode = 'Finland'
-    bounds = [
-        #--- Logistic Growth with curve flattening (L, r, rf, th, t0) ---------
-        # Upper limit to number of total cases (upper bound is population)
-        ('L',   (2e3, 5.5e6)),
-        # The initial exponential growth rate
-        ('r',   (0.05, 0.3)),
-        # Max fractional reduction in effective r from curve flattening effect
-        # (0.0 for no flattening, 1.0 to completely flatten to zero growth)
-        ('rf',  (0.2, 0.7)),
-        # Time for flattening to have about half of its full effect (days)
-        ('th',  (1, 6)),
-        # Time (days after 1/22/20) at the middle of the transition
-        # from regular logistic-growth behavior to fully flattened
-        ('t0', (58, 73)),
-        #--- Linear (b) -------------------------------------------------------
-        # Constant number of new cases reported each day since beginning
-        ('b',   (0, 10)),
-        #----------------------------------------------------------------------
-    ]
-    k0 = 53
 
 
 class Results(object):
@@ -662,17 +476,36 @@ class Model(object):
     U{https://services.math.duke.edu/education/ccp/materials/diffeq/logistic/logi1.html}
 
     It requires the integration of a first-order differential
-    equation:::
+    equation. Here is the expression in the original logistic growth
+    model for the number of new cases per day:::
 
-        xd(t, x) = x*r*(1 - x/L)
+        xd(t,x) = x*r*(1-x/L)
 
-    The author of this code (EAS) proposes a modification to that
-    model with a C{flatten} function reducing the growth rate with a
-    smooth transition to a curve-flattened regime. Here is the
-    equation for logistic growth with curve flattening:::
+    The author of this code (EAS) proposes two modifications to that
+    model: (1) multiplying it by a C{flatten} function to reduce the
+    growth rate with a smooth transition to a curve-flattened regime,
+    and (2) subjecting the result to a C{saturate} function for
+    imposing a "velocity saturation" soft upper limit.
 
-        xd(t, x) = r*x*(1 - x/L)*flatten(t)
+    Part (2) produces a second element of what is now a vector
+    function:::
+
+        xd(t,x) = [daily_actual(t,x), daily_reported(t,x)]
+
+    The second vector element is fitted to the number of new cases
+    each day, as would be conventional. The first element is not
+    limited by testing as the second one increasingly appears to be,
+    and thus the growth parameters of the model are not crammed into a
+    box of reported case statistics.
+
+    Here are the equations for logistic growth with curve flattening
+    and velocity saturation:::
+
+        xd(t,x) = [daily_actual(t,x), daily_reported(t,x)]
+        daily_actual(t,x) = r*x[0]*(1 - x[0]/L)*flatten(t) + b
         flatten(t) = 0.5*rf*(1 - tanh(1.1*(t-t0)/th)) - rf + 1
+        daily_reported(t,x) = saturate(daily_actual(t,x))
+        saturate(z) = v*z / (1 + z^n)^(1/n)
     
     where
 
@@ -689,39 +522,30 @@ class Model(object):
         - I{t0} is the time (in days after 1/22/20) at the middle of
           the transition from regular logistic-growth behavior to a
           fully flattened curve.
-    
-    The other model is the power-law model with exponential cutoff
-    function of Vasquez (2006):::
 
-        xd(t) = a * (t-ts)^n * exp(-(t-ts)/t0)
+        - I{b} is a (small) constant number of new cases per day.
 
-    Finally, you can add a linear component to either model or the
-    combination of both with the single parameter I{b}:::
-
-        xd(t) += b*t
+    The following additional EAS modification is being included as
+    an option: A soft upper limit on the number of new reported cases
+    per day. The output of are now two
     """
-    def __init__(self, names, second_deriv=False):
+    def __init__(self, names):
         """
-        C{Model(names, second_deriv=False)}
+        C{Model(names)}
         
         Sets up my model function and its Jacobian with a list of
         parameter I{names}, in the order that their I{values} will
         appear in L{__call__}.
-
-        @keyword second_deriv: Set C{True} to have the model consider
-            the second derivative of the number of reported cases
-            instead of the first. (Not supported or recommended.)
         """
         def has_param(name):
             return name in names
         
         def curve_text():
             """
-            Returns a string with the right side of the equation M{xd(t, x) =
-            ...}, or M{x2d(t, x) = ...} if my I{second_deriv} is
-            C{True}.
+            Returns a string with the right side of the equation
+            M{xd(t,x)=...}
             """
-            text = sub("{}(t, x) = ", "x2d" if second_deriv else "xd")
+            text = "xd(t, x) = "
             text += " + ".join(self.ftList)
             return text
 
@@ -745,20 +569,12 @@ class Model(object):
         k = 0
         self.fList = []
         self.ftList = []
-        self.second_deriv = second_deriv
         N = len(names)
-        if has_param('rf'):
-            # Logistic growth (with curve flattening)
-            k = append('xd_logistic_flattened', 5, k)
-        elif has_param('r'):
-            # Logistic growth (conventional)
-            k = append('xd_logistic', 2, k)
-        if has_param('n'):
-            # Power law
-            k = append('xd_powerlaw', 4, k)
-        if has_param('b'):
-            # Linear (constant differential)
-            k = append('xd_linear', 1, k)
+        # Logistic growth (with curve flattening)
+        k = append('xd_logistic_flattened', 5, k)
+        if has_param('v'):
+            # Apply velocity saturation
+            k = append('xd_powerlaw', 2, k)
         self.f_text = curve_text()
         
     #--- Logistic Growth Model with Curve Flattening --------------------------
@@ -821,8 +637,8 @@ class Model(object):
         another term, C{flatten(t)} that further scales the growth as
         a function of time:::
         
-            flatten(t, rf, th, t0) = 0.5*rf*(1 - tanh(1.1*(t-t0)/th)) - rf + 1
-
+            flatten(t,rf,th,t0) = 0.5*rf*(1-tanh(1.1*(t-t0)/th))-rf+1
+        
         Once I{t} passes I{t0} (a parameter value that is evolving to
         days in the single digits with U.S. data as of 4/1/20), the
         growth will have been reduced half of the way from its
@@ -850,103 +666,6 @@ class Model(object):
         """
         X = np.array(x)
         return -r*self.flatten(t, rf, th, t0)*(2*X/L + 1)
-    
-    #--- Logistic Growth Model (conventional) ---------------------------------
-    
-    xd_logistic_text = "x*r*(1 - x/L)"
-    def xd_logistic(self, t, x, L, r):
-        """
-        Logistic growth model (Verhulst model),
-        U{https://services.math.duke.edu/education/ccp/materials/diffeq/logistic/logi1.html}
-        
-        Given a scalar time (in days) followed by arguments defining
-        curve parameters, returns the number of B{new} Covid-19
-        cases expected to be reported on that day.::
-
-            xd(t, x) = x*r*(1 - x/L)
-            
-        This requires integration of a first-order differential
-        equation, which is performed in L{curve}.
-
-        The Jacobian with respect to I{x} is provided by
-        L{jacobian_logistic}.
-        """
-        x = np.array(x)
-        return r*x*(1 - x/L)
-
-    def xd_logistic_jac(self, t, x, L, r):
-        """
-        Jacobian for L{xd_logistic}, with respect to I{x}::
-
-            xd(t, x) = r*x - r*x^2/L
-            x2d(t, x) = r*(1 - 2*x/L)
-        """
-        x = np.array(x)
-        return r*(1 - 2*x/L)
-
-    #--- Power Law with Exponential Decay -------------------------------------
-    
-    xd_powerlaw_text = "a*(t-ts)^n*exp(-(t-ts)/tc)"
-    def xd_powerlaw(self, t, x, a, n, ts, tc):
-        """
-        Power law model,
-        U{https://www.medrxiv.org/content/10.1101/2020.02.16.20023820v2.full.pdf}
-        
-        Given a scalar time vector (in days) followed by arguments
-        defining curve parameters, returns the number of B{new}
-        Covid-19 cases expected to be reported on that day.::
-
-            xd(t, x) = a * (t-ts)^n * exp(-(t-ts)/tc)
-
-        Note that there is actually no dependence on I{x}. It is just
-        included as an argument for consistency with
-        L{curve_logistic}, since a linear combination of both requires
-        the use of an ODE solver.
-
-        Thanks to my new FB friend, applied statistician Ng Yi Kai
-        Aaron of Singapore, for suggesting I look into the power law
-        model as an alternative, and pointing me to an article
-        discussing its possible application to COVID-19.
-
-        The Jacobian with respect to I{x} is zero.
-        """
-        def xd(t, x):
-            return a*t**n * np.exp(-t/tc) * np.ones_like(x)
-
-        # NOTE: Using t -= ts changed t in place, which wasn't cool
-        t = t - ts
-        XD = np.zeros_like(x)
-        if isinstance(t, np.ndarray):
-            K = np.flatnonzero(t > 0)
-            XD[K] = xd(t[K], x[K])
-        elif t > 0:
-            XD = xd(t, x)
-        return XD
-
-    def xd_powerlaw_jac(self, t, x, a, n, ts, tc):
-        """
-        Jacobian for L{xd_powerlaw} with respect to I{x} is constant zero,
-        since it is independent of I{x}.
-        """
-        return np.zeros_like(x)
-
-    #--- Linear (constant number of new daily cases) --------------------------
-    
-    xd_linear_text = "b"
-    def xd_linear(self, t, x, b):
-        """
-        Linear component: Constant number of new cases reported each day.
-
-        The Jacobian with respect to I{x} is zero.
-        """
-        return b * np.ones_like(x)
-
-    def xd_linear_jac(self, t, x, b):
-        """
-        Jacobian for L{xd_linear} with respect to I{x} is constant zero,
-        since it is constant with respect not just to I{x} but also I{t}.
-        """
-        return np.zeros_like(x)
 
     #--------------------------------------------------------------------------
     
@@ -1052,7 +771,7 @@ class Evaluator(Picklable):
 
     @ivar XD: The actual number of new cases per day, each day, for
         the selected country or region since the first reported case
-        in the Johns Hopkins dataset on January 22, 2020, B{after} my
+        in the NYT dataset on January 21, 2020, B{after} my
         L{transform} has been applied.
     """
     scale_SSE = 1e-2
@@ -1067,7 +786,7 @@ class Evaluator(Picklable):
     def kt(self, t):
         """
         Returns an index to my I{t} and I{X} vectors for the specified
-        number of days I{t} after 1/22/20.
+        number of days I{t} after 1/21/20.
 
         If I{t} is an array, an array of integer indices will be
         returned.
@@ -1079,7 +798,7 @@ class Evaluator(Picklable):
     def Xt(self, t):
         """
         Returns the value of I{X} at the specified number of days I{t}
-        after 1/22/20. If the days are beyond the limits of the data
+        after 1/21/20. If the days are beyond the limits of the data
         on hand, the latest data value will be used.
         """
         return self.data.X[self.kt(t)]
@@ -1094,7 +813,7 @@ class Evaluator(Picklable):
             return
         return RelationsChecker(self.data.relations)
     
-    def setup(self, klass, daysAgo=0):
+    def setup(self, klass, county, state, daysAgo=0):
         """
         Call with a subclass I{klass} of L{Covid19Data} with data and
         bounds for evaluation of the instance I{model} of L{Model}
@@ -1112,18 +831,6 @@ class Evaluator(Picklable):
         Also creates a dict of I{indices} in those sequences, keyed by
         parameter name.
 
-        If the supplied I{klass} has a I{second_deriv} attribute set
-        C{True}, the model is considered the second derivative of the
-        cumulative number of cases, rather than the first
-        derivative. In other words, what gets modeled is the increase
-        of the increase.
-
-        That will cause I{X} will be returned from the initial value
-        problem done by L{curve}, rather than C{f(t, X)}. Seems weird,
-        but this unlikely (and, admittedly, accidental) version of the
-        model worked very effectively at predicting at making
-        near-term predictions in previous weeks.
-
         @keyword daysAgo: Set to a positive number of days ago
             to limit the latter end of the John Hopkins data. Useful
             for back-testing or when the current day's data dump is
@@ -1134,7 +841,7 @@ class Evaluator(Picklable):
             # Calculate differential and show data on console
             self.XD = np.zeros_like(self.X)
             msg("Cumulative and new cases reported thus far for {}",
-                self.countryCode, '-')
+                self.location, '-')
             xPrev = None
             for k, x in enumerate(self.X):
                 xd = 0 if xPrev is None else x-xPrev
@@ -1143,17 +850,22 @@ class Evaluator(Picklable):
                     k, self.dayText(k), int(x), int(xd))
                 self.XD[k] = self.transform(xd)
             # Set up model for all fitting and plotting
-            self.model = Model(names, second_deriv)
+            self.model = Model(names)
             # Done, return names and bounds to caller
             return names, bounds
 
+        if state and county:
+            self.location = sub("{}, {}", county, state)
+        elif state:
+            self.location = state
+        else: self.location = "entire U.S."
         if not issubclass(klass, Covid19Data):
             raise TypeError("You must supply a subclass of Covid19Data")
         data = self.data = klass()
+        data.county = county
+        data.state = state
         names = []; bounds = []
-        second_deriv = getattr(klass, 'second_deriv', False)
-        self.f_residuals = self.residuals_2d \
-            if second_deriv else self.residuals_1d
+        self.f_residuals = self.residuals_1d
         for name, theseBounds in data.bounds:
             names.append(name)
             bounds.append(theseBounds)
@@ -1217,36 +929,6 @@ class Evaluator(Picklable):
         r = self.model(values, t0, t1, self.Xt(t0))
         if r is None: return
         r.XD = self.transform(r.XD)
-        K = [self.kt(x) for x in r.t]
-        # During setup, self.XD got its transform done for all time
-        r.R = r.XD - self.XD[K]
-        return r
-
-    def residuals_2d(self, values):
-        """
-        Computes a 1-D array of transformed residuals to I{XD} from my
-        L{curve}, fixed to 0 at 1/22/20, with other values of I{XD}
-        computed via forward integration of the model.
-
-        Unlike L{residuals}, this method integrates the model before
-        subtracting the known I{XD}. Thus, the model is actually for
-        the second derivative.
-        
-        The residual array is left-trimmed to start with my first
-        valid day I{k0}.
-
-        Sets I{XD} and I{R} attributes to the instance of L{Results}
-        that is obtained from calling L{curve} and returns the
-        instance, unless a C{None} object was obtained because of an
-        ODE problem, in which case C{None} is returned.
-        """
-        t0 = self.data.t[0]
-        t1 = self.data.t[-1]
-        r = self.model(values, t0, t1, self.Xt(t0))
-        if r is None: return 
-        # Yes, we want r.X, not r.XD, because this is a
-        # second-derivative model
-        r.XD = self.transform(r.X)
         K = [self.kt(x) for x in r.t]
         # During setup, self.XD got its transform done for all time
         r.R = r.XD - self.XD[K]
@@ -1461,9 +1143,7 @@ class Reporter(object):
             
         k0 = self.ev.k0
         kToday, k_offset = self.kForToday
-        if self.ev.model.second_deriv:
-            r = self.curvePoints(values, k0, kToday)
-        else: r = self.curvePoints(values, kToday, k0)
+        r = self.curvePoints(values, kToday, k0)
         t, X_curve = r.t, r.X
         t -= k_offset
         K = self.ev.kt(t)
@@ -1500,7 +1180,7 @@ class Reporter(object):
         If the most recent data point is not from today, the
         annotation will actually start in the past. The number of days
         between today (when this is run) and the date of the last data
-        point is subtracted from the "days after 1/22/20" index before
+        point is subtracted from the "days after 1/21/20" index before
         being applied to the method L{dayText}.
 
         Returns the modeled time I{t}, cumulative cases I{X_curve},
@@ -1624,7 +1304,7 @@ class Reporter(object):
         """
         Does a middle subplot with residuals between the data I{X_data}
         and modeled data I{X_curve}, given model parameter I{values}
-        and evaluation times (days after 1/22/20) I{t}.
+        and evaluation times (days after 1/21/20) I{t}.
         """
         r = self.ev.residuals(values)
         if r is None: return
@@ -1711,18 +1391,18 @@ class Reporter(object):
             values, "SSE={:.5g} on eval {:d}:", SSE, counter), 0)
         self.pt.set_title(
             "Modeled (red) vs Actual (blue) Reported Cases of COVID-19: {}",
-            self.ev.countryCode)
+            self.ev.location)
         self.pt.set_ylabel("Reported Cases")
         self.pt.set_xlabel("Days after January 22, 2020")
         self.pt.use_minorTicks('x', 1.0)
         with self.pt as sp:
             tb('S', "Reported cases in {} vs days after first case.",
-               self.ev.countryCode)
+               self.ev.location)
             tb('S', "Annotations show residuals between model and data.")
             ta, Xa, XDa, Xam, XDam = self.subplot_upper(sp, values)
             self.subplot_middle(sp, values, ta)
             tb("Expected cases reported in {} vs days after",
-               self.ev.countryCode)
+               self.ev.location)
             tb("first case. Dots show daily model predictions for each")
             tb("of a final population of {:d} evolved parameter", len(self.p))
             tb("combinations. Annotations show actual values in")
@@ -1782,19 +1462,38 @@ class Runner(object):
             self.q = None
             msg("Goodbye")
 
-    def tryGetClass(self):
+    def sanitized(self, *args):
+        """
+        Returns a sanitized string uniquely determined by the supplied
+        args, which can be a string or C{None}.
+
+        Any spaces are removed. The text of multiple args is joined
+        with an underscore. For example, supplying "Santa Fe" and "New
+        Mexico" as args results in "SantaFe_NewMexico".
+        """
+        parts = []
+        for arg in args:
+            if arg is None:
+                continue
+            parts.append(arg.replace(" ", ""))
+        return "_".join(parts)
+            
+    def tryGetClass(self, suffix):
         """
         Tries to return a reference to a subclass of L{Covid19Data} with
-        the supplied I{suffix} following an underscore.
+        the prefix I{C19} followed by an underscore and then the
+        supplied I{suffix}.
+
+        If I{suffix} is an empty string, the L{C19_} full-US subclass
+        is used.
         """
-        if not len(self.args):
-            raise RuntimeError(
-                "You must specify a recognized country/state code")
-        name = sub("Covid19Data_{}", self.args[0])
+        name = "C19_"
+        if suffix: name += suffix
         try: klass = globals()[name]
         except ImportError:
             klass = None
         if klass is not None and issubclass(klass, Covid19Data):
+            msg("Using data class '{}'", name)
             return klass
         raise ImportError(sub("No data subclass '{}' found!", name))
             
@@ -1837,16 +1536,47 @@ class Runner(object):
             yield dt.deferUntilFewer(self.N_cores)
         yield dt.deferToAll()
         msg("")
-    
+
     @defer.inlineCallbacks
     def __call__(self):
+        """
+        Where the action happens.
+        """
+        def picklePath(suffix):
+            """
+            Returns a consistent path for a pickle file in which to dump/load
+            the final population for a given state and county.
+
+            If the state or county is not specified, supply C{None} for
+            that arg.
+
+            The file always goes in the current working directory,
+            although that could be easily changed.
+            """
+            return sub("covid19-{}.dat", suffix)
+        
         args = self.args
         startTime = time.time()
-        klass = self.tryGetClass()
-        names, bounds = yield self.ev.setup(klass, args.d).addErrback(oops)
-        if len(args) > 1:
+        if len(args) > 2:
+            raise RuntimeError("You must supply 0-2 args")
+        if len(args) == 2:
+            state = args[0]
+            county = args[1]
+        elif len(args) == 1:
+            state = args[0]
+            county = None
+        else:
+            state = None
+            county = None
+        suffix = self.sanitized(state, county)
+        klass = self.tryGetClass(suffix)
+        names, bounds = yield self.ev.setup(
+            klass, county, state, args.d).addErrback(oops)
+        if args.L:
+            loadPicklePath = picklePath(suffix)
             self.p = Population.load(
-                args[1], func=self.evaluate, bounds=bounds)
+                loadPicklePath, func=self.evaluate, bounds=bounds)
+            msg("Resuming from population saved in {}", loadPicklePath)
         else:
             self.p = Population(self.evaluate, names, bounds, popsize=args.p)
         rc = self.ev.relations()
@@ -1869,8 +1599,8 @@ class Runner(object):
         yield de()
         msg(0, "Final population:\n{}", self.p)
         msg(0, "Elapsed time: {:.2f} seconds", time.time()-startTime, 0)
-        if len(args.P) > 1:
-            savePicklePath = args.P
+        if args.P:
+            savePicklePath = picklePath(suffix)
             self.p.save(savePicklePath)
             msg("Saved final population of best parameter combinations "+\
                 "to {}", savePicklePath)
@@ -1928,11 +1658,13 @@ args('-t', '--threads',
      "Use a single worker thread instead of processes (for debugging)")
 args('-l', '--logfile',
      "Write results to logfile 'covid19.log' instead of STDOUT")
-args('-P', '--pickle', "covid19.dat",
-     "Pickle dump file for finalized ade.Population object ('-' for none)")
+args('-P', '--pickle-dump',
+     "Dump finalized ade.Population object to pickle file for state/county")
+args('-L', '--pickle-load',
+     "Resume previous ade.Population object stored for this state/county")
 args('-r', '--include-ratio',
      "Include subplot with ratio of new vs cumulative cases")
 args('-d', '--include-daily',
      "Include subplot with new daily cases")
-args("<Country/State Name> [<pickle file>]")
+args("[<State Name> [<County Name>]]")
 args(main)

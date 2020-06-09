@@ -67,16 +67,8 @@ class Data(Picklable):
         row index is C{None}.) An empty list (the default) includes
         all rows.
     
-    @ivar t: A 1-D Numpy vector containing the number of seconds
-        elapsed from the first reading.
-
-    @ivar X: A 2-D Numpy array with one first column for each CSV item
-        after the first (time).
-
     @ivar csvPath: Path to the bzip2-compressed CSV file.
 
-    @ivar weights: An optional 1-D array of weights, one for each row
-        in I{X}.
     """
     basename = None
     urlProto = "http://edsuom.com/ade-{}"
@@ -108,9 +100,18 @@ class Data(Picklable):
             for row in reader:
                 if row[0].startswith('#'):
                     continue
-                rows.append(row)
+                if self.includeRow(row):
+                    rows.append(row)
+                yield
         defer.returnValue(rows)
-    
+
+    def includeRow(self, row):
+        """
+        You may override this to implement filtering of rows. If the
+        I{row} should be included, return I{True}.
+        """
+        return True
+        
     def setup(self):
         """
         Override this in your sublcass to have me set myself up. Must
@@ -123,6 +124,16 @@ class Data(Picklable):
 class TimeData(Data):
     """
     I specialize in CSV files that contain time-series data.
+
+    @ivar t: A 1-D Numpy vector containing the number of seconds
+        elapsed from the first reading.
+
+    @ivar X: A 2-D Numpy array with one first column for each CSV item
+        after the first (time).
+
+    @ivar weights: An optional 1-D array of weights, one for each row
+        in I{X}.
+
     """
     def parseValues(self, result):
         def addList():
