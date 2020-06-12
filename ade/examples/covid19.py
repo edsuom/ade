@@ -221,6 +221,7 @@ from ade.population import Population
 from ade.de import DifferentialEvolution
 from ade.image import ImageViewer
 from ade.abort import abortNow
+from ade.specs import SpecsLoader
 from ade.util import *
 
 
@@ -248,6 +249,23 @@ def oops(failureObj):
     abortNow()
     os._exit(1)
 
+def sanitized(self, *args):
+    """
+    Returns a sanitized string uniquely determined by the supplied
+    args, any of which can be a string or C{None}.
+
+    C{None} args are ignored. Any spaces within an arg are
+    removed. The text of multiple args is joined with an
+    underscore. For example, supplying "Santa Fe" and "New Mexico" as
+    args results in "SantaFe_NewMexico".
+    """
+    parts = []
+    for arg in args:
+        if arg is None:
+            continue
+        parts.append(arg.replace(" ", ""))
+    return "_".join(parts)
+    
 
 class Covid19Data(Data):
     """
@@ -275,13 +293,9 @@ class Covid19Data(Data):
     """
     basename = "covid19"
     reDate = re.compile(r'(20[0-9]{2})-([0-9]{2})-([0-9]{2})')
-    modelPosition = 'NW'
-    summaryPosition = 'NW'
 
     county = None
     state = None
-    
-    relations = None
 
     def __len__(self):
         return len(self.dates)
@@ -380,61 +394,6 @@ class Covid19Data(Data):
         d.addCallback(self.parseValues, daysAgo)
         d.addErrback(oops)
         return d
-
-
-class C19_(Covid19Data):
-    """
-    For the entire U.S.
-    """
-    bounds = [
-        #--- Logistic Growth with curve flattening (L, r, rf, th, t0) ---------
-        # Upper limit to number of total cases (upper bound is population)
-        ('L',   (5e6, 3.3e8)),
-        # The initial exponential growth rate
-        ('r',   (0.38, 0.54)),
-        # Max fractional reduction in effective r from curve flattening effect
-        # (0.0 for no flattening, 1.0 to completely flatten to zero growth)
-        ('rf',  (0.93, 0.97)),
-        # Time for flattening to have about half of its full effect (days)
-        ('th',  (14, 20)),
-        # Time (days after 1/22/20) at the middle of the transition
-        # from regular logistic-growth behavior to fully flattened
-        ('t0', (60, 65)),
-        #--- Linear (b) -------------------------------------------------------
-        # Constant number of new cases reported each day since beginning
-        ('b',   (0, 250)),
-        #----------------------------------------------------------------------
-    ]
-    k0 = 42
-    relations = {
-        'r':    {'t0': (-29.486, +75.451, 3.0)},
-    }
-
-
-class C19_Washington(C19_):
-    """
-    Washington State. Our governor can beat up your governor.
-    """
-    bounds = [
-        #--- Logistic Growth with curve flattening (L, r, rf, th, t0) ---------
-        # Upper limit to number of total cases (upper bound is population)
-        ('L',   (1e5, 1e7)),
-        # The initial exponential growth rate
-        ('r',   (0.3, 0.8)),
-        # Max fractional reduction in effective r from curve flattening effect
-        # (0.0 for no flattening, 1.0 to completely flatten to zero growth)
-        ('rf',  (0.5, 0.97)),
-        # Time for flattening to have about half of its full effect (days)
-        ('th',  (5, 30)),
-        # Time (days after 1/22/20) at the middle of the transition
-        # from regular logistic-growth behavior to fully flattened
-        ('t0', (60, 65)),
-        #--- Linear (b) -------------------------------------------------------
-        # Constant number of new cases reported each day since beginning
-        ('b',   (0, 50)),
-        #----------------------------------------------------------------------
-    ]
-    k0 = 42
 
 
 class Results(object):
@@ -813,11 +772,9 @@ class Evaluator(Picklable):
             return
         return RelationsChecker(self.data.relations)
     
-    def setup(self, klass, county, state, daysAgo=0):
+    def setup(self, state, county, daysAgo=0):
         """
-        Call with a subclass I{klass} of L{Covid19Data} with data and
-        bounds for evaluation of the instance I{model} of L{Model}
-        that I construct.
+        Call with a state and county.
 
         Computes a differential vector I{XD} that contains the
         differences between a particular day's cumulative cases and
@@ -855,20 +812,27 @@ class Evaluator(Picklable):
             return names, bounds
 
         if state and county:
-            self.location = sub("{}, {}", county, state)
+            self.location = sub("{} County, {}", county, state)
         elif state:
             self.location = state
         else: self.location = "entire U.S."
-        if not issubclass(klass, Covid19Data):
-            raise TypeError("You must supply a subclass of Covid19Data")
-        data = self.data = klass()
-        data.county = county
-        data.state = state
+        data = self.data = Covid19Data()
+        data.state = state; data.county = county
+        s = SpecsLoader('covid19.specs')()
+        dictName = sub("C19_{}", sanitized(state, county))
+        data.k0 = int(s.get(dictName, 'k0'))
+        self.positions = s.get(dictName, 'position')
+        data.relations = {}
+        relations = s.get(dictName, 'relations')
+        for var_12 in relations:
+            m, b, limit = relations[var_12]
+            var_1, var_2 = var_12.split('_')
+            data.relations.setdefault(var_1, {})[var_2] = [m, b, limit]
         names = []; bounds = []
-        self.f_residuals = self.residuals_1d
-        for name, theseBounds in data.bounds:
+        pb = s.get(dictName, 'pb')
+        for name in pb:
             names.append(name)
-            bounds.append(theseBounds)
+            bounds.append(pb[name])
         return data.setup(daysAgo).addCallbacks(done, oops)
 
     def transform(self, XD=None, inverse=False):
@@ -910,7 +874,7 @@ class Evaluator(Picklable):
             day = firstDay + timedelta(days=k)
         return day.strftime("%m/%d")
 
-    def residuals_1d(self, values):
+    def residuals(self, values):
         """
         Computes a 1-D array of transformed residuals to I{XD} from my
         L{curve}, fixed to the last known value with other derivatives
@@ -923,6 +887,14 @@ class Evaluator(Picklable):
         that is obtained from calling L{curve} and returns the
         instance, unless a C{None} object was obtained because of an
         ODE problem, in which case C{None} is returned.
+
+        Obtains a L{Results} instance with a residuals vector I{R}
+        computed between the modeled and actual values, and sets its
+        I{SSE} to the sum of squared error of those residuals.
+
+        Returns the instance with I{R} and I{SSE} set, as well as
+        I{t}, I{XD}, and I{X}. If computation of the modeled values
+        failed, returns C{None}.
         """
         t0 = self.data.t[-1]
         t1 = self.data.t[self.k0]
@@ -932,19 +904,6 @@ class Evaluator(Picklable):
         K = [self.kt(x) for x in r.t]
         # During setup, self.XD got its transform done for all time
         r.R = r.XD - self.XD[K]
-        return r
-
-    def residuals(self, values):
-        """
-        Obtains a L{Results} instance with a residuals vector I{R}
-        computed between the modeled and actual values, and sets its
-        I{SSE} to the sum of squared error of those residuals.
-
-        Returns the instance with I{R} and I{SSE} set, as well as
-        I{t}, I{XD}, and I{X}. If computation of the modeled values
-        failed, returns C{None}.
-        """
-        r = self.f_residuals(values)
         if r is not None:
             r.SSE = self.scale_SSE * np.sum(np.square(r.R))
         return r
@@ -1040,6 +999,13 @@ class Reporter(object):
         """
         kToday = self.kToday
         return kToday, kToday - len(self.ev) + 1
+
+    def position(self, name):
+        """
+        Returns a text box position identified by I{name}, or 'NW' if
+        undefined.
+        """
+        return self.ev.positions.get(name, 'NW').upper()
     
     def clipLower(self, X):
         return np.clip(X, self.minShown, None)
@@ -1294,7 +1260,8 @@ class Reporter(object):
         """
         sp.add_line('-', 2)
         sp.set_tickSpacing('x', 7.0, 1.0)
-        sp.add_textBox(self.ev.modelPosition, self.ev.model.f_text)
+        sp.add_textBox(
+            self.position('model'), self.ev.model.f_text)
         for k, nb in enumerate(self.ev.bounds):
             sp.add_textBox('SE', "{}: {:.5g}", nb[0], values[k])
         # Data vs best-fit model
@@ -1381,7 +1348,7 @@ class Reporter(object):
             if len(args[0]) < 3:
                 pos = args[0]
                 args = args[1:]
-            else: pos = self.ev.summaryPosition
+            else: pos = self.position('summary')
             sp.add_textBox(pos, *args)
         
         # Make a frozen local copy of the values list to work with, so
@@ -1462,22 +1429,6 @@ class Runner(object):
             self.q = None
             msg("Goodbye")
 
-    def sanitized(self, *args):
-        """
-        Returns a sanitized string uniquely determined by the supplied
-        args, which can be a string or C{None}.
-
-        Any spaces are removed. The text of multiple args is joined
-        with an underscore. For example, supplying "Santa Fe" and "New
-        Mexico" as args results in "SantaFe_NewMexico".
-        """
-        parts = []
-        for arg in args:
-            if arg is None:
-                continue
-            parts.append(arg.replace(" ", ""))
-        return "_".join(parts)
-            
     def tryGetClass(self, suffix):
         """
         Tries to return a reference to a subclass of L{Covid19Data} with
@@ -1542,7 +1493,7 @@ class Runner(object):
         """
         Where the action happens.
         """
-        def picklePath(suffix):
+        def picklePath():
             """
             Returns a consistent path for a pickle file in which to dump/load
             the final population for a given state and county.
@@ -1553,6 +1504,7 @@ class Runner(object):
             The file always goes in the current working directory,
             although that could be easily changed.
             """
+            suffix = sanitized(state, county)
             return sub("covid19-{}.dat", suffix)
         
         args = self.args
@@ -1568,12 +1520,10 @@ class Runner(object):
         else:
             state = None
             county = None
-        suffix = self.sanitized(state, county)
-        klass = self.tryGetClass(suffix)
         names, bounds = yield self.ev.setup(
-            klass, county, state, args.d).addErrback(oops)
+            state, county, args.d).addErrback(oops)
         if args.L:
-            loadPicklePath = picklePath(suffix)
+            loadPicklePath = picklePath()
             self.p = Population.load(
                 loadPicklePath, func=self.evaluate, bounds=bounds)
             msg("Resuming from population saved in {}", loadPicklePath)
@@ -1600,7 +1550,7 @@ class Runner(object):
         msg(0, "Final population:\n{}", self.p)
         msg(0, "Elapsed time: {:.2f} seconds", time.time()-startTime, 0)
         if args.P:
-            savePicklePath = picklePath(suffix)
+            savePicklePath = picklePath()
             self.p.save(savePicklePath)
             msg("Saved final population of best parameter combinations "+\
                 "to {}", savePicklePath)

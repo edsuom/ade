@@ -29,7 +29,7 @@ an instance of L{RelationsChecker} may be helpful, too.
 """
 
 import numpy as np
-from pingspice.util import *
+from ade.util import *
 
 
 class RelationsChecker(object):

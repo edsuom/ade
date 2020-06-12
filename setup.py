@@ -56,7 +56,8 @@ kw = {'version': '1.3.3',
       'install_requires': required,
       'packages': ['ade', 'ade.test', 'ade.scripts', 'ade.examples'],
       'package_data': {
-          'ade.examples': ['*.c'],
+          'ade.test': ['test.specs'],
+          'ade.examples': ['*.c', 'covid19.specs'],
       },
       'entry_points': {
           'console_scripts': [

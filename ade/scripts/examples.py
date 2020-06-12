@@ -54,7 +54,7 @@ def extract():
     else:
         os.mkdir(eDir)
         msg("Subdirectory created")
-    reFile = re.compile(r'[a-z].+\.(py|c|txt)$')
+    reFile = re.compile(r'[a-z].+\.(py|c|txt|specs)$')
     for fileName in pkg_resources.resource_listdir(*PKG_DIR):
         if not reFile.match(fileName):
             continue

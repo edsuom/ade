@@ -1,0 +1,56 @@
+#; -*- mode: conf;-*-
+# First relevant day (k0), parameter bounds, and relations for
+# modeling COVID19 outbreaks in various regions of the U.S.
+
+
+# Entire U.S. as a whole
+C19_
+-------------------------------------------------------------------------------
+# First relevant day after 1/22/20
+k0                  42
+# Positioning of model and summary info (only need specify if not 'NW')
+pos:model           NW
+pos:summary         NW
+# Parameter bounds
+pb:L                5e6         3.3e8
+pb:r                0.38        0.54
+pb:rf               0.93        0.97
+pb:th               14          20
+pb:t0               60          65
+pb:b                0           250
+# Constraint: Linear relation between parameters
+#  -----------------+-----------+-----------+---------------
+#                   |           |           |
+#                   m           b           limit +/-
+relations:r_t0     -29.486     +75.451      3.0
+-------------------------------------------------------------------------------
+
+
+# Washington State
+C19_Washington
+-------------------------------------------------------------------------------
+# First relevant day after 1/22/20
+k0                  70
+# Parameter bounds
+pb:L                1e5         7.6e6
+pb:r                0.02        0.8
+pb:rf               0.5         1.0
+pb:th               3           40
+pb:t0               50          90
+pb:b                0           3000
+-------------------------------------------------------------------------------
+
+
+# Spokane County, Washington
+C19_Washington_Spokane
+-------------------------------------------------------------------------------
+# First relevant day after 1/22/20
+k0                  70
+# Parameter bounds
+pb:L                1e3         1e6
+pb:r                0.02        0.9
+pb:rf               0.0         1.0
+pb:th               2           40
+pb:t0               50          90
+pb:b                0           20
+-------------------------------------------------------------------------------
