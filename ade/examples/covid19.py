@@ -24,9 +24,9 @@
 
 
 """
-Example script covid19.py: Identifying coefficients for a naive
-logistic growth model of the number of reported cases of Covid-19 in
-the U.S. vs time in days since the first case.
+Example script covid19.py: Identifying coefficients for a logistic
+growth model (with multiple growth regimes) of the number of reported
+cases of Covid-19 in the U.S. vs time in days since the first case.
 
 This example reads a 6-field BZIP2-compressed CSV file
 "ade-covid19.csv.bz2" whose original you can obtain from The New York
@@ -416,15 +416,9 @@ class Results(object):
 class Model(object):
     """
     I define a model for the number of new daily reported cases for
-    each day after 1/22/20. The model is a linear combination of one
-    or more sub-models:
-
-        - One of two mutually exclusive logistic growth models, a
-          conventional one and the author's own curve-flattened version,
-    
-        - A power-law model with exponential decay, and
-
-        - A linear model (constant number of new daily reported cases).
+    each day after 1/22/20. The model is a logistic growth model
+    modified to have multiple growth regimes and a smooth transition
+    between them.
 
     The conventional logistic growth model is the logistic (Verhulst)
     model: "A biological population with plenty of food, space to
@@ -438,145 +432,61 @@ class Model(object):
     equation. Here is the expression in the original logistic growth
     model for the number of new cases per day:::
 
-        xd(t,x) = x*r*(1-x/L)
+        xd(t,x) = x*r(t)*(1-x/L)
 
-    The author of this code (EAS) proposes two modifications to that
-    model: (1) multiplying it by a C{flatten} function to reduce the
-    growth rate with a smooth transition to a curve-flattened regime,
-    and (2) subjecting the result to a C{saturate} function for
-    imposing a "velocity saturation" soft upper limit.
-
-    Part (2) produces a second element of what is now a vector
-    function:::
-
-        xd(t,x) = [daily_actual(t,x), daily_reported(t,x)]
-
-    The second vector element is fitted to the number of new cases
-    each day, as would be conventional. The first element is not
-    limited by testing as the second one increasingly appears to be,
-    and thus the growth parameters of the model are not crammed into a
-    box of reported case statistics.
-
-    Here are the equations for logistic growth with curve flattening
-    and velocity saturation:::
-
-        xd(t,x) = [daily_actual(t,x), daily_reported(t,x)]
-        daily_actual(t,x) = r*x[0]*(1 - x[0]/L)*flatten(t) + b
-        flatten(t) = 0.5*rf*(1 - tanh(1.1*(t-t0)/th)) - rf + 1
-        daily_reported(t,x) = saturate(daily_actual(t,x))
-        saturate(z) = v*z / (1 + z^n)^(1/n)
-    
-    where
-
-        - I{L} is the maximum number of possible cases,
-
-        - I{rf} is the fractional reduction in growth rate at the
-          conclusion of the flattened-curve regime,
-
-        - I{th} is the time interval (in days) over which the middle
-          half of a smooth transition occurs from regular
-          logistic-growth behavior to a fully flattened curve with
-          I{rf} the non-flattened growth rate, and
-
-        - I{t0} is the time (in days after 1/22/20) at the middle of
-          the transition from regular logistic-growth behavior to a
-          fully flattened curve.
-
-        - I{b} is a (small) constant number of new cases per day.
-
-    The following additional EAS modification is being included as
-    an option: A soft upper limit on the number of new reported cases
-    per day. The output of are now two
+    The author of this code (EAS) proposes a major modification to
+    that model: providing for multiple growth regimes with a smooth
+    transition between them. That is reflected by I{r(t)} being a
+    function of I{t} rather than a constant.
     """
     # Wide-open default bounds
     bounds = [
         #--- Logistic Growth with curve flattening (L, r, rf, th, t0) ---------
         # Upper limit to number of total cases (upper bound is population)
         ('L',   (0, 3.3e8)),
-        # The initial daily growth rate
-        ('r',   (0.0, 1.0)),
-        # Max fractional reduction in effective r from curve flattening effect
-        # (0.0 for no flattening, 1.0 to completely flatten to zero growth)
-        ('rf',  (0.0, 1.0)),
-        # Time for flattening to have about half of its full effect (days)
-        ('th',  (1, 60)),
-        # Time (days after 1/22/20) at the middle of the transition
-        # from regular logistic-growth behavior to fully flattened
-        ('t0', (0, 90)),
-        #--- Linear (b) -------------------------------------------------------
         # Constant number of new cases reported each day since beginning
         ('b',   (0, 250)),
-        #----------------------------------------------------------------------
+        # r1: Regime #1 (first) daily growth rate
+        ('r1',   (0.0, 1.0)),
+        # t1: Midpoint of regime #1 (days after 1/22/20)
+        ('t1',  (60, 65)),
+        # s1: Span of regime #1 (days to midpoints between regimes)
+        ('s1',  (14, 20)),
+        # r2: Regime #2 (second) daily growth rate
+        ('r2', (0.03, 0.07)),
     ]
 
-    def __init__(self):
-        """
-        C{Model()}
-        
-        Sets up my model function and its Jacobian with a list of
-        parameter I{names}, in the order that their I{values} will
-        appear in L{__call__}.
-        """
-        def curve_text():
-            """
-            Returns a string with the right side of the equation
-            M{xd(t,x)=...}
-            """
-            text = "xd(t, x) = "
-            text += " + ".join(self.ftList)
-            return text
-
-        def append(xd_name, N, k):
-            """
-            Appends my method with I{xd_name} to my I{fList}, with its
-            Jacobian and a slice of the I{N} parameters following and
-            including I{k} assigned to it. Appends its name to my
-            I{ftList}.
-
-            Returns the new value of I{k}.
-            """
-            k1 = k + N
-            s = slice(k, k1)
-            self.fList.append((
-                getattr(self, xd_name),
-                getattr(self, xd_name + '_jac'), s))
-            self.ftList.append(getattr(self, xd_name + '_text'))
-            return k1
-                    
-        k = 0
-        self.fList = []
-        self.ftList = []
-        # Logistic growth (with curve flattening)
-        k = append('xd_logistic_flattened', 5, k)
-        self.f_text = curve_text()
-        
-    #--- Logistic Growth Model with Curve Flattening --------------------------
+    #--- Logistic Growth Model with Multiple Growth Regimes -------------------
     
-    xd_logistic_flattened_text \
-        = "r*x*(1-x/L)*\n         (0.5*rf*(1-tanh(1.1*(t-t0)/th))-rf+1)"
+    f_text =\
+        "xd(t,x) = r(t)*x*(1-x/L) + b\n" +\
+        "   r(t) = r1 + c12*(1 + tanh(1.1*(t-t1)/s1))\n" +\
+        "    c12 = 0.5*(r2-r1)"
 
-    def flatten(self, t, rf, th, t0):
+    def r(self, t, r1, t1, s1, r2):
         """
-        Impements the flattening function on time vector I{t} (in days)
-        that scales growth rate:::
+        Implements multiple growth regimes (currently just two):::
 
-            flatten(t, rf, th, t0) = 0.5*rf*(1 - tanh(1.1*(t-t0)/th)) - rf + 1
+            c12 = 0.5*(r2-r1)
+            r(t) = r1 + c12*(1 + tanh(1.1*(t-t1)/s1))
         """
-        return 0.5*rf*(1 - np.tanh(1.1*(t-t0)/th)) - rf + 1
-    
-    def xd_logistic_flattened(self, t, x, L, r, rf, th, t0):
+        c12 = 0.5*(r2-r1)
+        return r1 + c12*(1 + np.tanh(1.1*(t-t1)/s1))
+
+    def xd_logistic(self, t, x, L, b, r1, t1, s1, r2):
         """
         Modified logistic growth model (Verhulst model),
         U{https://services.math.duke.edu/education/ccp/materials/diffeq/logistic/logi1.html},
-        with curve flattening (my own non-expert addition, caveat
-        emptor).
+        with multiple growth regimes (my own non-expert addition,
+        caveat emptor).
         
         Given a scalar time (in days) followed by arguments defining
         curve parameters, returns the number of B{new} Covid-19
         cases expected to be reported on that day.::
 
-            xd(t, x) = r*x*(1 - x/L)*flatten(t, rf, th, t0)
-            flatten(t, rf, th, t0) = 0.5*rf*(1 - tanh(1.1*(t-t0)/th)) - rf + 1
+            xd(t,x) = x*r(t)*(1-x/L) + b
+            r(t) = r1 + c12*(1 + tanh(1.1*(t-t1)/s1))
+            c12 = 0.5*(r2-r1)
             
         This requires integration of a first-order differential
         equation, which is performed in L{curve}.
@@ -594,51 +504,53 @@ class Model(object):
         achieved, only as a limit), the rate of transition, and the
         time at which transition is happening most rapidly, i.e., the
         middle. In this modified logistic growth model, those three
-        terms appear as I{rf} (max fractional flattening reduction to
-        I{r}), I{th} (days for about 1/2 of flattening effect to
-        occur), and I{t0} (days after 1/22/20 for the middle, when
-        flattening effect being felt fastest).
+        terms appear as:
+
+            - I{c12}: Change from growth regime #1 to
+              growth regime #2),
+
+            - I{s1}: Span of transition, days required to go about 1/2
+              from first growth rate to the second one.
+        
+            - I{t1}: Days after 1/22/20 for the middle, when transition
+              is fastest.
 
         Let's take a look at each of those parameters in turn.
 
         In a conventional logistic growth model, the cumulative number
         of population members I{x} starts to level off as C{x/L}
         starts to approach 1.0. The conventional logistic-growth
-        function C{f(t, x)} never goes negative because its value
+        function C{f(t,x)} never goes negative because its value
         tapers off to zero as I{x} approaches I{L}. The value of I{x}
-        never can exceed I{L}. In the author's modification, there is
-        another term, C{flatten(t)} that further scales the growth as
-        a function of time:::
+        never can exceed I{L}. In the author's modification, the value
+        of I{r} is not a constant but the result of a function of
+        time:::
+
+            r(t,r1,t1,s1,r2) = r1 + c12*(1 + tanh(1.1*(t-t1)/s1))
+            c12 = 0.5*(r2-r1)
         
-            flatten(t,rf,th,t0) = 0.5*rf*(1-tanh(1.1*(t-t0)/th))-rf+1
-        
-        Once I{t} passes I{t0} (a parameter value that is evolving to
-        days in the single digits with U.S. data as of 4/1/20), the
-        growth will have been reduced half of the way from its
-        unmodified value to a full reduction of I{rf}, where I{rf} is
-        the fractional amount of the final reduction. For example, if
-        I{rf} is 0.2, the growth rate at I{t0} will be 10% lower than
-        it would have been without any curve flattening, and then will
-        approach the limit of a 20% growth rate reduction.
+        Once I{t} passes I{t1}, the growth rate will have gone half of
+        the way from its initial value I{r1} to its second value
+        I{r2}.
         
         The Jacobian with respect to I{x} is provided by
-        L{jacobian_logistic_flattened}.
+        L{jacobian_logistic}.
         """
         X = np.array(x)
-        return r*X*(1 - X/L)*self.flatten(t, rf, th, t0)
+        return self.r(t, r1, t1, s1, r2)*X*(1 - X/L) + b
     
-    def xd_logistic_flattened_jac(self, t, x, L, r, rf, th, t0):
+    def xd_logistic_jac(self, t, x, L, b, r1, t1, s1, r2):
         """
-        Jacobian for L{xd_logistic_flattened}, with respect to I{x}::
+        Jacobian for L{xd_logistic}, with respect to I{x}::
 
-            xd(t, x) = r*x*(1 - r*x/L)*flatten(t)
-            xd(t, x) = r*flatten(t)*x - r/L*flatten(t)*x^2
+            xd(t, x) = r(t)*x*(1 - x/L) + b
+            xd(t, x) = r(t)*x - r(t)/L*x^2
 
-            x2d(t, x) = -2*r/L*flatten(t)*x - r*flatten(t)
-            x2d(t, x) = -r*flatten(t)*(2*x/L + 1)
+            x2d(t, x) = r(t) - 2*r(t)*x/L
+            x2d(t, x) = r(t)*(1 - 2*x/L)
         """
         X = np.array(x)
-        return -r*self.flatten(t, rf, th, t0)*(2*X/L + 1)
+        return self.r(t, r1, t1, s1, r2)*(1 - 2*X/L)
 
     #--------------------------------------------------------------------------
     
@@ -672,35 +584,12 @@ class Model(object):
         the integration will go backwards using a sign-inverted output
         of C{xd(t, x)}. All of that is transparent to the user, and
         I{t} is in ascending order either way.
-        
-        If there are 2 parameters, I{L} and I{r}, only logistic growth
-        would be used, but that doesn't work because the initial
-        number of reported cases is zero. You need one of the other
-        terms, too.
-
-        If there are 4 parameters, I{a}, I{n}, I{ts}, and I{t0},
-        only power-law is used.
-
-        If there are 6 parameters, both logistic growth and power
-        law are used in a linear combination.
-
-        If there are 3 parameters (logistic growth plus linear), 5
-        parameters (power-law plus linear), or 7 parameters
-        (everything), a linear component is added.
         """
         def f(t, x):
-            XD = np.zeros_like(x)
-            for fc, jac, ks in self.fList:
-                XD_this = fc(t, x, *values[ks])
-                XD += XD_this
-            return XD
+            return self.xd_logistic(t, x, *values)
 
         def jac(t, x):
-            X2D = np.zeros_like(x)
-            for fc, jac, ks in self.fList:
-                X2D_this = jac(t, x, *values[ks])
-                X2D += X2D_this
-            return [X2D]
+            return [self.xd_logistic_jac(t, x, *values)]
         
         # Solve the initial value problem to get X, which in turns
         # lets us obtain values for XD, dependent as it probably is

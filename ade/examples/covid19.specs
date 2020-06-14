@@ -7,22 +7,34 @@
 C19_
 -------------------------------------------------------------------------------
 # First relevant day after 1/22/20
-k0                  42
+k0                  56
 # Positioning of model and summary info (only need specify if not 'NW')
 pos:model           NW
 pos:summary         NW
-# Parameter bounds
-pb:L                5e6         3.3e8
-pb:r                0.38        0.54
-pb:rf               0.93        0.97
-pb:th               14          20
-pb:t0               60          65
-pb:b                0           250
+
+# Logistic growth with multiple growth regimes: parameter bounds
+# ------------------+-----------+-------------------------------------
+#                   |           |
+#                   lower       upper
+# L: Upper limit to number of total cases (upper bound is population)
+pb:L                4e6         3.3e8
+# Constant number of new cases reported each day since beginning
+pb:b                0           800
+# r1: Regime #1 (first) daily growth rate (0.1 = 10% per day)
+pb:r1               0.4         0.95
+# t1: Midpoint of regime #1 (days after 1/22/20)
+pb:t1               40          75
+# s1: Span of regime #1 (days to midpoints between regimes)
+pb:s1               20          38
+# r2: Regime #2 (second) daily growth rate
+pb:r2               0.006       0.018
+# Parameters t2, s2, r3 would follow for a third growth regime
+
 # Constraint: Linear relation between parameters
-#  -----------------+-----------+-----------+---------------
+# ------------------+-----------+-----------+-------------------------
 #                   |           |           |
 #                   m           b           limit +/-
-relations:r_t0     -29.486     +75.451      3.0
+#relations:r1_t1     -29.486     +75.451      3.0
 -------------------------------------------------------------------------------
 
 
@@ -30,14 +42,25 @@ relations:r_t0     -29.486     +75.451      3.0
 C19_Washington
 -------------------------------------------------------------------------------
 # First relevant day after 1/22/20
-k0                  110
-# Parameter bounds
-pb:L                1e5         7.6e6
-pb:r                0.01        0.7
-pb:rf               0.0         1.0
-pb:th               1           80
-pb:t0               50          120
-pb:b                0           3000
+k0                  120
+
+# Logistic growth with multiple growth regimes: parameter bounds
+# ------------------+-----------+-------------------------------------
+#                   |           |
+#                   lower       upper
+# L: Upper limit to number of total cases (upper bound is population)
+pb:L                3e4         2e6
+# Constant number of new cases reported each day since beginning
+pb:b                0           300
+# r1: Regime #1 (first) daily growth rate
+pb:r1               0.02        1.5
+# t1: Midpoint of regime #1 (days after 1/22/20)
+pb:t1               10          120
+# s1: Span of regime #1 (days to midpoints between regimes)
+pb:s1               3           50
+# r2: Regime #2 (second) daily growth rate
+pb:r2               0.003       0.03
+# Parameters t2, s2, r3 would follow for a third growth regime
 -------------------------------------------------------------------------------
 
 
@@ -45,12 +68,23 @@ pb:b                0           3000
 C19_Washington_Spokane
 -------------------------------------------------------------------------------
 # First relevant day after 1/22/20
-k0                  70
-# Parameter bounds
-pb:L                1e3         1e6
-pb:r                0.02        0.9
-pb:rf               0.0         1.0
-pb:th               2           40
-pb:t0               50          90
-pb:b                0           20
+k0                  120
+
+# Logistic growth with multiple growth regimes: parameter bounds
+# ------------------+-----------+-------------------------------------
+#                   |           |
+#                   lower       upper
+# L: Upper limit to number of total cases (upper bound is population)
+pb:L                1e3         1e5
+# Constant number of new cases reported each day since beginning
+pb:b                0           50
+# r1: Regime #1 (first) daily growth rate
+pb:r1               0.02        1.0
+# t1: Midpoint of regime #1 (days after 1/22/20)
+pb:t1               10          120
+# s1: Span of regime #1 (days to midpoints between regimes)
+pb:s1               3           50
+# r2: Regime #2 (second) daily growth rate
+pb:r2               0.003       0.03
+# Parameters t2, s2, r3 would follow for a third growth regime
 -------------------------------------------------------------------------------
