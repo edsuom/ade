@@ -201,11 +201,7 @@ class Specs(object):
         Supply the the dict (and possibly sub-dict) name(s) in
         top-first order.
 
-        Returns a 0 entry if it doesn't exist, or the value of
-        I{default} if that keyword is set to something.
-
-        An empty top-level dict is returned if only that is requested
-        (no entry keys specified), even if it doesn't exist.
+        Returns an empty dict if the attribute or entry doesn't exist.
         """
         names = list(names)
         first = names.pop(0)
@@ -217,7 +213,7 @@ class Specs(object):
                     kw['dct'] = obj
                     return self.get(*names, **kw)
                 return obj
-            return kw.get('default', 0)
+            return {}
         obj = getattr(self, first, {})
         if names and isinstance(obj, dict):
             kw['dct'] = obj

@@ -249,7 +249,7 @@ def oops(failureObj):
     abortNow()
     os._exit(1)
 
-def sanitized(self, *args):
+def sanitized(*args):
     """
     Returns a sanitized string uniquely determined by the supplied
     args, any of which can be a string or C{None}.
@@ -488,17 +488,35 @@ class Model(object):
     an option: A soft upper limit on the number of new reported cases
     per day. The output of are now two
     """
-    def __init__(self, names):
+    # Wide-open default bounds
+    bounds = [
+        #--- Logistic Growth with curve flattening (L, r, rf, th, t0) ---------
+        # Upper limit to number of total cases (upper bound is population)
+        ('L',   (0, 3.3e8)),
+        # The initial daily growth rate
+        ('r',   (0.0, 1.0)),
+        # Max fractional reduction in effective r from curve flattening effect
+        # (0.0 for no flattening, 1.0 to completely flatten to zero growth)
+        ('rf',  (0.0, 1.0)),
+        # Time for flattening to have about half of its full effect (days)
+        ('th',  (1, 60)),
+        # Time (days after 1/22/20) at the middle of the transition
+        # from regular logistic-growth behavior to fully flattened
+        ('t0', (0, 90)),
+        #--- Linear (b) -------------------------------------------------------
+        # Constant number of new cases reported each day since beginning
+        ('b',   (0, 250)),
+        #----------------------------------------------------------------------
+    ]
+
+    def __init__(self):
         """
-        C{Model(names)}
+        C{Model()}
         
         Sets up my model function and its Jacobian with a list of
         parameter I{names}, in the order that their I{values} will
         appear in L{__call__}.
         """
-        def has_param(name):
-            return name in names
-        
         def curve_text():
             """
             Returns a string with the right side of the equation
@@ -528,12 +546,8 @@ class Model(object):
         k = 0
         self.fList = []
         self.ftList = []
-        N = len(names)
         # Logistic growth (with curve flattening)
         k = append('xd_logistic_flattened', 5, k)
-        if has_param('v'):
-            # Apply velocity saturation
-            k = append('xd_powerlaw', 2, k)
         self.f_text = curve_text()
         
     #--- Logistic Growth Model with Curve Flattening --------------------------
@@ -720,14 +734,6 @@ class Evaluator(Picklable):
     parameter values for a L{curve} to get a (deferred)
     sum-of-squared-error fitness of the curve to the actual data.
 
-    You select a model by defining its uniquely named parameters in
-    the I{bounds} list of your chosen subclass of L{Covid19Data}. For
-    example, to use a linear combination of both models, that list
-    should define I{L} and L{r} for the logistic growth component and
-    I{a}, I{n}, I{ts}, and I{t0} for the power-law component. If a
-    linear component is desired (constant number of new cases each
-    day), define it with parameter I{b}.
-
     @ivar XD: The actual number of new cases per day, each day, for
         the selected country or region since the first reported case
         in the NYT dataset on January 21, 2020, B{after} my
@@ -806,11 +812,12 @@ class Evaluator(Picklable):
                 msg("{:03d}\t{}\t{:d}\t{:d}",
                     k, self.dayText(k), int(x), int(xd))
                 self.XD[k] = self.transform(xd)
-            # Set up model for all fitting and plotting
-            self.model = Model(names)
             # Done, return names and bounds to caller
             return names, bounds
 
+        # An instance of Model for all fitting and plotting
+        self.model = Model()
+        # Set region of interest
         if state and county:
             self.location = sub("{} County, {}", county, state)
         elif state:
@@ -818,10 +825,12 @@ class Evaluator(Picklable):
         else: self.location = "entire U.S."
         data = self.data = Covid19Data()
         data.state = state; data.county = county
+        # Load specs, possibly including narrowed parameter bounds for
+        # this region
         s = SpecsLoader('covid19.specs')()
         dictName = sub("C19_{}", sanitized(state, county))
         data.k0 = int(s.get(dictName, 'k0'))
-        self.positions = s.get(dictName, 'position')
+        self.positions = s.get(dictName, 'pos')
         data.relations = {}
         relations = s.get(dictName, 'relations')
         for var_12 in relations:
@@ -830,9 +839,10 @@ class Evaluator(Picklable):
             data.relations.setdefault(var_1, {})[var_2] = [m, b, limit]
         names = []; bounds = []
         pb = s.get(dictName, 'pb')
-        for name in pb:
+        for name, theseBounds in self.model.bounds:
+            if name in pb: theseBounds = pb[name]
             names.append(name)
-            bounds.append(pb[name])
+            bounds.append(theseBounds)
         return data.setup(daysAgo).addCallbacks(done, oops)
 
     def transform(self, XD=None, inverse=False):
@@ -941,15 +951,15 @@ class Reporter(object):
     minShown = 10
     daysForward = 30
     
-    def __init__(self, evaluator, population, ratio=False, daily=False):
+    def __init__(self, runner, ratio=False, daily=False):
         """
         C{Reporter(evaluator, population, ratio=False, daily=False)}
         """
-        self.ev = evaluator
-        self.p = population
+        for name in ('names', 'ev', 'p'):
+            setattr(self, name, getattr(runner, name))
         self.includeRatio = ratio
         self.includeDaily = daily
-        self.prettyValues = population.pm.prettyValues
+        self.prettyValues = self.p.pm.prettyValues
         N = 3; height = 17
         for option in ratio, daily:
             if option:
@@ -1262,8 +1272,8 @@ class Reporter(object):
         sp.set_tickSpacing('x', 7.0, 1.0)
         sp.add_textBox(
             self.position('model'), self.ev.model.f_text)
-        for k, nb in enumerate(self.ev.bounds):
-            sp.add_textBox('SE', "{}: {:.5g}", nb[0], values[k])
+        for k, name in enumerate(self.names):
+            sp.add_textBox('SE', "{}: {:.5g}", name, values[k])
         # Data vs best-fit model
         return self.model_past(sp, values)
 
@@ -1520,18 +1530,19 @@ class Runner(object):
         else:
             state = None
             county = None
-        names, bounds = yield self.ev.setup(
+        self.names, self.bounds = yield self.ev.setup(
             state, county, args.d).addErrback(oops)
         if args.L:
             loadPicklePath = picklePath()
             self.p = Population.load(
-                loadPicklePath, func=self.evaluate, bounds=bounds)
+                loadPicklePath, func=self.evaluate, bounds=self.bounds)
             msg("Resuming from population saved in {}", loadPicklePath)
         else:
-            self.p = Population(self.evaluate, names, bounds, popsize=args.p)
+            self.p = Population(
+                self.evaluate, self.names, self.bounds, popsize=args.p)
         rc = self.ev.relations()
         if rc: self.p.setConstraints(rc)
-        reporter = Reporter(self.ev, self.p, ratio=args.r, daily=args.d)
+        reporter = Reporter(self, ratio=args.r, daily=args.d)
         self.p.addCallback(reporter)
         if len(self.p):
             yield self.reEvaluate()
