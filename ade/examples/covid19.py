@@ -416,9 +416,9 @@ class Results(object):
 class Model(object):
     """
     I define a model for the number of new daily reported cases for
-    each day after 1/22/20. The model is a logistic growth model
-    modified to have multiple growth regimes and a smooth transition
-    between them.
+    each day after the date of the region's first reported case. The
+    model is a logistic growth model modified to have multiple growth
+    regimes and a smooth transition between them.
 
     The conventional logistic growth model is the logistic (Verhulst)
     model: "A biological population with plenty of food, space to
@@ -438,66 +438,136 @@ class Model(object):
     that model: providing for multiple growth regimes with a smooth
     transition between them. That is reflected by I{r(t)} being a
     function of I{t} rather than a constant.
+
+    @ivar N: The number of parameters in the model.
+    
     """
-    # Wide-open default bounds
-    bounds = [
-        #--- Logistic Growth with curve flattening (L, r, rf, th, t0) ---------
-        # Upper limit to number of total cases (upper bound is population)
-        ('L',   (0, 3.3e8)),
+    # Logistic growth with multiple growth regimes
+    # Wide-open default parameter bounds
+    names = [
+        # --- Regime #1 ---------------------------------------------------
+        # Upper limit to number of total cases (<= population)
+        'L',
         # Constant number of new cases reported each day since beginning
-        ('b',   (0, 250)),
-        # r1: Regime #1 (first) daily growth rate
-        ('r1',   (0.0, 1.0)),
-        # t1: Midpoint of regime #1 (days after 1/22/20)
-        ('t1',  (60, 65)),
-        # s1: Span of regime #1 (days to midpoints between regimes)
-        ('s1',  (14, 20)),
-        # r2: Regime #2 (second) daily growth rate
-        ('r2', (0.03, 0.07)),
+        'b',
+        # r1: Initial daily growth rate (0.1 = 10% per day)
+        'r1',
+        # --- Regime #2 ---------------------------------------------------
+        # t1: Midpoint between regime #1, #2 (days after first case)
+        't1',
+        # s1: Span of regime #1 (days between regime halfway points)
+        's1',
+        # r2: Second daily growth rate
+        'r2',
+        # --- Regime #3 ---------------------------------------------------
+        # t2: Midpoint between regime #2, #3 (days after first case)
+        't2',
+        # s2: Span of regime #2 (days between regime halfway points)
+        's2',
+        # r3: Third daily growth rate
+        'r3',
+        # -----------------------------------------------------------------
     ]
 
     #--- Logistic Growth Model with Multiple Growth Regimes -------------------
-    
-    f_text =\
-        "xd(t,x) = r(t)*x*(1-x/L) + b\n" +\
-        "   r(t) = r1 + c12*(1 + tanh(1.1*(t-t1)/s1))\n" +\
-        "    c12 = 0.5*(r2-r1)"
 
-    def r(self, t, r1, t1, s1, r2):
+    def __init__(self, names):
+        OK = False
+        names = set(names)
+        if {'L', 'b', 'r1'} <= names:
+            N = 3
+            OK = True
+        if {'t1', 's1', 'r2'} <= names:
+            if N == 3:
+                N = 6
+            else: OK = False
+        if {'t2', 's2', 'r3'} <= names:
+            if N == 6:
+                N = 9
+            else: OK = False
+        if len(names) > N: OK = False
+        if not OK:
+            raise ValueError(sub(
+                "Parameters {} not a valid combination!", ', '.join(names)))
+        self.r = self.r_3 if N==3 else self.r_6 if N==6 else self.r_9
+        self.N = N
+
+    @property
+    def f_text(self):
+        parts = [sub(
+            "xd(t,x) = {}*x*(1-x/L) + b", "r(t)" if self.N > 3 else "r")]
+        if self.N > 3:
+            parts.extend([
+                "r(t) = r1 + c12*(1 + tanh(1.1*(t-t1)/s1))",
+                "c12 = 0.5*(r2-r1)",
+            ])
+        if self.N > 6:
+            parts.insert(-1, "     + r2 + c23*(1 + tanh(1.1*(t-t2)/s2))")
+            parts.append("c23 = 0.5*(r3-r2)")
+        return "\n".join(parts)
+
+    def r_3(self, t, r1):
         """
-        Implements multiple growth regimes (currently just two):::
+        Implements C{r(t)} for a 3-parameter model having a single growth
+        regime (conventional logistic growth model).
+        """
+        return r1
 
-            c12 = 0.5*(r2-r1)
+    def r_6(self, t, r1, t1, s1, r2):
+        """
+        Implements C{r(t)} for a 6-parameter model having a two growth
+        regimes:::
+
             r(t) = r1 + c12*(1 + tanh(1.1*(t-t1)/s1))
+            c12 = 0.5*(r2-r1)
         """
         c12 = 0.5*(r2-r1)
         return r1 + c12*(1 + np.tanh(1.1*(t-t1)/s1))
 
-    def xd_logistic(self, t, x, L, b, r1, t1, s1, r2):
+    def r_9(self, t, r1, t1, s1, r2, t2, s2, r3):
         """
-        Modified logistic growth model (Verhulst model),
+        Implements C{r(t)} for a 9-parameter model having a three growth
+        regimes:::
+
+            r(t) = r1
+                 + c12*(1 + tanh(1.1*(t-t1)/s1))
+                 + c23*(1 + tanh(1.1*(t-t1-t2)/s2))
+            c12 = 0.5*(r2-r1)
+            c23 = 0.5*(r3-r2)
+        """
+        r12 = self.r_6(t, r1, t1, s1, r2)
+        c23 = 0.5*(r3-r2)
+        return r12 + c23*(1 + np.tanh(1.1*(t-t1-t2)/s2))
+
+    def xd(self, t, x, *values):
+        """
+        Implements C{xd(t,x)} for a 3-9 parameter model having 1-3 growth
+        regimes. With a single growth regime (3 parameters), this is a
+        conventional logistic growth (Verhulst) model:
+
         U{https://services.math.duke.edu/education/ccp/materials/diffeq/logistic/logi1.html},
-        with multiple growth regimes (my own non-expert addition,
-        caveat emptor).
-        
+
         Given a scalar time (in days) followed by arguments defining
         curve parameters, returns the number of B{new} Covid-19
         cases expected to be reported on that day.::
 
             xd(t,x) = x*r(t)*(1-x/L) + b
-            r(t) = r1 + c12*(1 + tanh(1.1*(t-t1)/s1))
-            c12 = 0.5*(r2-r1)
-            
+
         This requires integration of a first-order differential
         equation, which is performed in L{curve}.
+        
+        With 6 or 9 parameters, there are 2 or 3 growth regimes (my
+        own non-expert addition, caveat emptor). Smooth transitions
+        between regimes is effected by the hyperbolic tangent. This
+        function has proved very useful for use in the nonlinear
+        models I've developed for MOSFET circuit simulation.
 
-        The hyperbolic tangent has been a very useful function for use
-        in the nonlinear models I've developed for MOSFET circuit
-        simulation. it provides a smooth transition from one
-        simulation regime to another. In the case of COVID-19
-        infections, it seemed to me that there was such a smooth
-        transition happening as the effect of social distancing
-        measures have become felt in various countries/regions.
+        It provides a smooth transition from one simulation regime to
+        another. In the case of COVID-19 infections, it seemed to me
+        that there was such a smooth transition happening as the
+        effect of social distancing measures have become felt in
+        various countries/regions, and now as things have started
+        opening up again mostly in red states.
 
         There are three main parameters to a hyperbolic tangent
         component of a model: The maximum magnitude (never quite
@@ -512,8 +582,8 @@ class Model(object):
             - I{s1}: Span of transition, days required to go about 1/2
               from first growth rate to the second one.
         
-            - I{t1}: Days after 1/22/20 for the middle, when transition
-              is fastest.
+            - I{t1}: Days after the region's first reported case for
+              the middle, when transition is fastest.
 
         Let's take a look at each of those parameters in turn.
 
@@ -534,14 +604,21 @@ class Model(object):
         I{r2}.
         
         The Jacobian with respect to I{x} is provided by
-        L{jacobian_logistic}.
+        L{xd_jac}. Because no version of I{r(t)} is dependent on I{x},
+        there are no complications doing the chain rule for
+        differentiation.
+        
+        The additional parameters I{c23}, I{s2}, and I{t2} define the
+        transition to a third growth regime if that is being modeled
+        as well.
         """
         X = np.array(x)
-        return self.r(t, r1, t1, s1, r2)*X*(1 - X/L) + b
+        L, b = values[:2]
+        return self.r(t, *values[2:])*X*(1 - X/L) + b
     
-    def xd_logistic_jac(self, t, x, L, b, r1, t1, s1, r2):
+    def xd_jac(self, t, x, *values):
         """
-        Jacobian for L{xd_logistic}, with respect to I{x}::
+        Jacobian for L{xd}, with respect to I{x}::
 
             xd(t, x) = r(t)*x*(1 - x/L) + b
             xd(t, x) = r(t)*x - r(t)/L*x^2
@@ -550,7 +627,8 @@ class Model(object):
             x2d(t, x) = r(t)*(1 - 2*x/L)
         """
         X = np.array(x)
-        return self.r(t, r1, t1, s1, r2)*(1 - 2*X/L)
+        L = values[0]
+        return self.r(t, *values[2:])*(1 - 2*X/L)
 
     #--------------------------------------------------------------------------
     
@@ -586,10 +664,10 @@ class Model(object):
         I{t} is in ascending order either way.
         """
         def f(t, x):
-            return self.xd_logistic(t, x, *values)
+            return self.xd(t, x, *values)
 
         def jac(t, x):
-            return [self.xd_logistic_jac(t, x, *values)]
+            return [self.xd_jac(t, x, *values)]
         
         # Solve the initial value problem to get X, which in turns
         # lets us obtain values for XD, dependent as it probably is
@@ -629,7 +707,6 @@ class Evaluator(Picklable):
         L{transform} has been applied.
     """
     scale_SSE = 1e-2
-    f_text = None
 
     def __getattr__(self, name):
         return getattr(self.data, name)
@@ -666,7 +743,22 @@ class Evaluator(Picklable):
         if self.data.relations is None:
             return
         return RelationsChecker(self.data.relations)
-    
+
+    def dayText(self, k=None):
+        """
+        Returns text indicating the date I{k} days after the first
+        reported case.
+
+        To get text for the last (most recent) reported case, leave
+        I{k} C{None}.
+        """
+        if k is None:
+            day = self.dates[-1]
+        else:
+            firstDay = self.dates[0]
+            day = firstDay + timedelta(days=k)
+        return day.strftime("%m/%d")
+
     def setup(self, state, county, daysAgo=0):
         """
         Call with a state and county.
@@ -704,8 +796,6 @@ class Evaluator(Picklable):
             # Done, return names and bounds to caller
             return names, bounds
 
-        # An instance of Model for all fitting and plotting
-        self.model = Model()
         # Set region of interest
         if state and county:
             self.location = sub("{} County, {}", county, state)
@@ -728,10 +818,12 @@ class Evaluator(Picklable):
             data.relations.setdefault(var_1, {})[var_2] = [m, b, limit]
         names = []; bounds = []
         pb = s.get(dictName, 'pb')
-        for name, theseBounds in self.model.bounds:
-            if name in pb: theseBounds = pb[name]
-            names.append(name)
-            bounds.append(theseBounds)
+        for name in Model.names:
+            if name in pb:
+                names.append(name)
+                bounds.append(pb[name])
+        # An instance of Model for all fitting and plotting
+        self.model = Model(names)
         return data.setup(daysAgo).addCallbacks(done, oops)
 
     def transform(self, XD=None, inverse=False):
@@ -758,21 +850,6 @@ class Evaluator(Picklable):
             return np.sign(XD) * XD**2
         return np.sign(XD) * np.sqrt(np.abs(XD))
     
-    def dayText(self, k=None):
-        """
-        Returns text indicating the date I{k} days after the first
-        reported case.
-
-        To get text for the last (most recent) reported case, leave
-        I{k} C{None}.
-        """
-        if k is None:
-            day = self.dates[-1]
-        else:
-            firstDay = self.dates[0]
-            day = firstDay + timedelta(days=k)
-        return day.strftime("%m/%d")
-
     def residuals(self, values):
         """
         Computes a 1-D array of transformed residuals to I{XD} from my
@@ -1420,7 +1497,7 @@ class Runner(object):
             state = None
             county = None
         self.names, self.bounds = yield self.ev.setup(
-            state, county, args.d).addErrback(oops)
+            state, county, args.D).addErrback(oops)
         if args.L:
             loadPicklePath = picklePath()
             self.p = Population.load(
