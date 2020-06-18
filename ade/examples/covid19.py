@@ -807,7 +807,8 @@ class Evaluator(Picklable):
         # Load specs, possibly including narrowed parameter bounds for
         # this region
         s = SpecsLoader('covid19.specs')()
-        dictName = sub("C19_{}", sanitized(state, county))
+        self.suffix = sanitized(state, county)
+        dictName = sub("C19_{}", self.suffix)
         data.k0 = int(s.get(dictName, 'k0'))
         self.positions = s.get(dictName, 'pos')
         data.relations = {}
@@ -901,19 +902,13 @@ class Reporter(object):
     is found that's better than any of the others thus far.
 
     Prints the sum-of-squared error and parameter values to the
-    console and updates a plot image (PNG) at I{plotFilePath}.
-
-    @cvar plotFilePath: The file name in the current directory of a
-        PNG file to write an update with a Matplotlib plot image of
-        the actual vs. modeled temperature versus thermistor
-        resistance curves.
+    console and updates a plot image (PNG) at L{plotFilePath}.
 
     @cvar minShown: Minimum number of reported cases to show at the
         bottom of the log plot.
 
     @cvar N: Number of random points in extrapolated scatter plot.
     """
-    plotFilePath = "covid19.png"
     minShown = 10
     daysForward = 30
     
@@ -976,6 +971,20 @@ class Reporter(object):
         kToday = self.kToday
         return kToday, kToday - len(self.ev) + 1
 
+    @property
+    def plotFilePath(self):
+        """
+        Property: A file path (in the current
+        directory) of a PNG file to write an update with a Matplotlib
+        plot image of the modeling result.
+
+        The plot includes actual vs. modeled temperature versus
+        thermistor resistance curves. The suffix for the region is
+        included, along with I{N3}, I{N6}, or I{N9} to indicate the
+        number of model parameters, and a I{.png} extension.
+        """
+        return sub("covid19-{}-N{:d}.png", self.ev.suffix, self.ev.model.N)
+                       
     def position(self, name):
         """
         Returns a text box position identified by I{name}, or 'NW' if
@@ -1378,6 +1387,8 @@ class Runner(object):
         """
         C{Runner(args)}
         """
+        if args.b and args.r:
+            raise ValueError("Options -b and -r are mutually exclusive!")
         self.args = args
         self.ev = Evaluator()
         if args.t:
@@ -1497,7 +1508,7 @@ class Runner(object):
             state = None
             county = None
         self.names, self.bounds = yield self.ev.setup(
-            state, county, args.D).addErrback(oops)
+            state, county, args.d).addErrback(oops)
         if args.L:
             loadPicklePath = picklePath()
             self.p = Population.load(
@@ -1508,7 +1519,7 @@ class Runner(object):
                 self.evaluate, self.names, self.bounds, popsize=args.p)
         rc = self.ev.relations()
         if rc: self.p.setConstraints(rc)
-        reporter = Reporter(self, ratio=args.r, daily=args.d)
+        reporter = Reporter(self, ratio=not args.R, daily=not args.D)
         self.p.addCallback(reporter)
         if len(self.p):
             yield self.reEvaluate()
@@ -1521,16 +1532,16 @@ class Runner(object):
         de = DifferentialEvolution(
             self.p,
             CR=args.C, F=F, maxiter=args.m,
-            randomBase=not args.b, uniform=args.u, dwellByGrave=1,
+            uniform=args.u, dwellByGrave=1,
+            randomBase=0.0 if args.b else 1.0 if args.r else 0.5,
             adaptive=not args.n, bitterEnd=args.e, logHandle=self.fh)
         yield de()
         msg(0, "Final population:\n{}", self.p)
         msg(0, "Elapsed time: {:.2f} seconds", time.time()-startTime, 0)
-        if args.P:
-            savePicklePath = picklePath()
-            self.p.save(savePicklePath)
-            msg("Saved final population of best parameter combinations "+\
-                "to {}", savePicklePath)
+        savePicklePath = picklePath()
+        self.p.save(savePicklePath)
+        msg("Saved final population of best parameter combinations "+\
+            "to {}", savePicklePath)
         yield self.shutdown()
         reactor.stop()
         msg(None)
@@ -1561,6 +1572,11 @@ args = Args(
     curve, along with a statistical extrapolation plot, in the PNG
     file (also in the current directory) covid19.png.
 
+    Dumps a finalized ade.Population object to a pickle file
+    covid19-<state>_<county>-N[369].dat. You can resume from such a
+    file with the C{-L} option but processing is slower for some
+    reason.
+    
     On Linux, a plot window should be opened automatically. If not,
     you can obtain the free "qiv" image viewer and see the plots,
     automatically updated, with the command "qiv -Te
@@ -1570,14 +1586,15 @@ args = Args(
     Press the Enter key to quit early.
     """
 )
-args('-D', '--days-ago', 0,
+args('-d', '--days-ago', 0,
      "Limit latest data to N days ago rather than up to today")
 args('-m', '--maxiter', 100, "Maximum number of DE generations to run")
 args('-e', '--bitter-end', "Keep working to the end even with little progress")
 args('-p', '--popsize', 40, "Population: # individuals per unknown parameter")
 args('-C', '--CR', 0.7, "DE Crossover rate CR")
 args('-F', '--F', "0.5,1.0", "DE mutation scaling F: two values for range")
-args('-b', '--best', "Use DE/best/1 instead of DE/rand/1")
+args('-r', '--random', "Use DE/rand/1/bin instead of DE/rand-0.50/1/bin")
+args('-b', '--best', "Use DE/best/1/bin instead of DE/rand-0.50/1/bin")
 args('-n', '--not-adaptive', "Don't use automatic F adaptation")
 args('-u', '--uniform', "Initialize population uniformly instead of with LHS")
 args('-N', '--N-cores', 0, "Limit the number of CPU cores")
@@ -1585,13 +1602,11 @@ args('-t', '--threads',
      "Use a single worker thread instead of processes (for debugging)")
 args('-l', '--logfile',
      "Write results to logfile 'covid19.log' instead of STDOUT")
-args('-P', '--pickle-dump',
-     "Dump finalized ade.Population object to pickle file for state/county")
 args('-L', '--pickle-load',
      "Resume previous ade.Population object stored for this state/county")
-args('-r', '--include-ratio',
-     "Include subplot with ratio of new vs cumulative cases")
-args('-d', '--include-daily',
-     "Include subplot with new daily cases")
+args('-R', '--exclude-ratio',
+     "Exclude subplot with ratio of new vs cumulative cases")
+args('-D', '--exclude-daily',
+     "Exclude subplot with new daily cases")
 args("[<State Name> [<County Name>]]")
 args(main)

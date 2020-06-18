@@ -54,8 +54,8 @@ class ImageViewer(object):
     notifier = None
     transport = None
     exList = [
-        ["/usr/bin/pqiv", "--disable-scaling"],
-        ["/usr/bin/qiv", "-Te"],
+        ["/usr/bin/pqiv", "--disable-scaling", "--window-title={}"],
+        ["/usr/bin/qiv", "-Teit"],
     ]
     
     class IV_Protocol(protocol.ProcessProtocol):
@@ -147,7 +147,10 @@ class ImageViewer(object):
             if os.path.exists(exPath):
                 self.ivp = self.IV_Protocol()
                 args = [os.path.basename(exPath)]
-                args.extend(ex[1:])
+                for arg in ex[1:]:
+                    if "{}" in arg:
+                        arg = arg.replace("{}", os.path.basename(fp.path))
+                        args.append(arg)
                 args.append(fp.path)
                 self.transport = reactor.spawnProcess(
                     self.ivp, exPath, args, env=None)

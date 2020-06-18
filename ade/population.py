@@ -439,6 +439,11 @@ class Population(object):
         those functions (or even a different one, though that would be
         weird) with the I{func} and I{complaintCallback} keywords.
 
+        B{Note}: For some mysterious reason, the DE algorithm seems to
+        run significantly slower when resuming with a population that
+        has been loaded using this method than with one initialized
+        from scratch.
+
         @keyword func: Evaluation function, specify if you want to
             resume evaluations. All individuals in the loaded
             population should have their SSEs re-evaluated if anything
