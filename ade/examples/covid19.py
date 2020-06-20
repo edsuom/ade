@@ -810,7 +810,8 @@ class Evaluator(Picklable):
         self.suffix = sanitized(state, county)
         dictName = sub("C19_{}", self.suffix)
         data.k0 = int(s.get(dictName, 'k0'))
-        self.positions = s.get(dictName, 'pos')
+        self.position = s.get('pos_defaults')
+        self.position.update(s.get(dictName, 'pos'))
         data.relations = {}
         relations = s.get(dictName, 'relations')
         for var_12 in relations:
@@ -985,12 +986,12 @@ class Reporter(object):
         """
         return sub("covid19-{}-N{:d}.png", self.ev.suffix, self.ev.model.N)
                        
-    def position(self, name):
+    def pos(self, name):
         """
-        Returns a text box position identified by I{name}, or 'NW' if
-        undefined.
+        Returns a text box position identified by I{name}, or the default
+        position specified in the "pos_defaults" dict if undefined.
         """
-        return self.ev.positions.get(name, 'NW').upper()
+        return self.ev.position[name]
     
     def clipLower(self, X):
         return np.clip(X, self.minShown, None)
@@ -1225,7 +1226,7 @@ class Reporter(object):
         I{R} in the supplied instance I{r} of L{Results}.
         """
         def tb(*args):
-            sp.add_textBox('SW', *args)
+            sp.add_textBox(self.pos('stats'), *args)
 
         # Significance of non-normality
         tb("Non-normality: p = {:.4f}", stats.normaltest(r.R)[1])
@@ -1246,9 +1247,10 @@ class Reporter(object):
         sp.add_line('-', 2)
         sp.set_tickSpacing('x', 7.0, 1.0)
         sp.add_textBox(
-            self.position('model'), self.ev.model.f_text)
+            self.pos('model'), self.ev.model.f_text)
         for k, name in enumerate(self.names):
-            sp.add_textBox('SE', "{}: {:.5g}", name, values[k])
+            sp.add_textBox(
+                self.pos('params'), "{}: {:.5g}", name, values[k])
         # Data vs best-fit model
         return self.model_past(sp, values)
 
@@ -1301,7 +1303,8 @@ class Reporter(object):
             ta[-1], "{} had {:.1f}% of all\ncase reports thus far",
             self.ev.dayText(), Ra[-1])
         sp.add_textBox(
-            'NE', "New cases each day as a percentage of total cases thus far")
+            self.pos('daily_pct'),
+            "New cases each day as a percentage of total cases thus far")
         sp.set_ylabel("% New")
         ax = sp(ta, Ra)
         self.add_model(ax, tm, Rm)
@@ -1319,7 +1322,8 @@ class Reporter(object):
             ta[-1], "{} had {:.0f} new case reports",
             self.ev.dayText(), XDa[-1])
         sp.add_textBox(
-            'NW', "New cases reported each day")
+            self.pos('daily_new'),
+            "New cases reported each day")
         sp.set_ylabel("Newly Reported")
         ax = sp(ta, XDa)
         self.add_model(ax, tm, XDm)
@@ -1333,7 +1337,7 @@ class Reporter(object):
             if len(args[0]) < 3:
                 pos = args[0]
                 args = args[1:]
-            else: pos = self.position('summary')
+            else: pos = self.pos('summary')
             sp.add_textBox(pos, *args)
         
         # Make a frozen local copy of the values list to work with, so
