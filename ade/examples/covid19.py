@@ -979,12 +979,12 @@ class Reporter(object):
         directory) of a PNG file to write an update with a Matplotlib
         plot image of the modeling result.
 
-        The plot includes actual vs. modeled temperature versus
-        thermistor resistance curves. The suffix for the region is
-        included, along with I{N3}, I{N6}, or I{N9} to indicate the
-        number of model parameters, and a I{.png} extension.
+        The suffix for the region is included, along with a I{.png}
+        extension.
         """
-        return sub("covid19-{}-N{:d}.png", self.ev.suffix, self.ev.model.N)
+        suffix = self.ev.suffix
+        if not suffix: suffix = "US"
+        return sub("covid19-{}.png", suffix)
                        
     def pos(self, name):
         """
@@ -1227,6 +1227,7 @@ class Reporter(object):
         """
         def tb(*args):
             sp.add_textBox(self.pos('stats'), *args)
+            msg(*args)
 
         # Significance of non-normality
         tb("Non-normality: p = {:.4f}", stats.normaltest(r.R)[1])
@@ -1344,7 +1345,7 @@ class Reporter(object):
         # outdated stuff doesn't get plotted
         values = list(values)
         msg(0, self.prettyValues(
-            values, "SSE={:.5g} on eval {:d}:", SSE, counter), 0)
+            values, "SSE={:.5g} on eval {:d}:", SSE, counter), '-')
         self.pt.set_title(
             "Modeled (red) vs Actual (blue) Reported Cases of COVID-19: {}",
             self.ev.location)
@@ -1375,6 +1376,7 @@ class Reporter(object):
                 if self.includeDaily:
                     self.subplot_daily(sp, ta, XDa, tm, XDm)
         self.pt.show()
+        msg("")
 
 
 class Runner(object):
@@ -1496,7 +1498,8 @@ class Runner(object):
             although that could be easily changed.
             """
             suffix = sanitized(state, county)
-            return sub("covid19-{}.dat", suffix)
+            possibleDash = "-" if suffix else ""
+            return sub("covid19{}{}.dat", possibleDash, suffix)
         
         args = self.args
         startTime = time.time()
