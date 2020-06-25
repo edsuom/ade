@@ -1553,18 +1553,38 @@ class Runner(object):
         reactor.stop()
         msg(None)
 
+    @staticmethod
+    def profile(f, *args, **kw):
+        def done(result):
+            pr.disable()
+            import pstats
+            with open('covid19-profile.out', 'wb') as fh:
+                ps = pstats.Stats(pr, stream=fh).sort_stats('cumulative')
+                ps.print_stats()
+            return result
+        
+        def substituteFunction(*args, **kw):
+            d = f(*args, **kw)
+            d.addCallback(done)
+            return d
+    
+        from cProfile import Profile
+        pr = Profile(); pr.enable()
+        substituteFunction.func_name = f.func_name
+        return substituteFunction()
+
     def run(self):
         return self().addErrback(oops)
-
-
+    
+    
 def main():
     """
     Called when this module is run as a script.
     """
-    if args.h:
-        return
     r = Runner(args)
-    reactor.callWhenRunning(r.run)
+    if args.i:
+        reactor.callWhenRunning(r.profile, r.run)
+    else: reactor.callWhenRunning(r.run)
     reactor.run()
 
 
@@ -1615,5 +1635,6 @@ args('-R', '--exclude-ratio',
      "Exclude subplot with ratio of new vs cumulative cases")
 args('-D', '--exclude-daily',
      "Exclude subplot with new daily cases")
+args('-i', '--profile', "Run with the Python profiler (slower)")
 args("[<State Name> [<County Name>]]")
 args(main)

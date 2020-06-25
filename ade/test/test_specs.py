@@ -113,7 +113,7 @@ class Test_Specs(tb.TestCase):
         self.assertEqual(self.s.get('stuff'), stuff)
         self.assertEqual(self.s.get('stuff', 'alpha'), 1)
         self.assertEqual(self.s.get('stuff', 'bravo'), 2)
-        self.assertEqual(self.s.get('stuff', 'charlie'), 0)
+        self.assertEqual(self.s.get('stuff', 'charlie'), {})
 
     def test_get_subdict(self):
         stuff = {'alpha':1, 'bravo':{'second':2, 'third':3}}

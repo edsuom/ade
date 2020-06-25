@@ -845,6 +845,9 @@ class History(object):
         Call to have me return to a virginal state with no SSE+values
         combinations recorded or considered for removal, an empty
         population, and an I{N_total} of zero.
+
+        Returns a C{Deferred} that fires when the lock has been
+        acquired and everything is cleared.
         """
         def gotLock():
             del self.K[:]
@@ -856,10 +859,53 @@ class History(object):
         return self.dLock.run(gotLock)
 
     def value_vs_SSE(self, *args, **kw):
+        """
+        Obtains a 1-D Numpy array of the SSEs of my individuals and
+        matching 1-D Numpy arrays for each of the parameter
+        values in I{names}.
+
+        Waits to acquire the lock and then calls
+        L{Analysis.value_vs_SSE} on my instance I{a}, returning a
+        C{Deferred} that fires with the eventual result.
+        """
         def gotLock():
             return self.a.value_vs_SSE(*args, **kw)
         return self.dLock.run(gotLock)
-        
+
+    def kkr(self, SSE, N):
+        """
+        Returns (1) the index I{k} of my I{K} list where the row index of
+        the new record should appear in my I{X} array, and (2)
+        that row index I{kr}.
+
+        First, index I{k} is obtained, by seeing where the I{K}
+        list points to a record with an SSE closest but above the
+        new one. Then each row index in the I{K} list is examined
+        to see if the previous row of my I{X} array is
+        unallocated. If so, that is the row index for the new
+        record. Otherwise, is the next row of my I{X} array is
+        unallocated, that is used instead. If both adjacent rows
+        of I{X} are already allocated, the next row index in the
+        I{K} list is examined.
+
+        If there are no row indices in I{K} that point to a row of
+        I{X} with an unallocated adjacent row, the row index is
+        determined to be the current length of I{k}.
+
+        B{Note}: Very CPU intensive when you get a big history
+        accumulated.
+        """
+        # Find the index in K of the row index for the closest
+        # recorded SSE above i.SSE
+        k = np.searchsorted(self.X[self.K,0], SSE)
+        # Pick a row index for the new record
+        for kr in self.K:
+            if kr > 0 and kr-1 not in self.K:
+                return k, kr-1
+            if kr < N-1 and kr+1 not in self.K:
+                return k, kr+1
+        return k, N
+
     @defer.inlineCallbacks
     def add(self, i, neverInPop=False):
         """
@@ -878,37 +924,6 @@ class History(object):
         @keyword neverInPop: Set C{True} to have the individual added
             without ever having been part of the population.
         """
-        def kkr():
-            """
-            Returns (1) the index I{k} of my I{K} list where the row index of
-            the new record should appear in my I{X} array, and (2)
-            that row index I{kr}.
-
-            First, index I{k} is obtained, by seeing where the I{K}
-            list points to a record with an SSE closest but above the
-            new one. Then each row index in the I{K} list is examined
-            to see if the previous row of my I{X} array is
-            unallocated. If so, that is the row index for the new
-            record. Otherwise, is the next row of my I{X} array is
-            unallocated, that is used instead. If both adjacent rows
-            of I{X} are already allocated, the next row index in the
-            I{K} list is examined.
-
-            If there are no row indices in I{K} that point to a row of
-            I{X} with an unallocated adjacent row, the row index is
-            determined to be the current length of I{k}.
-            """
-            # Find the index in K of the row index for the closest
-            # recorded SSE above i.SSE
-            k = np.searchsorted(self.X[self.K,0], i.SSE)
-            # Pick a row index for the new record
-            for kr in self.K:
-                if kr > 0 and kr-1 not in self.K:
-                    return k, kr-1
-                if kr < N-1 and kr+1 not in self.K:
-                    return k, kr+1
-            return k, N
-
         def writeRecord(k, kr):
             """
             Writes a 1-D Numpy array with SSE+values to row I{kr} of my I{X}
@@ -934,7 +949,8 @@ class History(object):
                 # from the population later
                 self.kr[hash(i)] = kr
 
-        if np.isfinite(i.SSE):
+        SSE = i.SSE
+        if np.isfinite(SSE):
             yield self.dLock.acquire()
             N = len(self.K)
             if N == 0:
@@ -943,14 +959,14 @@ class History(object):
             elif N < self.N_max:
                 # Roster not yet full, no need to search for somebody
                 # to bump first
-                k, kr = kkr()
+                k, kr = self.kkr(SSE, N)
             else:
                 # Roster is full, we will need to bump somebody (those
                 # in the current population are protected and exempt)
                 # before adding
                 kr = yield self.cpf()
                 if kr is not None: self.purge(kr)
-                k, kr = kkr()
+                k, kr = self.kkr(SSE, N)
             writeRecord(k, kr)
             self.dLock.release()
         else: kr = None
