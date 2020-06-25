@@ -264,6 +264,7 @@ def sanitized(*args):
         if arg is None:
             continue
         parts.append(arg.replace(" ", ""))
+    if not parts: parts.append("US")
     return "_".join(parts)
     
 
@@ -982,9 +983,9 @@ class Reporter(object):
         The suffix for the region is included, along with a I{.png}
         extension.
         """
-        suffix = self.ev.suffix
-        if not suffix: suffix = "US"
-        return sub("covid19-{}.png", suffix)
+        basename = self.ev.suffix
+        if not basename: basename = "US"
+        return sub("{}.png", basename)
                        
     def pos(self, name):
         """
@@ -1305,7 +1306,7 @@ class Reporter(object):
             self.ev.dayText(), Ra[-1])
         sp.add_textBox(
             self.pos('daily_pct'),
-            "New cases each day as a percentage of total cases thus far")
+            "New cases each day (%)")
         sp.set_ylabel("% New")
         ax = sp(ta, Ra)
         self.add_model(ax, tm, Rm)
@@ -1324,7 +1325,7 @@ class Reporter(object):
             self.ev.dayText(), XDa[-1])
         sp.add_textBox(
             self.pos('daily_new'),
-            "New cases reported each day")
+            "New cases each day (N)")
         sp.set_ylabel("Newly Reported")
         ax = sp(ta, XDa)
         self.add_model(ax, tm, XDm)
@@ -1365,7 +1366,7 @@ class Reporter(object):
             tb("combinations. Annotations show actual values in")
             tb("past, best-fit projected values in future.")
             for line in DISCLAIMER.split('\n'):
-                sp.add_textBox("SE", line)
+                sp.add_textBox(self.pos('disclaimer'), line)
             tm, Xm, XDm = self.subplot_lower(sp, values)
             if self.includeRatio or self.includeDaily:
                 tm = np.concatenate([ta, tm])
@@ -1497,9 +1498,8 @@ class Runner(object):
             The file always goes in the current working directory,
             although that could be easily changed.
             """
-            suffix = sanitized(state, county)
-            possibleDash = "-" if suffix else ""
-            return sub("covid19{}{}.dat", possibleDash, suffix)
+            basename = sanitized(state, county)
+            return sub("{}.dat", basename)
         
         args = self.args
         startTime = time.time()
