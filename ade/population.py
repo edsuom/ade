@@ -44,7 +44,7 @@ from scipy import stats
 from pyDOE import lhs
 from twisted.internet import defer, task
 
-from asynqueue import ProcessQueue, DeferredTracker
+from asynqueue import DeferredTracker
 
 import abort
 from individual import Individual
@@ -395,7 +395,7 @@ class Population(object):
     debug = False
     failedConstraintChar = " "
     # Property placeholders
-    _KS = None; _iSorted = None; _q = None
+    _KS = None; _iSorted = None;
     
     def __init__(
             self, func, names, bounds,
@@ -623,26 +623,6 @@ class Population(object):
         if self.KS is not None:
             return self.KS[0]
 
-    @property
-    def q(self):
-        """
-        Property: An instance of L{ProcessQueue} with a single worker
-        dedicated to dealing with my I{history} object.
-
-        Whenever a new queue instance is constructed, a system event
-        trigger is added to shut it down before the reactor shuts
-        down.
-        """
-        def shutdown():
-            return q.shutdown().addCallback(
-                lambda _: setattr(self, '_q', None))
-        if self._q is None:
-            q = ProcessQueue(self.N_cores, returnFailure=True)
-            triggerID = reactor.addSystemEventTrigger(
-                'before', 'shutdown', shutdown)
-            self._q = [q, triggerID]
-        return self._q[0]
-    
     def __repr__(self):
         """
         An informative string representation with a text table of my best

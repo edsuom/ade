@@ -33,7 +33,9 @@ from cStringIO import StringIO
 
 import numpy as np
 from numpy.polynomial import polynomial as poly
-from twisted.internet import defer, task
+from twisted.internet import defer, task, reactor
+
+from asynqueue import ProcessQueue
 
 from yampex.plot import Plotter
 
@@ -545,6 +547,8 @@ class ClosestPairFinder(object):
     """
     Np_max = 10000
     Kn_penalty = 2.0
+    # Property placeholder
+    _q = None
     
     def __init__(self, Nr, Nc):
         """
@@ -555,6 +559,26 @@ class ClosestPairFinder(object):
         self.X = np.empty((Nr, Nc))
         self.clear()
 
+    @property
+    def q(self):
+        """
+        Property: An instance of L{ProcessQueue} with a single worker
+        dedicated to dealing with my I{history} object.
+
+        Whenever a new queue instance is constructed, a system event
+        trigger is added to shut it down before the reactor shuts
+        down.
+        """
+        def shutdown():
+            return q.shutdown().addCallback(
+                lambda _: setattr(self, '_q', None))
+        if self._q is None:
+            q = ProcessQueue(1, returnFailure=True)
+            triggerID = reactor.addSystemEventTrigger(
+                'before', 'shutdown', shutdown)
+            self._q = [q, triggerID]
+        return self._q[0]
+        
     def clear(self):
         """
         Sets my I{K} and I{Kn} to empty sets and I{S} to C{None},
@@ -636,6 +660,67 @@ class ClosestPairFinder(object):
         K1, K2 = np.meshgrid(list(self.K), list(self.K), indexing='ij')
         K12 = np.column_stack([K1.flatten(), K2.flatten()])
         return K12[np.flatnonzero(K12[:,1] > K12[:,0])]
+
+    def calcerator(self, K, Nr, Np):
+        """
+        Iterates over computationally intensive chunks of processing.
+
+        B{TODO}: Figure out how to run in a separate process
+        (currently stuck on defer.cancel not having a qualname and
+        thus not being picklable), or put code into a traditional
+        non-Twisted form and use a ThreadQueue.
+        """
+        if K is None:
+            if Nr*(Nr-1)/2 < Np:
+                K1 = self.pairs_all()
+            else: K1 = self.pairs_sampled(Np)
+            yield
+        else: K1 = K
+        if self.S is None:
+            XK = self.X[list(self.K),:]
+            self.S = 1.0 / (np.var(XK, axis=0) + 1E-20)
+            yield
+        # Calculate difference
+        X = self.X[K1[:,0]]
+        yield
+        X -= self.X[K1[:,1]]
+        yield
+        D = np.square(X)
+        yield
+        D *= self.S
+        yield
+        D = np.sum(D, axis=1)
+        yield
+        # Divide difference by mean SSE to favor lower-SSE history
+        SSEs = [self.X[K2,0] for K2 in [K1[:,k] for k in (0, 1)]]
+        D /= np.mean(np.column_stack(SSEs), axis=1)
+        yield
+        # Divide difference by a computed amount when the first
+        # item was never in the population, to keep a substantial
+        # fraction of the non-population history reserved for
+        # those who once were in the population
+        penalize = [1 if k1 in self.Kn else 0 for k1, k2 in K1]
+        # The penalty increases dramatically if the history comes
+        # to have more never-population records than those that
+        # have been in the population
+        N_neverpop = len(self.Kn)
+        if N_neverpop:
+            Kn_penalty = 1 + np.exp(12*(N_neverpop/len(D) - 0.4))
+            D /= np.choose(penalize, [1, Kn_penalty])
+        yield
+        if K is None:
+            kr = K1[np.argmin(D),0]
+            self.result(kr)
+        else: self.result(D)
+
+    def done(self, null):
+        return self.result()
+
+    def calculate(self, K, Nr, Np):
+        self.result = Bag()
+        d = task.cooperate(self.calcerator(K, Nr, Np)).whenDone()
+        d.addCallback(self.done)
+        return d
     
     def __call__(self, Np=None, K=None):
         """
@@ -670,61 +755,12 @@ class ClosestPairFinder(object):
             pairs of row indices, and the C{Deferred} will fire with
             just the sum-of-squares difference between each pair.
         """
-        def calcerator(K):
-            """
-            Iterates over computationally intensive chunks of processing.
-            """
-            if K is None:
-                if Nr*(Nr-1)/2 < Np:
-                    K1 = self.pairs_all()
-                else: K1 = self.pairs_sampled(Np)
-                yield
-            else: K1 = K
-            if self.S is None:
-                XK = self.X[list(self.K),:]
-                self.S = 1.0 / (np.var(XK, axis=0) + 1E-20)
-                yield
-            # Calculate difference
-            X = self.X[K1[:,0]]
-            yield
-            X -= self.X[K1[:,1]]
-            yield
-            D = np.square(X)
-            yield
-            D *= self.S
-            yield
-            D = np.sum(D, axis=1)
-            yield
-            # Divide difference by mean SSE to favor lower-SSE history
-            SSEs = [self.X[K2,0] for K2 in [K1[:,k] for k in (0, 1)]]
-            D /= np.mean(np.column_stack(SSEs), axis=1)
-            yield
-            # Divide difference by a computed amount when the first
-            # item was never in the population, to keep a substantial
-            # fraction of the non-population history reserved for
-            # those who once were in the population
-            penalize = [1 if k1 in self.Kn else 0 for k1, k2 in K1]
-            # The penalty increases dramatically if the history comes
-            # to have more never-population records than those that
-            # have been in the population
-            N_neverpop = len(self.Kn)
-            if N_neverpop:
-                Kn_penalty = 1 + np.exp(12*(N_neverpop/len(D) - 0.4))
-                D /= np.choose(penalize, [1, Kn_penalty])
-            yield
-            if K is None:
-                kr = K1[np.argmin(D),0]
-                result(kr)
-            else: result(D)
-            
-        result = Bag()
         Nr = len(self.K)
         if Nr == 1:
             return defer.succeed(list(self.K)[0])
         if Np is None: Np = self.Np_max
-        d = task.cooperate(calcerator(K)).whenDone()
-        d.addCallback(lambda _: result())
-        return d
+        #return self.q.call(self.calculate, K, Nr, Np)
+        return self.calculate(K, Nr, Np)
 
 
 class History(object):
@@ -892,19 +928,44 @@ class History(object):
         I{X} with an unallocated adjacent row, the row index is
         determined to be the current length of I{k}.
 
-        B{Note}: Very CPU intensive when you get a big history
-        accumulated.
+        B{Note}: With the original for-loop Python, the search for an
+        unallocated row was very CPU intensive when you get a big
+        history accumulated:::
+
+            # Pick a row index for the new record
+            for kr in self.K:
+                if kr > 0 and kr-1 not in self.K:
+                    return k, kr-1
+                if kr < N-1 and kr+1 not in self.K:
+                    return k, kr+1
+            return k, N
+
+        The reason is that the list was being searched for an item
+        with every iteration, twice!
+        
+        The optimized version does this same thing with much more
+        efficiently, by creating a local (array) copy of I{K} and
+        sorting it in place. Then only adjacent elements needs to be
+        inspected with each iteration. (It may be just as fast with a
+        local sorted list instead of a Numpy array.)
         """
+        K = np.array(self.K)
         # Find the index in K of the row index for the closest
         # recorded SSE above i.SSE
-        k = np.searchsorted(self.X[self.K,0], SSE)
-        # Pick a row index for the new record
-        for kr in self.K:
-            if kr > 0 and kr-1 not in self.K:
+        k = np.searchsorted(self.X[K,0], SSE)
+        #--- Pick a row index for the new record ------------------------------
+        # Sort local array version of K in place
+        K.sort()
+        for kk, kr in enumerate(K[1:-1]):
+            if kr == 0: continue
+            if kr == N-1: break
+            if K[kk] != kr-1:
                 return k, kr-1
-            if kr < N-1 and kr+1 not in self.K:
+            if K[kk+2] != kr+1:
                 return k, kr+1
-        return k, N
+        if K[0] > 0:
+            return k, K[0]-1
+        return k, min([N, K[-1]+1])
 
     @defer.inlineCallbacks
     def add(self, i, neverInPop=False):
