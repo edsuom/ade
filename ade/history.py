@@ -79,7 +79,8 @@ class Analysis(object):
     Construct an instance of me with a sequence of parameter I{names},
     a 2-D Numpy array I{X} of values (in columns) for the SSEs (first
     column) and then each of those parameters (remaining columns), and
-    a sequence I{K} of row indices.
+    a sequence I{K} of row indices. Or, to analyze values of all
+    parameters, supply an empty list instead.
 
     Each index in I{K} points to a row of I{X} with one SSE and the
     parameter values for that SSE, with the indices of I{K} sorted in

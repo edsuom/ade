@@ -229,10 +229,10 @@ from data import Data
 
 
 DISCLAIMER = """
-Dedicated to the public domain by Edwin A. Suominen. My
-only relevant expertise is in fitting nonlinear models
-to data, not biology or medicine. See detailed
-disclaimer in source file covid19.py.
+Dedicated to the public domain by Edwin
+A. Suominen. My only relevant expertise is in
+fitting nonlinear models to data, not biology or
+medicine. See disclaimer in source file covid19.py.
 """
 
 def oops(failureObj):
@@ -912,7 +912,7 @@ class Reporter(object):
     @cvar N: Number of random points in extrapolated scatter plot.
     """
     minShown = 10
-    daysForward = 30
+    daysForward = 16
     
     def __init__(self, runner, ratio=False, daily=False):
         """
@@ -986,7 +986,22 @@ class Reporter(object):
         basename = self.ev.suffix
         if not basename: basename = "US"
         return sub("{}.png", basename)
-                       
+
+    @property
+    def rLast(self):
+        """
+        Property: The last (final) growth rate from the best-fit model
+        parameters. C{None} if there is not yet a best L{Individual}
+        in my L{Population} I{p}.
+        """
+        r = None
+        i = self.p.best()
+        if i is None: return
+        for name in sorted(self.names):
+            if name.startswith('r'):
+                r = i[name]
+        return r
+    
     def pos(self, name):
         """
         Returns a text box position identified by I{name}, or the default
@@ -1154,6 +1169,8 @@ class Reporter(object):
                 k_curve, "{}: {:,.0f}",
                 self.ev.dayText(k0+daysInFuture),
                 self.cases(X_curve, k_curve), kVector=1)
+            if not daysInFuture % 7:
+                sp.add_axvline(t0 + daysInFuture)
             return True
             
         N_back = 4
@@ -1170,16 +1187,14 @@ class Reporter(object):
         # "Today" + previous few days
         for k in range(k0-N_back, k0+1):
             annotate_past(k)
-        # This next week
-        for k in range(1, 7):
+        # Every day for the next week
+        for k in range(1, 8):
             annotate_future(k)
-        # Days after next week, in one-week intervals
-        for weeks in range(1, 10):
-            if not annotate_future(7*weeks):
+        # Every other day thereafter
+        for k in range(8, 15, 2):
+            if not annotate_future(k):
                 break
-            sp.add_axvline(t0 + 7*weeks)
         # Start with a few of the most recent actual data points
-        sp.add_axvline(self.ev.t[-1])
         ax = sp.semilogy(t_data, X_data)
         # Add the best-fit model extrapolation
         self.add_model(ax, t, X_curve, semilog=True)
@@ -1287,7 +1302,7 @@ class Reporter(object):
         sp.set_tickSpacing('x', 7.0, 1.0)
         return self.model_future(sp, values)
 
-    def subplot_ratio(self, sp, ta, Ra, tm, Rm):
+    def subplot_ratio(self, sp, ta, Ra, tm, Rm, rLast=None):
         """
         Draws an optional subplot below the main ones showing the modeled
         ratio between new and total cases, both past (actual) and
@@ -1308,6 +1323,8 @@ class Reporter(object):
             self.pos('daily_pct'),
             "New cases each day (%)")
         sp.set_ylabel("% New")
+        if rLast:
+            sp.set_zeroLine(100*rLast)
         ax = sp(ta, Ra)
         self.add_model(ax, tm, Rm)
 
@@ -1373,7 +1390,8 @@ class Reporter(object):
                 Xm = np.concatenate([Xam, Xm])
                 XDm = np.concatenate([XDam, XDm])
                 if self.includeRatio:
-                    self.subplot_ratio(sp, ta, XDa/Xa, tm, XDm/Xm)
+                    self.subplot_ratio(
+                        sp, ta, XDa/Xa, tm, XDm/Xm, self.rLast)
                 if self.includeDaily:
                     self.subplot_daily(sp, ta, XDa, tm, XDm)
         self.pt.show()
@@ -1390,6 +1408,8 @@ class Runner(object):
     the instance when it starts. Then start the reactor and watch the
     fun.
     """
+    max_plot_SSE_ratio = 1.2
+    
     def __init__(self, args):
         """
         C{Runner(args)}
@@ -1480,6 +1500,15 @@ class Runner(object):
             dt.put(d)
             yield dt.deferUntilFewer(self.N_cores)
         yield dt.deferToAll()
+        if len(iChanged) > 0.5*len(self.p):
+            # The amount of SSE changing indicates that something
+            # fundamental has changed, so restart history with
+            # re-evaluated population. Unfortunately, all the history
+            # under the old SSE-evaluation regime is no longer
+            # applicable and will be lost.
+            yield self.p.history.clear()
+        for i in self.p:
+            yield self.p.history.add(i)
         msg("")
 
     @defer.inlineCallbacks
