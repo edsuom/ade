@@ -41,67 +41,67 @@ class MockSpecs(object):
         self.calls.append(['add', name, subkey, value])
 
 
-class Test_DictStack(tb.TestCase):
+class Test_DictStacker(tb.TestCase):
     def setUp(self):
-        self.s = MockSpecs()
-        self.ds = specs.DictStack(self.s)
+        self.ds = specs.DictStacker('foo')
     
     def test_add_one(self):
-        self.assertFalse(self.ds)
-        self.ds.add('first')
-        self.assertTrue(self.ds)
-        self.ds.entry('alpha', 1)
-        self.ds.entry('bravo', [-1, +1])
-        self.ds.done()
-        self.assertEqual(self.s.first, {'alpha':1, 'bravo':[-1, +1]})
-        self.assertFalse(self.ds)
+        self.ds.add(1, ['first'])
+        name, dct = self.ds.done()
+        self.assertEqual(name, 'foo')
+        self.assertEqual(dct, {'first':1})
 
     def test_add_multiple(self):
-        self.ds.add('first')
-        self.ds.entry('alpha', 1)
-        self.ds.entry('bravo', [-1, +1])
-        self.ds.done()
-        self.ds.add('second')
-        self.ds.entry('alpha', 10)
-        self.ds.done()
-        self.assertEqual(self.s.first, {'alpha':1, 'bravo':[-1, +1]})
-        self.assertEqual(self.s.second, {'alpha':10,})
+        self.ds.add(1, ['first'])
+        self.ds.add(2, ['second'])
+        name, dct = self.ds.done()
+        self.assertEqual(name, 'foo')
+        self.assertEqual(dct, {'first':1, 'second':2})
 
     def test_add_nested(self):
-        self.ds.add('whitman')
-        self.ds.entry('multitudes', 1e6)
-        self.ds.add('first')
-        self.ds.entry('alpha', 1)
-        self.ds.entry('bravo', 2)
-        self.ds.add('second')
-        self.ds.entry('charlie', 3)
-        self.ds.done()
-        self.assertEqual(self.s.whitman, {
-            'multitudes': 1e6,
-            'first': {'alpha': 1, 'bravo': 2}, 'second': {'charlie':3}})
+        self.ds.add(0, ['zero'])
+        self.ds.add(1, ['x1', 1])
+        self.ds.add(2, ['x1', 2])
+        self.ds.add(10, ['x10', 1])
+        self.ds.add(20, ['x10', 2])
+        self.ds.add(4, ['x2', 2])
+        name, dct = self.ds.done()
+        self.assertEqual(name, 'foo')
+        self.assertEqual(dct, {
+            'zero':     0,
+            'x1':       {1:1, 2:2},
+            'x2':       {2:4},
+            'x10':      {1:10, 2:20},
+            }
+        )
 
 
 class Test_Specs(tb.TestCase):
     def setUp(self):
         self.s = specs.Specs()
     
-    def test_add_attr(self):
-        self.s.add('foo', None, 1)
+    def test_add(self):
+        self.s.add('foo', 1)
         self.assertEqual(self.s.foo, 1)
 
-    def test_add_dict(self):
-        self.assertFalse(self.s.dict_underway)
-        self.s.dict_start('bar')
-        self.assertTrue(self.s.dict_underway)
-        self.s.dict_next() # Should have no effect
-        self.assertTrue(self.s.dict_underway)
-        self.s.add('alpha', None, 1)
-        self.s.add('bravo', None, 2)
-        self.assertTrue(self.s.dict_underway)
-        self.s.dict_next()
-        self.assertFalse(self.s.dict_underway)
-        self.assertEqual(self.s.bar, {'alpha':1, 'bravo':2})
+    def test_add_dict_basic(self):
+        self.s.dict_start('foo')
+        self.s.dict_add(1, 'alpha')
+        self.s.dict_add(2, 'bravo')
+        self.s.dict_done()
+        self.assertEqual(self.s.foo, {'alpha':1, 'bravo':2})
 
+    def test_add_dict_nested(self):
+        self.s.dict_start('foo')
+        self.s.dict_add(1.1, 'alpha', 'first')
+        self.s.dict_add(1.2, 'alpha', 'second')
+        self.s.dict_add(2.1, 'bravo', 'first')
+        self.s.dict_add(2.2, 'bravo', 'second')
+        self.s.dict_done()
+        self.assertEqual(self.s.foo, {
+            'alpha': {'first':1.1, 'second':1.2},
+            'bravo': {'first':2.1, 'second':2.2}})
+        
     def test_get_attr(self):
         self.s.foo = 1
         self.assertEqual(self.s.get('foo'), 1)
@@ -129,18 +129,22 @@ class Test_SpecsLoader(tb.TestCase):
         filePath = tb.fileInModuleDir("test.specs")
         self.sl = specs.SpecsLoader(filePath)
 
+    def test_get_attribute(self):
+        s = self.sl()
+        self.assertEqual(s.get('C19_US', 'k0'), 42)
+        
     def test_parseName_dictName(self):
-        self.assertEqual(self.sl.parseName(['foo']), ('foo', None))
+        self.assertEqual(self.sl.parseName(['foo']), ['foo'])
         
     def test_parseName_dictKey(self):
         tokens = ['foo:bar']
         self.assertEqual(self.sl.parseName(tokens), ['foo', 'bar'])
 
-    def test_parse(self):
-        self.assertIs(self.sl.parse("None"), None)
-        self.assertTrue(self.sl.parse("True"))
-        self.assertFalse(self.sl.parse("False"))
-        self.assertEqual(self.sl.parse("3.14159"), 3.14159)
+    def test_parseValue(self):
+        self.assertIs(self.sl.parseValue("None"), None)
+        self.assertTrue(self.sl.parseValue("True"))
+        self.assertFalse(self.sl.parseValue("False"))
+        self.assertEqual(self.sl.parseValue("3.14159"), 3.14159)
 
     def check(self, value, *args):
         self.assertEqual(self.s.get(*args), value)
@@ -155,4 +159,4 @@ class Test_SpecsLoader(tb.TestCase):
 
     def test_call_complicated(self):
         self.s = self.sl()
-        self.check(['t0', -29.486, +75.451, 3.0], 'C19_', 'relations', 'r')
+        self.check(['t0', -29.486, +75.451, 3.0], 'C19_US', 'relations', 'r')

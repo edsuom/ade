@@ -32,73 +32,34 @@ import os.path, re
 from ade.util import *
 
 
-class DictStack(object):
+class DictStacker(object):
     """
-    Dictionaries within a dictionary, for L{Specs}.
+    Stacks entries and possibly sub-dictionaries within a dictionary,
+    for L{Specs}.
     """
-    def __init__(self, s):
-        self.s = s
-        self.names = []
-
-    def __nonzero__(self):
+    def __init__(self, name):
+        self.name = name
+        self.dct = {}
+    
+    def add(self, value, keys):
         """
-        I am C{True} if a dict is in progress, i.e., I've been started
-        since construction or a call to L{done}.
+        Adds the supplied I{value} as an entry (or sub-entry) of my
+        dict. Called by L{}
         """
-        return bool(self.names)
-        
-    def add(self, name):
-        """
-        Call to add a new dictionary or sub-dictionary with I{name}.
-        
-        The first time this is called after construction or a call to
-        L{done}, starts a new dictionary to hold sub-dictionaries and
-        records I{name} as its name. Thereafter, before L{done} is
-        called, adds a new sub-dictionary to the dictionary, keyed by
-        I{name}.
-
-        I will hold onto the dictionary name, or sub-dictionary key,
-        as my I{currentName}.
-        """
-        if name.isdigit(): name = int(name)
-        self.currentName = name
-        if name in self.names:
-            return
-        if self.names:
-            self.dct[name] = {}
-        else: self.dct = {}
-        self.names.append(name)
-
-    def entry(self, key, value):
-        """
-        Sets a dictionary or sub-dictionary entry.
-        
-        If L{add} has only been called once since construction or the
-        last L{done}, sets an entry under I{key} of my dictionary to
-        I{value}. Otherwise, sets an entry to the sub-dictionary that
-        I{currentName} points to, under I{key} with I{value}.
-        """
-        if key.isdigit(): key = int(key)
-        if len(self.names) > 1:
-            self.dct[self.currentName][key] = value
-            return
-        self.dct[key] = value
+        dct = self.dct
+        while True:
+            key = keys.pop(0)
+            if keys:
+                dct = dct.setdefault(key, {})
+            else:
+                dct[key] = value
+                break
         
     def done(self):
         """
-        Sets my dictionary as an attribute of my parent L{Specs} object
-        I{s}, using the dictionary's name as the attribute name.
-
-        Clears things out for another call or series of calls to
-        L{add} and L{entry}.
+        Returns the name and contents of the dictionary I built.
         """
-        if not self.dct:
-            # TODO: Allow for empty dicts with nothing but perhaps a
-            # comment between two lines of hyphens
-            return
-        setattr(self.s, self.names[0], self.dct)
-        self.names = []
-        del self.dct
+        return self.name, self.dct
 
 
 class Specs(object):
@@ -137,60 +98,34 @@ class Specs(object):
     There are three sub-dicts inside I{params}, accessible with the
     keys I{351}, I{361}, and I{371}.
     """
-    def __init__(self):
-        self.ds = DictStack(self)
-
-    @property
-    def dict_underway(self):
-        """
-        Property: C{True} if a dict is under construction.
-        """
-        return self.ds
-        
     def dict_start(self, name):
         """
-        Public API for L{DictStack.add}.
+        Called by L{SpecsLoader.read} when the first hyphens-line of a
+        pair is encountered.
         """
-        self.ds.add(name)
-        
-    def add(self, name, subkey, value):
-        """
-        Adds something to my instance. There are three possibilities.
-        
-            1. If I{subkey} is C{None} and I have no L{DictStack} in
-               progress, adds an attribute I{name} with I{value} to my
-               L{Specs} object.
+        self.ds = DictStacker(name)
 
-            2. If I{subkey} is C{None} and I have a L{DictStack} in
-               progress, adds an entry to its top level, referenced by
-               I{name} with the I{value}.
-
-            3. With a I{subkey}, adds a new sub-dict to my
-               L{DictStack} (one must be in progress) and an entry to
-               that, referenced by I{key} with the I{value}.
+    def dict_add(self, value, *keys):
         """
-        if subkey:
-            # Possibility #3
-            self.ds.add(name)
-            self.ds.entry(subkey, value)
-            return
-        if self.ds:
-            # Possibility #2
-            self.ds.entry(name, value)
-            return
-        # Possibility #1
+        Adds the supplied I{value} as an entry (or sub-entry) of a started
+        dict with at least one key, more if it is a sub-entry.
+        """
+        self.ds.add(value, list(keys))
+
+    def dict_done(self):
+        """
+        Called by L{SpecsLoader.read} when the second and last
+        hyphens-line of a pair is encountered.
+        """
+        name, dct = self.ds.done()
+        self.add(name, dct)
+        del self.ds
+
+    def add(self, name, value):
+        """
+        Sets my attribute I{name} to I{value}.
+        """
         setattr(self, name, value)
-
-    def dict_next(self):
-        """
-        Call whenever the dashed lines indictating a dict definition are
-        encountered.
-
-        Calling while there's nothing but a dict name established will
-        do nothing. Calling with a dict under construction will
-        finalize it.
-        """
-        if self.dict_underway: self.ds.done()
         
     def get(self, *names, **kw):
         """
@@ -245,19 +180,20 @@ class SpecsLoader(object):
         first and possibly only token being the entry's sub-dict key
         ("subkey").
 
-        Returns the name and subkey, or the name and C{None} if the
+        Returns the parts of the name, or the name and C{None} if the
         entry is not for a subdict and thus no subkey is defined.
         """
+        parts = []
         first = tokens.pop(0).replace("'", "")
-        parts = [x.strip() for x in first.split(':')]
-        if len(parts) == 1:
-            return parts[0], None
-        if len(parts) > 2:
-            raise ValueError(
-                "A name can only be by itself or with one key")
+        for part in first.split(':'):
+            part = part.strip()
+            if part.isdigit():
+                # Dict and sub-dict keys can be integers
+                part = int(part)
+            parts.append(part)
         return parts
     
-    def parse(self, value):
+    def parseValue(self, value):
         """
         I call this when I encounter a line defining just one or more
         space-delimited value, once per value.
@@ -279,23 +215,39 @@ class SpecsLoader(object):
 
         Modifies I{s} in place. Returns the number of lines read.
         """
+        dictDef = False
+        dictName = None
         for k, line in enumerate(fh):
             line = line.strip()
             if not line or line.startswith('#'):
                 continue
             if line.startswith('--'):
                 # Start or end of a dict definition
-                s.dict_next()
+                if dictDef:
+                    # This is the end, as we are already in
+                    # dict-definition mode
+                    s.dict_done()
+                    dictDef = False
+                    dictName = None
+                elif dictName:
+                    # This must be the start of a dict definition
+                    s.dict_start(dictName)
+                    dictDef = True
+                else:
+                    # Whoops, neither, and that won't work
+                    raise ValueError(
+                        "Dict region must be preceded by a dict name")
                 continue
             tokens = line.split()
-            name, subkey = self.parseName(tokens)
-            if subkey and not s.dict_underway:
-                raise ValueError(
-                    "The name:key format is only for dicts inside a dict")
-            if not tokens:
-                # A standalone name is the start of a dict definition
-                s.dict_start(name)
-                continue
+            nameParts = self.parseName(tokens)
+            if not dictDef:
+                if len(nameParts) > 1:
+                    raise ValueError(
+                        "The name:key format is only for dicts inside a dict")
+                if not tokens:
+                    # A standalone name is the start of a dict definition
+                    dictName = nameParts[0]
+                    continue
             if tokens[0] == "=":
                 # An equals sign is semantic fluff
                 tokens.pop(0)
@@ -304,13 +256,19 @@ class SpecsLoader(object):
                 if token.startswith('#'):
                     # Trailing comment
                     break
-                seq.append(self.parse(token.rstrip(',')))
+                seq.append(self.parseValue(token.rstrip(',')))
             if len(seq) == 1:
-                # A single token is its own attribute, not part of a
-                # sequence
+                # A single value token is its own attribute, not part
+                # of a sequence
                 seq = seq[0]
-            # Set the named attribute the value (or sequence of values) as the 
-            s.add(name, subkey, seq)
+            if dictDef:
+                # Set the entry (or sub-entry) of an ongoing dict
+                s.dict_add(seq, *nameParts)
+                continue
+            # Set the named attribute to the value (or sequence of
+            # values). We know at this point that there is but a
+            # single item in nameParts
+            s.add(nameParts[0], seq)
         return k+1
         
     def __call__(self):
