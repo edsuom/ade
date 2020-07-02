@@ -915,7 +915,7 @@ class ErrorAnnotator(object):
         each range. (The final range is all dates more than 7x the
         final number of days back.)
     """
-    N = 4
+    N = 3
     weeksBack = [1, 2, 4, 6, 8]
     _max_daysBack = None
     
@@ -1046,6 +1046,8 @@ class Reporter(object):
     minShown = 10
     daysForward = 16
     max_line_length = 100
+    plot_width = 12
+    plot_base_height = 16
     
     def __init__(self, runner, ratio=False, daily=False):
         """
@@ -1056,14 +1058,15 @@ class Reporter(object):
         self.includeRatio = ratio
         self.includeDaily = daily
         self.prettyValues = self.p.pm.prettyValues
-        N = 3; height = 17
+        N = 3; height = self.plot_base_height
         for option in ratio, daily:
             if option:
                 N += 1
                 height += 2
         self.pt = Plotter(
             1, N,
-            filePath=self.plotFilePath, width=14, height=height, h2=[0, 2])
+            filePath=self.plotFilePath,
+            width=self.plot_width, height=height, h2=[0, 2])
         self.pt.use_grid()
         self.pt.set_fontsize('textbox', 12)
         ImageViewer(self.plotFilePath)
@@ -1279,11 +1282,10 @@ class Reporter(object):
                 sp.add_axvline(k_data)
             if not ea.add(k):
                 break
-        tb("Reported cases in {} vs days after first case.", self.ev.location)
-        text = ea.annotate(sp)
-        if names:
-            text = sub(
-                "{}; total on transition date {}", text, ", ".join(names))
+        text = sub(
+            "Reported cases vs days after first case. {}", ea.annotate(sp))
+        names = ["first", "last"] + names
+        text = sub("{}; {} date totals", text, ", ".join(names))
         for line in textwrap.wrap(text):
             tb(line)
         ax = sp.semilogy(t, X_data)
@@ -1441,7 +1443,7 @@ class Reporter(object):
         sp.add_marker('o', 4)
         sp.set_colors("purple")
         sp.add_textBox(
-            'NW', "Residuals: Modeled vs actual new cases/day (transformed)")
+            'NW', "Residuals: Modeled vs reported new cases/day (transformed)")
         self.fit_info(sp, r)
         sp(r.XD, r.R, zorder=3)
         
@@ -1528,12 +1530,10 @@ class Reporter(object):
         with self.pt as sp:
             ta, Xa, XDa, Xam, XDam = self.subplot_upper(sp, values)
             self.subplot_middle(sp, values, ta)
-            tb("Expected cases reported in {} vs days after",
-               self.ev.location)
-            tb("first case. Dots show daily model predictions for each")
-            tb("of a final population of {:d} evolved parameter", len(self.p))
-            tb("combinations. Annotations show actual values in")
-            tb("past, best-fit projected values in future.")
+            tb("Expected cases reported vs days after first case. Dots are")
+            tb("daily model projections for each of a final population of")
+            tb("{:d} evolved parameter combinations. Annotations:", len(self.p))
+            tb("Reported cases, then best-fit projection.")
             for line in DISCLAIMER.strip().split('\n'):
                 sp.add_textBox(self.pos('disclaimer'), line)
             tm, Xm, XDm = self.subplot_lower(sp, values)
