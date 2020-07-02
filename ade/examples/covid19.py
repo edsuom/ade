@@ -203,7 +203,7 @@ even for models with a solid theoretical basis (and this one was
 produced by a biology+medicine layman), so see the disclaimer.
 """
 
-import re, random
+import re, random, textwrap
 from datetime import date, timedelta
 
 import numpy as np
@@ -708,6 +708,7 @@ class Evaluator(Picklable):
         L{transform} has been applied.
     """
     scale_SSE = 1e-2
+    pes_default = 1
 
     def __getattr__(self, name):
         return getattr(self.data, name)
@@ -813,6 +814,8 @@ class Evaluator(Picklable):
         data.k0 = int(s.get(dictName, 'k0'))
         self.position = s.get('pos_defaults')
         self.position.update(s.get(dictName, 'pos'))
+        self.pes = s.get(dictName, 'pes')
+        if not self.pes: self.pes = self.pes_default
         data.relations = {}
         relations = s.get(dictName, 'relations')
         for var_12 in relations:
@@ -898,6 +901,135 @@ class Evaluator(Picklable):
         return getattr(r, 'SSE', 1e9)
 
 
+class ErrorAnnotator(object):
+    """
+    I accumulate requests for annotations of the errors between
+    modeled vs actual cases and then display a sensible subset of them
+    without crowding things too much.
+
+    @cvar N: The number of total annotations in any given date range
+        at which requests for annotations of lower errors will be
+        discarded.
+    
+    @cvar weeksBack: The number of weeks back for the earliest date in
+        each range. (The final range is all dates more than 7x the
+        final number of days back.)
+    """
+    N = 4
+    weeksBack = [1, 2, 4, 6, 8]
+    _max_daysBack = None
+    
+    def __init__(self, ev, X_curve, X_data, kToday):
+        self.ev = ev
+        self.X_curve = X_curve
+        self.X_data = X_data
+        self.kToday = kToday
+        self.k0 = ev.k0
+        self.kLists = []
+        self.eLists = []
+        for null in self.weeksBack:
+            self.kLists.append([])
+            self.eLists.append([])
+
+    @property
+    def max_daysBack(self):
+        if self._max_daysBack is None:
+            self._max_daysBack = 7*self.weeksBack[-1]
+        return self._max_daysBack
+            
+    def kd(self, k):
+        """
+        Returns the number of days that I{k}, the supplied number of days
+        from the first case, is from my first relevant date I{k0}.
+        """
+        return k - self.k0 - 1
+            
+    def error(self, kd):
+        """
+        Returns the percentage error between the modeled and actual number
+        of cases the specified number of days I{k} from my first
+        relevant date I{k0}.
+        """
+        xc = self.X_curve[kd]
+        x = self.X_data[kd]
+        xe = (xc - x)/x
+        return int(round(100*xe))
+    
+    def add(self, k):
+        """
+        If the specified number of days I{k} from the first case is no
+        earlier than my maximum weeks back from today, adds a request
+        for an error annotation on that date.
+
+        Returns C{True} if the request as within my total data range
+        and was thus considered.
+        """
+        kd = self.kd(k)
+        daysBack = self.kToday - k
+        if daysBack > self.max_daysBack: return
+        error = self.error(kd)
+        if not error:
+            # It was indeed considered, just rejected because zero
+            # error!
+            True
+        for k2, cutoff in enumerate(self.weeksBack):
+            if daysBack > 7*cutoff: continue
+            kList = self.kLists[k2]
+            eList = self.eLists[k2]
+            # Add the new request
+            kList.append((k, kd))
+            eList.append(error)
+            return True
+
+    def trim(self):
+        """
+        Trims my requests to be under the limit for each date range.
+        """
+        for kList, eList in zip(self.kLists, self.eLists):
+            prev_error = None
+            while eList:
+                for ke, error in enumerate(eList):
+                    error = abs(error)
+                    if ke == 0 or error < min_error:
+                        min_ke = ke
+                        min_error = error
+                    if ke == 0 or error > max_error:
+                        max_error = error
+                if min_error == max_error:
+                    # All items left in the list have the same
+                    # (integer) error value, so leave them alone or
+                    # we'll have nothing
+                    break
+                ke = min_ke; error = min_error
+                if error != prev_error and len(kList) <= self.N:
+                    # No excess requests (anymore) for this date range
+                    break
+                kList.pop(ke)
+                eList.pop(ke)
+                prev_error = error
+    
+    def annotate(self, sp):
+        """
+        Annotates the subplot referenced by I{sp} with a sensible number
+        of requested annotations. Returns a text description of the
+        date ranges and cutoffs that were applied.
+        """
+        self.trim()
+        prev_cutoff = 0
+        parts = ["Annotations: Model vs data errors of at least"]
+        for k, cutoff in enumerate(self.weeksBack):
+            eList = [abs(x) for x in self.eLists[k]]
+            if not eList: continue
+            parts.append(sub(
+                "{:d}% {:d}-{:d} weeks ago,", min(eList), prev_cutoff, cutoff))
+            prev_cutoff = cutoff
+            for kkd, error in zip(self.kLists[k], eList):
+                k, kd = kkd
+                sp.add_annotation(
+                    kd, "{}: {:+.1f}%", self.ev.dayText(k), error, kVector=1)
+        return " ".join(parts)[:-1]
+
+
 class Reporter(object):
     """
     An instance of me is called each time a combination of parameters
@@ -913,6 +1045,7 @@ class Reporter(object):
     """
     minShown = 10
     daysForward = 16
+    max_line_length = 100
     
     def __init__(self, runner, ratio=False, daily=False):
         """
@@ -930,7 +1063,7 @@ class Reporter(object):
                 height += 2
         self.pt = Plotter(
             1, N,
-            filePath=self.plotFilePath, width=12, height=height, h2=[0, 2])
+            filePath=self.plotFilePath, width=14, height=height, h2=[0, 2])
         self.pt.use_grid()
         self.pt.set_fontsize('textbox', 12)
         ImageViewer(self.plotFilePath)
@@ -1001,6 +1134,23 @@ class Reporter(object):
             if name.startswith('r'):
                 r = i[name]
         return r
+
+    @property
+    def tValues(self):
+        """
+        Property: A sequence of 2-tuples, with names and values of the
+        best-fit model's 't' parameters, e.g., I{t1} and I{t2}.
+
+        An empty sequence if there is not yet a best L{Individual} in
+        my L{Population} I{p}.
+        """
+        result = []
+        i = self.p.best()
+        if i is not None:
+            for name in sorted(self.names):
+                if name.startswith('t'):
+                    result.append((name, i[name]))
+        return result
     
     def pos(self, name):
         """
@@ -1065,7 +1215,7 @@ class Reporter(object):
     def cases(X, k):
         return int(round(X[k]))
         
-    def annotate_past(self, sp, X, k=None):
+    def annotate_past(self, sp, X, k, in_paren=None):
         """
         Given a 1-D array I{X} of case numbers that will be displayed as
         the first line in the supplied subplot I{sp}, adds an
@@ -1073,21 +1223,18 @@ class Reporter(object):
 
         The last item in array I{X} must be the most recent actual
         number of cases.
-
-        To just annotate the last item in I{X}, leave I{k} C{None}.
         """
-        if k is None:
-            kX = -1
-        else:
-            # Length of X, just actual data to be plotted up to most
-            # recent
-            N = len(X)
-            # Convert index from all data to just data to be plotted
-            kX = k - (len(self.ev) - N)
-            if kX >= N: return
-            if kX < 0: return
-        sp.add_annotation(
-            kX, "{}: {:,.0f}", self.ev.dayText(k), self.cases(X, kX))
+        # Length of X, just actual data to be plotted up to most
+        # recent
+        N = len(X)
+        # Convert index from all data to just data to be plotted
+        kX = k - (len(self.ev) - N)
+        if kX >= N: return
+        if kX < 0: return
+        dateText = self.ev.dayText(k)
+        if in_paren:
+            dateText = sub("{} ({})", dateText, in_paren)
+        sp.add_annotation(kX, "{}: {:,.0f}", dateText, self.cases(X, kX))
     
     def model_past(self, sp, values):
         """
@@ -1100,15 +1247,9 @@ class Reporter(object):
         I{X_data}, (3) the actual numbers of new daily cases, and (4)
         the modeled number of new daily cases.
         """
-        def annotate_error(k):
-            kk = k - k0 - 1
-            xc = X_curve[kk]
-            x = X_data[kk]
-            xe = (xc - x)/x
-            sp.add_annotation(
-                kk, "{}: {:+.1f}%",
-                self.ev.dayText(k), int(round(100*xe)), kVector=1)
-            
+        def tb(*args):
+            sp.add_textBox('S', *args)
+
         k0 = self.ev.k0
         kToday, k_offset = self.kForToday
         r = self.curvePoints(values, kToday, k0)
@@ -1116,21 +1257,35 @@ class Reporter(object):
         t -= k_offset
         K = self.ev.kt(t)
         X_data = self.clipLower(self.ev.X[K])
+        ea = ErrorAnnotator(self.ev, X_curve, X_data, kToday)
         XD = self.ev.transform()[K]
         # Date of first reported case number plotted
         self.annotate_past(sp, X_data, k0+1)
+        # Date of most recently reported case number plotted
+        self.annotate_past(sp, X_data, kToday)
+        # Date of any t values in the plot x-axis range
+        names = []
+        for name, value in self.tValues:
+            if value > t[0] and value < t[-1]:
+                names.append(name)
+                self.annotate_past(sp, X_data, int(round(value)), name)
         # Error in expected vs actual reported cases, going back
-        # several days starting with today
+        # several days starting with the latest date
         kList = range(kToday, k0, -1)
-        Nfd = len(kList) / 15
         N_data = len(X_data)
         for kk, k in enumerate(kList):
             k_data = N_data - kk - 1
-            if not k_data % 7:
+            if not kk % 7:
                 sp.add_axvline(k_data)
-            if kk > 10:
-                if Nfd and kk % Nfd: continue
-            annotate_error(k)
+            if not ea.add(k):
+                break
+        tb("Reported cases in {} vs days after first case.", self.ev.location)
+        text = ea.annotate(sp)
+        if names:
+            text = sub(
+                "{}; total on transition date {}", text, ", ".join(names))
+        for line in textwrap.wrap(text):
+            tb(line)
         ax = sp.semilogy(t, X_data)
         # Add the best-fit model values for comparison
         self.add_model(ax, t, X_curve, semilog=True)
@@ -1156,7 +1311,7 @@ class Reporter(object):
         """
         def annotate_past(k):
             self.annotate_past(sp, X_data, k)
-
+        
         def annotate_future(daysInFuture):
             """
             Add annotation for I{daysInFuture}, returning C{True} if it
@@ -1371,9 +1526,6 @@ class Reporter(object):
         self.pt.set_xlabel("Days after January 22, 2020")
         self.pt.use_minorTicks('x', 1.0)
         with self.pt as sp:
-            tb('S', "Reported cases in {} vs days after first case.",
-               self.ev.location)
-            tb('S', "Annotations show residuals between model and data.")
             ta, Xa, XDa, Xam, XDam = self.subplot_upper(sp, values)
             self.subplot_middle(sp, values, ta)
             tb("Expected cases reported in {} vs days after",
@@ -1382,7 +1534,7 @@ class Reporter(object):
             tb("of a final population of {:d} evolved parameter", len(self.p))
             tb("combinations. Annotations show actual values in")
             tb("past, best-fit projected values in future.")
-            for line in DISCLAIMER.split('\n'):
+            for line in DISCLAIMER.strip().split('\n'):
                 sp.add_textBox(self.pos('disclaimer'), line)
             tm, Xm, XDm = self.subplot_lower(sp, values)
             if self.includeRatio or self.includeDaily:
@@ -1528,7 +1680,7 @@ class Runner(object):
             although that could be easily changed.
             """
             basename = sanitized(state, county)
-            return sub("{}.dat", basename)
+            return sub("{}-N{:d}.dat", basename, len(self.names))
         
         args = self.args
         startTime = time.time()
