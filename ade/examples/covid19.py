@@ -907,36 +907,21 @@ class ErrorAnnotator(object):
     modeled vs actual cases and then display a sensible subset of them
     without crowding things too much.
 
-    @cvar N: The number of total annotations in any given date range
-        at which requests for annotations of lower errors will be
-        discarded.
-    
-    @cvar weeksBack: The number of weeks back for the earliest date in
-        each range. (The final range is all dates more than 7x the
-        final number of days back.)
+    @ivar wwe: B{W}orst B{W}eekly B{E}rrors, one entry per week prior
+        to "today." Dict keyed by integer number of weeks ago (e.g.,
+        key of 0 is for the most recent 7 days). Each entry is a
+        2-tuple with C{(k, error)} where k is the number of days since
+        the first plotted date and error is the percentage error
+        (e.g., 1.5 for 0.015).
     """
-    N = 3
-    weeksBack = [1, 2, 4, 6, 8]
-    _max_daysBack = None
-    
     def __init__(self, ev, X_curve, X_data, kToday):
         self.ev = ev
         self.X_curve = X_curve
         self.X_data = X_data
         self.kToday = kToday
         self.k0 = ev.k0
-        self.kLists = []
-        self.eLists = []
-        for null in self.weeksBack:
-            self.kLists.append([])
-            self.eLists.append([])
+        self.wwe = {}
 
-    @property
-    def max_daysBack(self):
-        if self._max_daysBack is None:
-            self._max_daysBack = 7*self.weeksBack[-1]
-        return self._max_daysBack
-            
     def kd(self, k):
         """
         Returns the number of days that I{k}, the supplied number of days
@@ -953,81 +938,41 @@ class ErrorAnnotator(object):
         xc = self.X_curve[kd]
         x = self.X_data[kd]
         xe = (xc - x)/x
-        return int(round(100*xe))
+        return 100*xe
     
     def add(self, k):
         """
-        If the specified number of days I{k} from the first case is no
-        earlier than my maximum weeks back from today, adds a request
-        for an error annotation on that date.
-
-        Returns C{True} if the request as within my total data range
-        and was thus considered.
+        Adds an entry for the specified number of days I{k} from the first
+        case. If the error on that date is worse than any other
+        already added for that week before "today," it is the record.
         """
         kd = self.kd(k)
         daysBack = self.kToday - k
-        if daysBack > self.max_daysBack: return
+        weeksBack = int(daysBack/7)
+        if weeksBack not in self.wwe:
+            error_prev = 0
+        else: error_prev = self.wwe[weeksBack][1]
         error = self.error(kd)
-        if not error:
-            # It was indeed considered, just rejected because zero
-            # error!
-            True
-        for k2, cutoff in enumerate(self.weeksBack):
-            if daysBack > 7*cutoff: continue
-            kList = self.kLists[k2]
-            eList = self.eLists[k2]
-            # Add the new request
-            kList.append((k, kd))
-            eList.append(error)
-            return True
-
-    def trim(self):
-        """
-        Trims my requests to be under the limit for each date range.
-        """
-        for kList, eList in zip(self.kLists, self.eLists):
-            prev_error = None
-            while eList:
-                for ke, error in enumerate(eList):
-                    error = abs(error)
-                    if ke == 0 or error < min_error:
-                        min_ke = ke
-                        min_error = error
-                    if ke == 0 or error > max_error:
-                        max_error = error
-                if min_error == max_error:
-                    # All items left in the list have the same
-                    # (integer) error value, so leave them alone or
-                    # we'll have nothing
-                    break
-                ke = min_ke; error = min_error
-                if error != prev_error and len(kList) <= self.N:
-                    # No excess requests (anymore) for this date range
-                    break
-                kList.pop(ke)
-                eList.pop(ke)
-                prev_error = error
-    
+        if abs(error) > abs(error_prev):
+            self.wwe[weeksBack] = (k, error)
+ 
     def annotate(self, sp):
         """
         Annotates the subplot referenced by I{sp} with a sensible number
         of requested annotations. Returns a text description of the
         date ranges and cutoffs that were applied.
         """
-        self.trim()
-        prev_cutoff = 0
-        parts = ["Annotations: Model vs data errors of at least"]
-        for k, cutoff in enumerate(self.weeksBack):
-            eList = [abs(x) for x in self.eLists[k]]
-            if not eList: continue
-            parts.append(sub(
-                "{:d}% {:d}-{:d} weeks ago,", min(eList), prev_cutoff, cutoff))
-            prev_cutoff = cutoff
-            for kkd, error in zip(self.kLists[k], eList):
-                k, kd = kkd
-                sp.add_annotation(
-                    kd, "{}: {:+.1f}%", self.ev.dayText(k), error, kVector=1)
-        return " ".join(parts)[:-1]
+        N = 0
+        for weeksBack in self.wwe:
+            k, error = self.wwe[weeksBack]
+            sp.add_annotation(
+                self.kd(k), "{}: {:+.1f}%",
+                self.ev.dayText(k), error, kVector=1)
+            if weeksBack > N: N = weeksBack
+        N += 1
+        return sub(
+            "Annotations: Worst model vs data error for each of {:d} "+\
+            "preceding week{}", N, "s" if N > 1 else "")
 
 
 class Reporter(object):
@@ -1045,7 +990,7 @@ class Reporter(object):
     """
     minShown = 10
     daysForward = 16
-    max_line_length = 100
+    max_line_length = 50
     plot_width = 12
     plot_base_height = 16
     
@@ -1280,13 +1225,12 @@ class Reporter(object):
             k_data = N_data - kk - 1
             if not kk % 7:
                 sp.add_axvline(k_data)
-            if not ea.add(k):
-                break
+            ea.add(k)
         text = sub(
             "Reported cases vs days after first case. {}", ea.annotate(sp))
         names = ["first", "last"] + names
-        text = sub("{}; {} date totals", text, ", ".join(names))
-        for line in textwrap.wrap(text):
+        text = sub("{}; {} date totals.", text, ", ".join(names))
+        for line in textwrap.wrap(text, self.max_line_length):
             tb(line)
         ax = sp.semilogy(t, X_data)
         # Add the best-fit model values for comparison
