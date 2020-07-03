@@ -270,6 +270,23 @@ class Analysis(object):
             return 9
         return N_left
 
+    def _widthHeight(self, dims):
+        """
+        Given a string I{dims} with W or WxL as an integer number of
+        pixels (not inches) for the width or width x height, returns
+        width and height in inches.
+        """
+        def inches(x):
+            return float(x) / Plotter.DPI
+
+        height = None
+        if dims:
+            if 'x' in dims:
+                width, height = [inches(x) for x in dims.split('x')]
+            else: width = inches(dims)
+        else: width = self.defaultWidth
+        return width, height
+    
     def filePath(self, baseFilePath=None, dims=None):
         """
         Obtains a unique filePath for a PNG file, or, with I{baseFilePath}
@@ -293,15 +310,7 @@ class Analysis(object):
             number of pixels (not inches) for the width or width x
             height of the PNG file(s).
         """
-        def inches(x):
-            return float(x) / Plotter.DPI
-
-        height = None
-        if dims:
-            if 'x' in dims:
-                width, height = [inches(x) for x in dims.split('x')]
-            else: width = inches(dims)
-        else: width = self.defaultWidth
+        width, height = self._widthHeight(dims)
         if baseFilePath is None:
             if self.fileSpec is None:
                 return
@@ -324,17 +333,26 @@ class Analysis(object):
         If I have a I{fileSpec} set, I will write the plot to a PNG
         file instead of showing a plot window. There will be a
         uniquifying numerical suffix appended to the file's base name.
+
+        @keyword dims: Set to a string with W or WxL as an integer
+            number of pixels (not inches) for the width or width x
+            height of the PNG file(s). Or C{None} for default (screen
+            size) dimensions.
         """
         stuff = self.filePath()
+        width = kw.pop('width', None)
         height = kw.pop('height', None)
+        dims = kw.pop('dims', None)
         if stuff:
             filePath, width, height = stuff
             kw['filePath'] = filePath
-            kw['width'] = width
             N, Nc, Nr = Plotter.parseArgs(*args, **kw)[2:]
             if height is None:
                 height = width * min([0.7, Nr/Nc])
-        kw['height'] = height
+        elif dims:
+            width, height = self._widthHeight(dims)
+        if width: kw['width'] = width
+        if height: kw['height'] = height
         pt = Plotter(*args, **kw)
         pt.use_grid()
         return pt
@@ -391,6 +409,7 @@ class Analysis(object):
         
         noShow = kw.pop('noShow', False)
         semilog = kw.pop('semilog', False)
+        dims = kw.pop('dims', None)
         sp = kw.pop('kw', None)
         names = self.args2names(names)
         inPop = kw.get('inPop', False)
@@ -415,7 +434,7 @@ class Analysis(object):
             N = self.pick_N(kList)
             kkList = kList[:N]; kList = kList[N:]
             Nc = 1 if N == 1 else 3 if N > 6 else 2
-            pt = self.makePlotter(N, Nc=Nc)
+            pt = self.makePlotter(N, Nc=Nc, dims=dims)
             setup(pt)
             with pt as sp:
                 doSubplots(sp, kkList)
@@ -472,7 +491,8 @@ class Analysis(object):
             return result
         return plot(sp)
     
-    def plotCorrelated(self, name=None, N=4, noShow=False, verbose=False):
+    def plotCorrelated(
+            self, name=None, N=4, noShow=False, verbose=False, dims=None):
         """
         Plots values of I{N} pairs of parameters with the highest
         correlation. The higher the SSE for a given combination of
@@ -497,7 +517,7 @@ class Analysis(object):
         Ncombos = Np*(Np-1)/2
         if Ncombos == 0: return
         if Ncombos < N: N = Ncombos
-        pt = self.makePlotter(N)
+        pt = self.makePlotter(N, dims)
         with pt as sp:
             count = 0
             for stuff in self.correlator():

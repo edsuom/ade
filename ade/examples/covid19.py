@@ -435,20 +435,21 @@ class Model(object):
 
         xd(t,x) = x*r(t)*(1-x/L)
 
+    There is one epidemiological assumption being made: Parameter L is
+    set to an assumed fraction of the state or county's
+    population. That fraction is set by global specs parameter I{Lp}.
+    
     The author of this code (EAS) proposes a major modification to
     that model: providing for multiple growth regimes with a smooth
     transition between them. That is reflected by I{r(t)} being a
     function of I{t} rather than a constant.
 
     @ivar N: The number of parameters in the model.
-    
     """
     # Logistic growth with multiple growth regimes
     # Wide-open default parameter bounds
     names = [
         # --- Regime #1 ---------------------------------------------------
-        # Upper limit to number of total cases (<= population)
-        'L',
         # Constant number of new cases reported each day since beginning
         'b',
         # r1: Initial daily growth rate (0.1 = 10% per day)
@@ -472,51 +473,53 @@ class Model(object):
 
     #--- Logistic Growth Model with Multiple Growth Regimes -------------------
 
-    def __init__(self, names):
+    def __init__(self, names, L):
+        self.L = L
         OK = False
         names = set(names)
-        if {'L', 'b', 'r1'} <= names:
-            N = 3
+        if {'b', 'r1'} <= names:
+            N = 2
             OK = True
         if {'t1', 's1', 'r2'} <= names:
-            if N == 3:
-                N = 6
+            if N == 2:
+                N = 5
             else: OK = False
         if {'t2', 's2', 'r3'} <= names:
-            if N == 6:
-                N = 9
+            if N == 5:
+                N = 8
             else: OK = False
         if len(names) > N: OK = False
         if not OK:
             raise ValueError(sub(
                 "Parameters {} not a valid combination!", ', '.join(names)))
-        self.r = self.r_3 if N==3 else self.r_6 if N==6 else self.r_9
+        self.r = self.r_2 if N==2 else self.r_5 if N==5 else self.r_8
         self.N = N
 
     @property
     def f_text(self):
         parts = [sub(
-            "xd(t,x) = {}*x*(1-x/L) + b", "r(t)" if self.N > 3 else "r")]
-        if self.N > 3:
+            "xd(t,x) = {}*x*(1-x/L) + b", "r(t)" if self.N > 2 else "r")]
+        if self.N > 2:
             parts.extend([
                 "r(t) = r1 + c12*(1 + tanh(1.1*(t-t1)/s1))",
                 "c12 = 0.5*(r2-r1)",
             ])
-        if self.N > 6:
+        if self.N > 5:
             parts.insert(-1, "     + r2 + c23*(1 + tanh(1.1*(t-t2)/s2))")
             parts.append("c23 = 0.5*(r3-r2)")
         return "\n".join(parts)
 
-    def r_3(self, t, r1):
+    def r_2(self, t, r1):
         """
-        Implements C{r(t)} for a 3-parameter model having a single growth
-        regime (conventional logistic growth model).
+        Implements C{r(t)} for a 2-parameter model having a single growth
+        regime (conventional logistic growth model). (The value of
+        I{L} is a single rough estimate based on population.)
         """
         return r1
 
-    def r_6(self, t, r1, t1, s1, r2):
+    def r_5(self, t, r1, t1, s1, r2):
         """
-        Implements C{r(t)} for a 6-parameter model having a two growth
+        Implements C{r(t)} for a 5-parameter model having a two growth
         regimes:::
 
             r(t) = r1 + c12*(1 + tanh(1.1*(t-t1)/s1))
@@ -525,7 +528,7 @@ class Model(object):
         c12 = 0.5*(r2-r1)
         return r1 + c12*(1 + np.tanh(1.1*(t-t1)/s1))
 
-    def r_9(self, t, r1, t1, s1, r2, t2, s2, r3):
+    def r_8(self, t, r1, t1, s1, r2, t2, s2, r3):
         """
         Implements C{r(t)} for a 9-parameter model having a three growth
         regimes:::
@@ -536,10 +539,10 @@ class Model(object):
             c12 = 0.5*(r2-r1)
             c23 = 0.5*(r3-r2)
         """
-        r12 = self.r_6(t, r1, t1, s1, r2)
+        r12 = self.r_5(t, r1, t1, s1, r2)
         c23 = 0.5*(r3-r2)
         return r12 + c23*(1 + np.tanh(1.1*(t-t1-t2)/s2))
-
+    
     def xd(self, t, x, *values):
         """
         Implements C{xd(t,x)} for a 3-9 parameter model having 1-3 growth
@@ -556,8 +559,12 @@ class Model(object):
 
         This requires integration of a first-order differential
         equation, which is performed in L{curve}.
+
+        The value of I{L} is a single rough estimate based on
+        population. Set the maximum fraction of the population that
+        could be infected with specs global parameter I{Lp}.
         
-        With 6 or 9 parameters, there are 2 or 3 growth regimes (my
+        With 5 or 8 parameters, there are 2 or 3 growth regimes (my
         own non-expert addition, caveat emptor). Smooth transitions
         between regimes is effected by the hyperbolic tangent. This
         function has proved very useful for use in the nonlinear
@@ -614,8 +621,8 @@ class Model(object):
         as well.
         """
         X = np.array(x)
-        L, b = values[:2]
-        return self.r(t, *values[2:])*X*(1 - X/L) + b
+        b = values[0]
+        return self.r(t, *values[1:])*X*(1 - X/self.L) + b
     
     def xd_jac(self, t, x, *values):
         """
@@ -628,8 +635,7 @@ class Model(object):
             x2d(t, x) = r(t)*(1 - 2*x/L)
         """
         X = np.array(x)
-        L = values[0]
-        return self.r(t, *values[2:])*(1 - 2*X/L)
+        return self.r(t, *values[1:])*(1 - 2*X/self.L)
 
     #--------------------------------------------------------------------------
     
@@ -828,8 +834,18 @@ class Evaluator(Picklable):
             if name in pb:
                 names.append(name)
                 bounds.append(pb[name])
+        # The logistic growth model's upper bound parameter L is
+        # inferred from population, herd immunity threshold estimate,
+        # and a rough guess about how many more actual cases than
+        # reported there are. Including L as an unknown to be solved
+        # for rarely adds much because the estimated values almost
+        # always wind up at a substantial fraction of the population
+        # except when they get evolved to very low, obviously
+        # contrived values that only attempt to cover up the
+        # limitations in the last growth regime.
+        self.L = s.get('Lp')*s.get(dictName, 'pop')
         # An instance of Model for all fitting and plotting
-        self.model = Model(names)
+        self.model = Model(names, self.L)
         return data.setup(daysAgo).addCallbacks(done, oops)
 
     def transform(self, XD=None, inverse=False):
@@ -991,8 +1007,8 @@ class Reporter(object):
     minShown = 10
     daysForward = 16
     max_line_length = 50
-    plot_width = 12
-    plot_base_height = 16
+    plot_width = 11
+    plot_base_height = 15
     
     def __init__(self, runner, ratio=False, daily=False):
         """
@@ -1362,13 +1378,16 @@ class Reporter(object):
         for the modeled data, and the I{XD} vector for the modeled
         data.
         """
+        def tb(name, value):
+            sp.add_textBox(self.pos('params'), "{}: {:.5g}", name, value)
+        
         sp.add_line('-', 2)
         sp.set_tickSpacing('x', 7.0, 1.0)
         sp.add_textBox(
             self.pos('model'), self.ev.model.f_text)
+        tb('L', self.ev.L)
         for k, name in enumerate(self.names):
-            sp.add_textBox(
-                self.pos('params'), "{}: {:.5g}", name, values[k])
+            tb(name, values[k])
         # Data vs best-fit model
         return self.model_past(sp, values)
 

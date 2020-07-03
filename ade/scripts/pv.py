@@ -70,7 +70,7 @@ args = Args(
     """
 )
 args('-d', '--dims', '',
-     "PNG plot dimensions (pixels, W only or WxL, e.g., '1200x800'")
+     "Plot dimensions (pixels, W only or WxL, e.g., '1200x800'")
 args('-f', '--file-path', '',
      "Path of a PNG file to be created/updated instead of a plot window")
 args('-r', '--max-ratio', 0.0,
@@ -100,12 +100,15 @@ def main():
     pt = None
     if args.r:
         pt = analyzer.plot(
-            names, maxRatio=args.r, inPop=args.i, noShow=True, semilog=args.s)
+            names,
+            maxRatio=args.r, inPop=args.i,
+            noShow=True, semilog=args.s, dims=args.d)
     if args.N:
         if names:
             for name in names:
                 pt = analyzer.plotCorrelated(
-                    name=name, N=args.N, noShow=True, verbose=args.v)
+                    name=name, N=args.N,
+                    noShow=True, verbose=args.v, dims=args.d)
         else:
             pt = analyzer.plotCorrelated(N=args.N, noShow=True, verbose=args.v)
     if pt is None: raise RuntimeError("No analysis done!")
