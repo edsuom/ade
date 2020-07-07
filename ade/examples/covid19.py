@@ -468,6 +468,11 @@ class Model(object):
         's2',
         # r3: Third daily growth rate
         'r3',
+        # --- Weekly variation --------------------------------------------
+        # aw: Amplitude of weekly variation (in daily new cases)
+        'aw',
+        # tw: Time when at mean (non-varied) value (days after first case)
+        'tw',
         # -----------------------------------------------------------------
     ]
 
@@ -477,28 +482,34 @@ class Model(object):
         self.L = L
         OK = False
         names = set(names)
+        self.two_pi_7 = None
         if {'b', 'r1'} <= names:
             N = 2
             OK = True
+        if {'aw', 'tw'} <= names:
+            N = 4
+            self.two_pi_7 = 2*np.pi/7
         if {'t1', 's1', 'r2'} <= names:
-            if N == 2:
-                N = 5
+            if N >= 2:
+                N += 3
             else: OK = False
         if {'t2', 's2', 'r3'} <= names:
-            if N == 5:
-                N = 8
+            if N >= 5:
+                N += 3
             else: OK = False
         if len(names) > N: OK = False
         if not OK:
             raise ValueError(sub(
                 "Parameters {} not a valid combination!", ', '.join(names)))
-        self.r = self.r_2 if N==2 else self.r_5 if N==5 else self.r_8
+        self.r = self.r_2 if N in (2,4) else self.r_5 if N in (5,7) else self.r_8
         self.N = N
 
     @property
     def f_text(self):
-        parts = [sub(
-            "xd(t,x) = {}*x*(1-x/L) + b", "r(t)" if self.N > 2 else "r")]
+        terms = [sub("{}*x*(1-x/L)", "r(t)" if self.N > 4 else "r")]
+        if self.two_pi_7: terms.insert(0, "w(t)")
+        parts = [sub("xd(t,x) = {} + b", "*+".join(terms))]
+        if self.two_pi_7: parts.append("w(t) = aw*sin(2*pi/7*(t-tw))")
         if self.N > 2:
             parts.extend([
                 "r(t) = r1 + c12*(1 + tanh(1.1*(t-t1)/s1))",
@@ -542,6 +553,21 @@ class Model(object):
         r12 = self.r_5(t, r1, t1, s1, r2)
         c23 = 0.5*(r3-r2)
         return r12 + c23*(1 + np.tanh(1.1*(t-t1-t2)/s2))
+
+    def w(self, t, aw, tw):
+        """
+        Implements C{w(t)} to impose a weekly variation on the growth
+        rate, observed due to testing limitations on weekends:::
+
+            w(t) = (1+aw)*sin(2*pi/7*(t+tw))
+        """
+        return (1 + aw)*np.sin(self.two_pi_7*(t + tw))
+
+    def r(self, t, values):
+        """
+        Implements the term C{w(t)*r(t)}, returning the starting point for
+        I{XD}.
+        """
     
     def xd(self, t, x, *values):
         """
@@ -621,8 +647,15 @@ class Model(object):
         as well.
         """
         X = np.array(x)
-        b = values[0]
-        return self.r(t, *values[1:])*X*(1 - X/self.L) + b
+        values = list(values)
+        b = values.pop(0)
+        if self.two_pi_7:
+            tw = values.pop()
+            aw = values.pop()
+        XD = self.r(t, *values)*X*(1 - X/self.L)
+        if self.two_pi_7:
+            XD += self.w(t, aw, tw)
+        return XD + b
     
     def xd_jac(self, t, x, *values):
         """
@@ -635,7 +668,9 @@ class Model(object):
             x2d(t, x) = r(t)*(1 - 2*x/L)
         """
         X = np.array(x)
-        return self.r(t, *values[1:])*(1 - 2*X/self.L)
+        N = len(values)
+        values = values[1:N-2] if self.two_pi_7 else values[1:]
+        return self.r(t, *values)*(1 - 2*X/self.L)
 
     #--------------------------------------------------------------------------
     
@@ -1006,7 +1041,7 @@ class Reporter(object):
     """
     minShown = 10
     daysForward = 16
-    max_line_length = 50
+    max_line_length = 60
     plot_width = 11
     plot_base_height = 15
     
@@ -1243,7 +1278,7 @@ class Reporter(object):
                 sp.add_axvline(k_data)
             ea.add(k)
         text = sub(
-            "Reported cases vs days after first case. {}", ea.annotate(sp))
+            "Reported cases (NY Times data) vs days after first case. {}", ea.annotate(sp))
         names = ["first", "last"] + names
         text = sub("{}; {} date totals.", text, ", ".join(names))
         for line in textwrap.wrap(text, self.max_line_length):
