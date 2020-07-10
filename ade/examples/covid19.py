@@ -1213,7 +1213,14 @@ class Reporter(object):
     @staticmethod
     def cases(X, k):
         return int(round(X[k]))
-        
+
+    def weeklyTicks(self, sp, t0):
+        """
+        Adds major x-axis tick marks that indicate week boundaries from
+        "today".
+        """
+        sp.set_tickSpacing('x', (7.0, t0), 1.0)
+    
     def annotate_past(self, sp, X, k, in_paren=None):
         """
         Given a 1-D array I{X} of case numbers that will be displayed as
@@ -1272,17 +1279,18 @@ class Reporter(object):
         # several days starting with the latest date
         kList = range(kToday, k0, -1)
         N_data = len(X_data)
+        sp.add_axvline(-1)
         for kk, k in enumerate(kList):
             k_data = N_data - kk - 1
-            if not kk % 7:
-                sp.add_axvline(k_data)
             ea.add(k)
         text = sub(
-            "Reported cases (NY Times data) vs days after first case. {}", ea.annotate(sp))
+            "Reported cases (NY Times data) vs days after first case. {}",
+            ea.annotate(sp))
         names = ["first", "last"] + names
         text = sub("{}; {} date totals.", text, ", ".join(names))
         for line in textwrap.wrap(text, self.max_line_length):
             tb(line)
+        self.weeklyTicks(sp, t[-1])
         ax = sp.semilogy(t, X_data)
         # Add the best-fit model values for comparison
         self.add_model(ax, t, X_curve, semilog=True)
@@ -1321,8 +1329,6 @@ class Reporter(object):
                 k_curve, "{}: {:,.0f}",
                 self.ev.dayText(k0+daysInFuture),
                 self.cases(X_curve, k_curve), kVector=1)
-            if not daysInFuture % 7:
-                sp.add_axvline(t0 + daysInFuture)
             return True
             
         N_back = 4
@@ -1346,6 +1352,7 @@ class Reporter(object):
         for k in range(8, 15, 2):
             if not annotate_future(k):
                 break
+        self.weeklyTicks(sp, t0)
         # Start with a few of the most recent actual data points
         ax = sp.semilogy(t_data, X_data)
         # Add the best-fit model extrapolation
@@ -1388,21 +1395,34 @@ class Reporter(object):
         AICc = AIC + 2*(k**2 + k)/(N-k-1)
         return AICc, N, k
     
-    def fit_info(self, sp, r):
+    def residuals(self, values, sp=None):
         """
-        Adds info to subplot I{sp} about the goodness of fit for residuals
-        I{R} in the supplied instance I{r} of L{Results}.
+        Computes residuals between case numbers modeled with the supplied
+        parameter I{values} and actual case numbers. Computes and logs
+        info about the goodness of fit.
+
+        If a subplot I{sp} is supplied, puts the info on the plot as a
+        textbox.
+
+        Returns a L{Results} object from the residual calculation. If
+        the calculation results in C{None}, no fit info is logged or
+        plotted and C{None} is returned.
         """
         def tb(*args):
-            sp.add_textBox(self.pos('stats'), *args)
             msg(*args)
+            if sp: sp.add_textBox(self.pos('stats'), *args)
 
+        # Calculate residuals between modeled and actual case numbers,
+        # using supplied parameter values
+        r = self.ev.residuals(values)
+        if r is None: return
         # Significance of non-normality
         tb("Non-normality: p = {:.4f}", stats.normaltest(r.R)[1])
         # AICc
         AICc, N, k = self.AICc(r)
         tb("AICc is {:+.2f} with SSE={:.5g}, N={:d}, k={:d}",
            AICc, r.SSE, N, k)
+        return r
         
     def subplot_upper(self, sp, values):
         """
@@ -1417,7 +1437,6 @@ class Reporter(object):
             sp.add_textBox(self.pos('params'), "{}: {:.5g}", name, value)
         
         sp.add_line('-', 2)
-        sp.set_tickSpacing('x', 7.0, 1.0)
         sp.add_textBox(
             self.pos('model'), self.ev.model.f_text)
         tb('L', self.ev.L)
@@ -1432,8 +1451,9 @@ class Reporter(object):
         and modeled data I{X_curve}, given model parameter I{values}
         and evaluation times (days after 1/21/20) I{t}.
         """
-        r = self.ev.residuals(values)
+        r = self.residuals(values, sp)
         if r is None: return
+        sp.set_tickSpacing('x', True, False)
         sp.set_ylabel("Residual")
         sp.set_xlabel("Modeled (fitted) new cases/day (square-root transform)")
         sp.set_zeroLine(color="red", linestyle='-', linewidth=3)
@@ -1442,7 +1462,6 @@ class Reporter(object):
         sp.set_colors("purple")
         sp.add_textBox(
             'NW', "Residuals: Modeled vs reported new cases/day (transformed)")
-        self.fit_info(sp, r)
         sp(r.XD, r.R, zorder=3)
         
     def subplot_lower(self, sp, values):
@@ -1454,7 +1473,6 @@ class Reporter(object):
         being plotted, plus the modeled I{XD} vector.
         """
         sp.add_line('-', 2)
-        sp.set_tickSpacing('x', 7.0, 1.0)
         return self.model_future(sp, values)
 
     def subplot_ratio(self, sp, ta, Ra, tm, Rm, rLast=None):
@@ -1723,11 +1741,13 @@ class Runner(object):
             adaptive=not args.n, bitterEnd=args.e, logHandle=self.fh)
         yield de()
         msg(0, "Final population:\n{}", self.p)
-        msg(0, "Elapsed time: {:.2f} seconds", time.time()-startTime, 0)
+        values = self.p.best().values
+        reporter.residuals(values)
         savePicklePath = picklePath()
         self.p.save(savePicklePath)
-        msg("Saved final population of best parameter combinations "+\
+        msg(0, "Saved final population of best parameter combinations "+\
             "to {}", savePicklePath)
+        msg("Elapsed time: {:.2f} seconds", time.time()-startTime, 0)
         yield self.shutdown()
         reactor.stop()
         msg(None)

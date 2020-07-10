@@ -53,13 +53,13 @@ daily_new       NW
 C19_US
 -------------------------------------------------------------------------------
 updated             7/8/20
-N10:aicc           -51.9
-N10:p               0.832
-# AICc was significantly better for N9; the entire-US case is one
-# where the extra 3 parameters might appear justified. Except for
-# this: The extra growth regime is entirely devoted to fitting
-# to the most recent uptick. The curve of new cases is more
-# natural looking for N6, though.
+N10:aicc           -53.9
+N10:p               0.853
+# AICc was significantly better with a third growth regime; the
+# entire-US case is one where the extra 3 parameters might appear
+# justified. Except for this: The extra growth regime is entirely
+# devoted to fitting to the most recent uptick. The curve of new cases
+# is more natural looking with two regimes, though.
 #
 # Bottom line: Model parameters have to earn their keep and a better
 # AICc is a strong indicator of that. But if the fitted curve clearly
@@ -71,7 +71,7 @@ N10:p               0.832
 # In this case, the AICc is just too much better to ignore in favor of
 # those other factors. Something really has been happening recently.
 #
-# Now using N8 (L assumed from population) with no worsening of AICc.
+# Now using N10 (L assumed from population) with no worsening of AICc.
 
 # First relevant day after 1/22/20
 k0                  100
@@ -101,20 +101,20 @@ pb:r1               0.3         11      # !!
 # --- Regime #2 ---------------------------------------------------
 # t1: Midpoint between regime #1, #2 (days after first case)
 #pb:t1               1           30
-pb:t1               1           90
+pb:t1               1           80
 # s1: Span of regime #1 (days between regime halfway points)
 #pb:s1               28          34
-pb:s1               3           42
+pb:s1               4           40
 # r2: Second daily growth rate
 #pb:r2               0.009       0.012
 pb:r2               0.0         0.012
 # --- Regime #3 ---------------------------------------------------
 # t2: Midpoint of regime #3 (days after t1)
-pb:t2               50          170
+pb:t2               60          170
 # s1: Span of regime #2 (days to midpoints between regimes)
-pb:s2               1           18
+pb:s2               2           16
 # r2: Regime #3 (second) daily growth rate
-pb:r3               0.008       0.025
+pb:r3               0.007       0.023
 # --- Weekly variation --------------------------------------------
 # aw: Amplitude of weekly variation (in daily new cases)
 pb:aw               500         6e3
@@ -127,7 +127,8 @@ pb:tw               5.5         7.0
 #                   |                |          |
 #                   m                b          limit +/-
 relations:t1_t2    -1.0             +153.8      10.0
-relations:b_r2     -5.02055e-7      +0.0106     0.004
+relations:b_r2     -5.07941e-7      +0.0106     0.004
+relations:s1_t2    +2.95062         +54.311     30.0
 # -----------------------------------------------------------------
 -------------------------------------------------------------------------------
 
