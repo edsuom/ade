@@ -508,7 +508,7 @@ class Model(object):
     def f_text(self):
         terms = [sub("{}*x*(1-x/L)", "r(t)" if self.N > 4 else "r")]
         if self.two_pi_7: terms.insert(0, "w(t)")
-        parts = [sub("xd(t,x) = {} + b", "*+".join(terms))]
+        parts = [sub("xd(t,x) = {} + b", "+".join(terms))]
         if self.two_pi_7: parts.append("w(t) = aw*sin(2*pi/7*(t-tw))")
         if self.N > 2:
             parts.extend([
@@ -844,7 +844,7 @@ class Evaluator(Picklable):
             self.location = sub("{} County, {}", county, state)
         elif state:
             self.location = state
-        else: self.location = "entire U.S."
+        else: self.location = "Entire U.S."
         data = self.data = Covid19Data()
         data.state = state; data.county = county
         # Load specs, possibly including narrowed parameter bounds for
@@ -1284,7 +1284,7 @@ class Reporter(object):
             k_data = N_data - kk - 1
             ea.add(k)
         text = sub(
-            "Reported cases (NY Times data) vs days after first case. {}",
+            "Reported cases (NY Times data) vs days after first. {}",
             ea.annotate(sp))
         names = ["first", "last"] + names
         text = sub("{}; {} date totals.", text, ", ".join(names))
@@ -1496,8 +1496,8 @@ class Reporter(object):
             self.pos('daily_pct'),
             "New cases each day (%)")
         sp.set_ylabel("% New")
-        if rLast:
-            sp.set_zeroLine(100*rLast)
+        if rLast: sp.set_zeroLine(100*rLast)
+        self.weeklyTicks(sp, ta[-1])
         ax = sp(ta, Ra)
         self.add_model(ax, tm, Rm)
 
@@ -1517,6 +1517,7 @@ class Reporter(object):
             self.pos('daily_new'),
             "New cases each day (N)")
         sp.set_ylabel("Newly Reported")
+        self.weeklyTicks(sp, ta[-1])
         ax = sp(ta, XDa)
         self.add_model(ax, tm, XDm)
         
