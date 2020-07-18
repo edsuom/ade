@@ -469,7 +469,7 @@ class Model(object):
         # r3: Third daily growth rate
         'r3',
         # --- Weekly variation --------------------------------------------
-        # aw: Amplitude of weekly variation (in daily new cases)
+        # aw: Amplitude of weekly variation (fractional, <1.0)
         'aw',
         # tw: Time when at mean (non-varied) value (days after first case)
         'tw',
@@ -508,8 +508,8 @@ class Model(object):
     def f_text(self):
         terms = [sub("{}*x*(1-x/L)", "r(t)" if self.N > 4 else "r")]
         if self.two_pi_7: terms.insert(0, "w(t)")
-        parts = [sub("xd(t,x) = {} + b", "+".join(terms))]
-        if self.two_pi_7: parts.append("w(t) = aw*sin(2*pi/7*(t-tw))")
+        parts = [sub("xd(t,x) = {} + b", "*".join(terms))]
+        if self.two_pi_7: parts.append("w(t) = 1+aw*sin(2*pi/7*(t-tw))")
         if self.N > 2:
             parts.extend([
                 "r(t) = r1 + c12*(1 + tanh(1.1*(t-t1)/s1))",
@@ -559,9 +559,9 @@ class Model(object):
         Implements C{w(t)} to impose a weekly variation on the growth
         rate, observed due to testing limitations on weekends:::
 
-            w(t) = (1+aw)*sin(2*pi/7*(t+tw))
+            w(t) = 1+aw*sin(2*pi/7*(t+tw))
         """
-        return (1 + aw)*np.sin(self.two_pi_7*(t + tw))
+        return 1 + aw*np.sin(self.two_pi_7*(t + tw))
 
     def r(self, t, values):
         """
@@ -581,8 +581,13 @@ class Model(object):
         curve parameters, returns the number of B{new} Covid-19
         cases expected to be reported on that day.::
 
-            xd(t,x) = x*r(t)*(1-x/L) + b
+            xd(t,x) = r(t)*x*(1-x/L) + b
 
+        If the I{aw} and I{tw} parameter bounds are defined, there is
+        also a I{w(t)} term:::
+        
+            xd(t,x) = w(t)*r(t)*x*(1-x/L) + b
+        
         This requires integration of a first-order differential
         equation, which is performed in L{curve}.
 
@@ -654,7 +659,7 @@ class Model(object):
             aw = values.pop()
         XD = self.r(t, *values)*X*(1 - X/self.L)
         if self.two_pi_7:
-            XD += self.w(t, aw, tw)
+            XD *= self.w(t, aw, tw)
         return XD + b
     
     def xd_jac(self, t, x, *values):
@@ -747,6 +752,8 @@ class Evaluator(Picklable):
         the selected country or region since the first reported case
         in the NYT dataset on January 21, 2020, B{after} my
         L{transform} has been applied.
+
+    @ivar pop: The population of my region of interest.
     """
     scale_SSE = 1e-2
     pes_default = 1
@@ -878,7 +885,8 @@ class Evaluator(Picklable):
         # except when they get evolved to very low, obviously
         # contrived values that only attempt to cover up the
         # limitations in the last growth regime.
-        self.L = s.get('Lp')*s.get(dictName, 'pop')
+        self.pop = s.get(dictName, 'pop')
+        self.L = s.get('Lp')*self.pop
         # An instance of Model for all fitting and plotting
         self.model = Model(names, self.L)
         return data.setup(daysAgo).addCallbacks(done, oops)
@@ -1037,34 +1045,63 @@ class Reporter(object):
     @cvar minShown: Minimum number of reported cases to show at the
         bottom of the log plot.
 
-    @cvar N: Number of random points in extrapolated scatter plot.
+    @ivar N: Number of subplots shown.
     """
     minShown = 10
-    daysForward = 16
     max_line_length = 60
     plot_width = 11
-    plot_base_height = 15
+    plot_base_height = 4
     
-    def __init__(self, runner, ratio=False, daily=False):
+    def __init__(
+            self, runner, daysForward,
+            pct=False, past=False, future=False, ratio=False, daily=False):
         """
-        C{Reporter(evaluator, population, ratio=False, daily=False)}
+        C{Reporter(runner, daysForward, **kw)}
+
+        @keyword pct: Set C{True} to show future cases as percentage
+            of population.
+
+        @keyword past: Set C{True} to include subplots with curve fit
+            to past data.
+        
+        @keyword future: Set C{True} to include subplot with
+            extrapolation of fitted curve.
+
+        @keyword ratio: Set C{True} to include subplot with new cases
+            each day as a percentage of cumulative on that day.
+
+        @keyword daily: Set C{True} to include subplot with new cases
+            each day.
         """
         for name in ('names', 'ev', 'p'):
             setattr(self, name, getattr(runner, name))
-        self.includeRatio = ratio
+        self.daysForward = daysForward
+        self.pct = pct
+        self.includePast = past
+        self.includeFuture = future
+        self.includeRatio = ratio and not pct
         self.includeDaily = daily
         self.prettyValues = self.p.pm.prettyValues
-        N = 3; height = self.plot_base_height
-        for option in ratio, daily:
+        N = 0; height = self.plot_base_height
+        h2 = [0]
+        if past:
+            N += 2
+            height += 4
+            if future: h2.append(2)
+        if future:
+            N += 1
+            height += 3
+        for option in self.includeRatio, self.includeDaily:
             if option:
                 N += 1
-                height += 2
+                height += 3
+        self.N = N
         self.pt = Plotter(
             1, N,
             filePath=self.plotFilePath,
-            width=self.plot_width, height=height, h2=[0, 2])
-        self.pt.use_grid()
-        self.pt.set_fontsize('textbox', 12)
+            width=self.plot_width, height=height, h2=h2)
+        self.pt.use_grid('x', 'major', 'y', 'both')
+        self.pt.set_fontsize('textbox', 12 if N > 3 else 11)
         ImageViewer(self.plotFilePath)
 
     @property
@@ -1207,12 +1244,25 @@ class Reporter(object):
             r = self.curvePoints(list(self.p[ki]), k0, k1)
             tc[:,ki], Xc[:,ki] = r.t+0.1*stats.norm.rvs(size=Nt), r.X
         tc = tc.flatten() - k_offset
-        Xc = self.clipLower(Xc.flatten())
-        ax.semilogy(tc, Xc, color='black', marker=',', linestyle='')
+        Xc = Xc.flatten()
+        if self.pct:
+            f = ax.plot
+            Xc = self.make_pct(Xc)
+        else:
+            f = ax.semilogy
+            Xc = self.clipLower(Xc)
+        f(tc, Xc, color='black', marker=',', linestyle='')
 
     @staticmethod
     def cases(X, k):
         return int(round(X[k]))
+
+    def make_pct(self, X):
+        """
+        Returns a version of I{X} scaled to a percentage of my region's
+        population.
+        """
+        return 100.0*X/self.ev.pop
 
     def weeklyTicks(self, sp, t0):
         """
@@ -1240,9 +1290,13 @@ class Reporter(object):
         dateText = self.ev.dayText(k)
         if in_paren:
             dateText = sub("{} ({})", dateText, in_paren)
-        sp.add_annotation(kX, "{}: {:,.0f}", dateText, self.cases(X, kX))
+        parts = [sub("{}:", dateText)]
+        if self.pct:
+            parts.append(sub("{:.2f}%", X[kX]))
+        else: parts.append(sub("{:,.0f}", self.cases(X, kX)))
+        sp.add_annotation(kX, " ".join(parts))
     
-    def model_past(self, sp, values):
+    def model_past(self, sp, values, past=False):
         """
         Plots the past data against the best-fit model in subplot I{sp},
         given the supplied parameter I{values}, with the model curve
@@ -1256,6 +1310,39 @@ class Reporter(object):
         def tb(*args):
             sp.add_textBox('S', *args)
 
+        def plot_stuff():
+            ea = ErrorAnnotator(self.ev, X_curve, X_data, kToday)
+            # Date of first reported case number plotted
+            self.annotate_past(sp, X_data, k0+1)
+            # Date of most recently reported case number plotted
+            self.annotate_past(sp, X_data, kToday)
+            # Date of any t values in the plot x-axis range
+            names = []
+            for name, value in self.tValues:
+                if value > t[0] and value < t[-1]:
+                    names.append(name)
+                    self.annotate_past(sp, X_data, int(round(value)), name)
+            # Error in expected vs actual reported cases, going back
+            # several days starting with the latest date
+            kList = range(kToday, k0, -1)
+            N_data = len(X_data)
+            sp.add_axvline(-1)
+            for kk, k in enumerate(kList):
+                k_data = N_data - kk - 1
+                ea.add(k)
+            text = sub(
+                "Reported cases (NY Times data) vs days after first. {}",
+                ea.annotate(sp))
+            names = ["first", "last"] + names
+            text = sub("{}; {} date totals.", text, ", ".join(names))
+            for line in textwrap.wrap(text, self.max_line_length):
+                tb(line)
+            self.weeklyTicks(sp, t[-1])
+            sp.use_minorTicks('y', 10)
+            ax = sp.semilogy(t, X_data)
+            # Add the best-fit model values for comparison
+            self.add_model(ax, t, X_curve, semilog=True)
+        
         k0 = self.ev.k0
         kToday, k_offset = self.kForToday
         r = self.curvePoints(values, kToday, k0)
@@ -1263,37 +1350,8 @@ class Reporter(object):
         t -= k_offset
         K = self.ev.kt(t)
         X_data = self.clipLower(self.ev.X[K])
-        ea = ErrorAnnotator(self.ev, X_curve, X_data, kToday)
         XD = self.ev.transform()[K]
-        # Date of first reported case number plotted
-        self.annotate_past(sp, X_data, k0+1)
-        # Date of most recently reported case number plotted
-        self.annotate_past(sp, X_data, kToday)
-        # Date of any t values in the plot x-axis range
-        names = []
-        for name, value in self.tValues:
-            if value > t[0] and value < t[-1]:
-                names.append(name)
-                self.annotate_past(sp, X_data, int(round(value)), name)
-        # Error in expected vs actual reported cases, going back
-        # several days starting with the latest date
-        kList = range(kToday, k0, -1)
-        N_data = len(X_data)
-        sp.add_axvline(-1)
-        for kk, k in enumerate(kList):
-            k_data = N_data - kk - 1
-            ea.add(k)
-        text = sub(
-            "Reported cases (NY Times data) vs days after first. {}",
-            ea.annotate(sp))
-        names = ["first", "last"] + names
-        text = sub("{}; {} date totals.", text, ", ".join(names))
-        for line in textwrap.wrap(text, self.max_line_length):
-            tb(line)
-        self.weeklyTicks(sp, t[-1])
-        ax = sp.semilogy(t, X_data)
-        # Add the best-fit model values for comparison
-        self.add_model(ax, t, X_curve, semilog=True)
+        if past: plot_stuff()
         return t, X_data, XD, r.X, r.XD
     
     def model_future(self, sp, values):
@@ -1325,40 +1383,56 @@ class Reporter(object):
             k_curve = daysInFuture + k_offset
             if k_curve < 0 or k_curve >= len(X_curve):
                 return
+            if self.pct:
+                X = X_curve[k_curve]
+                proto = "{}: {:.2f}%"
+            else:
+                X = self.cases(X_curve, k_curve)
+                proto = "{}: {:,.0f}"
             sp.add_annotation(
-                k_curve, "{}: {:,.0f}",
-                self.ev.dayText(k0+daysInFuture),
-                self.cases(X_curve, k_curve), kVector=1)
+                k_curve, proto,
+                self.ev.dayText(k0+daysInFuture), X, kVector=1)
             return True
-            
+
+        def plot():
+            sp.add_line('-', 2)
+            # Vertical line "today"
+            t0 = self.ev.t[-1]
+            sp.add_axvline(t0)
+            # "Today" + previous few days
+            for k in range(k0-N_back, k0+1):
+                annotate_past(k)
+            # Every day for the next week, if daysForward is small enough
+            for k in range(1, 8, 1 if self.daysForward < 22 else 2):
+                annotate_future(k)
+            # Every other day thereafter
+            for k in range(8, self.daysForward-1, 2):
+                if not annotate_future(k):
+                    break
+            self.weeklyTicks(sp, t0)
+            sp.use_minorTicks('y', 10)
+            # Start with a few of the most recent actual data points
+            if self.pct:
+                ax = sp(t_data, X_data)
+            else: ax = sp.semilogy(t_data, X_data)
+            # Add the best-fit model extrapolation
+            self.add_model(ax, t, X_curve, semilog=not self.pct)
+            # Add scatterplot sorta-probalistic predictions
+            self.add_scatter(ax, k0, k1, k_offset)
+        
         N_back = 4
         k0, k_offset = self.kForToday
         k1 = k0 + self.daysForward
         t_data, X_data = [
             getattr(self.ev, name)[-N_back:] for name in ('t', 'X')]
+        if self.pct:
+            if self.includeFuture: sp.set_zeroLine(1.0)
+            X_data = self.make_pct(X_data)
         r = self.curvePoints(values, k0, k1)
         t = r.t - k_offset
         X_curve = r.X
-        # Vertical line "today"
-        t0 = self.ev.t[-1]
-        sp.add_axvline(t0)
-        # "Today" + previous few days
-        for k in range(k0-N_back, k0+1):
-            annotate_past(k)
-        # Every day for the next week
-        for k in range(1, 8):
-            annotate_future(k)
-        # Every other day thereafter
-        for k in range(8, 15, 2):
-            if not annotate_future(k):
-                break
-        self.weeklyTicks(sp, t0)
-        # Start with a few of the most recent actual data points
-        ax = sp.semilogy(t_data, X_data)
-        # Add the best-fit model extrapolation
-        self.add_model(ax, t, X_curve, semilog=True)
-        # Add scatterplot sorta-probalistic predictions
-        self.add_scatter(ax, k0, k1, k_offset)
+        if self.pct: X_curve = self.make_pct(X_curve)
+        if self.includeFuture: plot()
         return t, X_curve, r.XD
     
     def AICc(self, r):
@@ -1424,9 +1498,10 @@ class Reporter(object):
            AICc, r.SSE, N, k)
         return r
         
-    def subplot_upper(self, sp, values):
+    def subplot_upper(self, sp, values, past=False):
         """
-        Does the upper subplot with model fit vs data.
+        Does the computations for the upper subplot with model fit vs
+        data, only drawing the subplot if I{past} is C{True}.
 
         Returns the I{t} I{X} vectors for the actual data being
         plotted, the I{XD} vector for the actual data, the I{X} vector
@@ -1435,15 +1510,16 @@ class Reporter(object):
         """
         def tb(name, value):
             sp.add_textBox(self.pos('params'), "{}: {:.5g}", name, value)
-        
-        sp.add_line('-', 2)
-        sp.add_textBox(
-            self.pos('model'), self.ev.model.f_text)
-        tb('L', self.ev.L)
-        for k, name in enumerate(self.names):
-            tb(name, values[k])
+
+        if past:
+            sp.add_line('-', 2)
+            sp.add_textBox(
+                self.pos('model'), self.ev.model.f_text)
+            tb('L', self.ev.L)
+            for k, name in enumerate(self.names):
+                tb(name, values[k])
         # Data vs best-fit model
-        return self.model_past(sp, values)
+        return self.model_past(sp, values, past)
 
     def subplot_middle(self, sp, values, t):
         """
@@ -1464,17 +1540,6 @@ class Reporter(object):
             'NW', "Residuals: Modeled vs reported new cases/day (transformed)")
         sp(r.XD, r.R, zorder=3)
         
-    def subplot_lower(self, sp, values):
-        """
-        Does the lower subplot with extrapolation, starting at my I{k0}
-        days from first report.
-
-        Returns the I{t} and I{X} vectors for the future modeled data
-        being plotted, plus the modeled I{XD} vector.
-        """
-        sp.add_line('-', 2)
-        return self.model_future(sp, values)
-
     def subplot_ratio(self, sp, ta, Ra, tm, Rm, rLast=None):
         """
         Draws an optional subplot below the main ones showing the modeled
@@ -1541,19 +1606,23 @@ class Reporter(object):
         self.pt.set_title(
             "Modeled (red) vs Actual (blue) Reported Cases of COVID-19: {}",
             self.ev.location)
-        self.pt.set_ylabel("Reported Cases")
         self.pt.set_xlabel("Days after January 22, 2020")
         self.pt.use_minorTicks('x', 1.0)
         with self.pt as sp:
-            ta, Xa, XDa, Xam, XDam = self.subplot_upper(sp, values)
-            self.subplot_middle(sp, values, ta)
-            tb("Expected cases reported vs days after first case. Dots are")
+            ta, Xa, XDa, Xam, XDam = self.subplot_upper(
+                sp, values, self.includePast)
+            if self.includePast:
+                self.subplot_middle(sp, values, ta)
+            if self.pct:
+                tb("Expected % of population vs days after first case. Dots are")
+            else:
+                tb("Expected cases reported vs days after first case. Dots are")
             tb("daily model projections for each of a final population of")
             tb("{:d} evolved parameter combinations. Annotations:", len(self.p))
             tb("Reported cases, then best-fit projection.")
             for line in DISCLAIMER.strip().split('\n'):
                 sp.add_textBox(self.pos('disclaimer'), line)
-            tm, Xm, XDm = self.subplot_lower(sp, values)
+            tm, Xm, XDm = self.model_future(sp, values)
             if self.includeRatio or self.includeDaily:
                 tm = np.concatenate([ta, tm])
                 Xm = np.concatenate([Xam, Xm])
@@ -1724,7 +1793,9 @@ class Runner(object):
                 self.evaluate, self.names, self.bounds, popsize=args.p)
         rc = self.ev.relations()
         if rc: self.p.setConstraints(rc)
-        reporter = Reporter(self, ratio=not args.R, daily=not args.D)
+        reporter = Reporter(
+            self, args.f, pct=args.c, past=not args.P,
+            future=not args.T, ratio=not args.R, daily=not args.D)
         self.p.addCallback(reporter)
         if len(self.p):
             yield self.reEvaluate()
@@ -1815,6 +1886,8 @@ args = Args(
 )
 args('-d', '--days-ago', 0,
      "Limit latest data to N days ago rather than up to today")
+args('-f', '--days-forward', 16,
+     "Extrapolation limit, days from latest data")
 args('-m', '--maxiter', 100, "Maximum number of DE generations to run")
 args('-e', '--bitter-end', "Keep working to the end even with little progress")
 args('-p', '--popsize', 40, "Population: # individuals per unknown parameter")
@@ -1831,10 +1904,15 @@ args('-l', '--logfile',
      "Write results to logfile 'covid19.log' instead of STDOUT")
 args('-L', '--pickle-load',
      "Resume previous ade.Population object stored for this state/county")
+args('-P', '--exclude-past',
+     "Exclude subplots with past cases and curve fit info")
+args('-T', '--exclude-future', "Exclude subplot with extrapolations")
 args('-R', '--exclude-ratio',
-     "Exclude subplot with ratio of new vs cumulative cases")
+     "Exclude subplot with ratio of new vs cumulative cases (implied by -c)")
 args('-D', '--exclude-daily',
      "Exclude subplot with new daily cases")
+args('-c', '--percentage',
+     "Show cumulative case numbers as percentage of population (implies -R)")
 args('-i', '--profile', "Run with the Python profiler (slower)")
 args("[<State Name> [<County Name>]]")
 args(main)

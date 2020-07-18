@@ -110,7 +110,8 @@ def main():
                     name=name, N=args.N,
                     noShow=True, verbose=args.v, dims=args.d)
         else:
-            pt = analyzer.plotCorrelated(N=args.N, noShow=True, verbose=args.v)
+            pt = analyzer.plotCorrelated(
+                N=args.N, noShow=True, verbose=args.v, dims=args.d)
     if pt is None: raise RuntimeError("No analysis done!")
     pt.showAll()
 

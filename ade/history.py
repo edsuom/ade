@@ -517,7 +517,7 @@ class Analysis(object):
         Ncombos = Np*(Np-1)/2
         if Ncombos == 0: return
         if Ncombos < N: N = Ncombos
-        pt = self.makePlotter(N, dims)
+        pt = self.makePlotter(N, dims=dims)
         with pt as sp:
             count = 0
             for stuff in self.correlator():
