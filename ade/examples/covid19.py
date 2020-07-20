@@ -147,12 +147,6 @@ MOSFETs that evolves 40+ parameters (an unfathomably huge search
 space). And it does so with this very package whose example you are
 now reading.
 
-The model I'm using for the number of reported cases of COVID-19
-follows the logistic growth model, with a small (and not terribly
-significant) linear term added. It has just 4 parameters, and finding
-the best combination of those parameters is no problem at all for
-ADE.
-
 So, YES, THIS IS STILL A DISCLAIMER, I am not an expert in any of the
 actual realms of medicine, biology, etc. that we rely on for telling
 us what's going on with this virus. I just know how to fit models to
