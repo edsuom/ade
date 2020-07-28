@@ -1045,6 +1045,8 @@ class Reporter(object):
     max_line_length = 60
     plot_width = 11
     plot_base_height = 4
+
+    re_tn = re.compile(r't[1-9]')
     
     def __init__(
             self, runner, daysForward,
@@ -1178,7 +1180,7 @@ class Reporter(object):
         i = self.p.best()
         if i is not None:
             for name in sorted(self.names):
-                if name.startswith('t'):
+                if self.re_tn.match(name):
                     result.append((name, i[name]))
         return result
     
@@ -1311,11 +1313,13 @@ class Reporter(object):
             # Date of most recently reported case number plotted
             self.annotate_past(sp, X_data, kToday)
             # Date of any t values in the plot x-axis range
+            tLast = 0
             names = []
             for name, value in self.tValues:
-                if value > t[0] and value < t[-1]:
+                tLast += value
+                if tLast > t[0] and tLast < t[-1]:
                     names.append(name)
-                    self.annotate_past(sp, X_data, int(round(value)), name)
+                    self.annotate_past(sp, X_data, int(round(tLast)), name)
             # Error in expected vs actual reported cases, going back
             # several days starting with the latest date
             kList = range(kToday, k0, -1)
