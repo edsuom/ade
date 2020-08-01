@@ -1055,7 +1055,8 @@ class Reporter(object):
         C{Reporter(runner, daysForward, **kw)}
 
         @keyword pct: Set C{True} to show future cases as percentage
-            of population.
+            of population and new daily cases per 100,000 people in
+            population.
 
         @keyword past: Set C{True} to include subplots with curve fit
             to past data.
@@ -1571,6 +1572,10 @@ class Reporter(object):
 
         Call with actual-data time and daily-case vectors I{ta},
         I{XDa} and modeled time and daily-case vectors I{tm}, I{XDm}.
+
+        B{TODO}: If my I{pct} is set C{True}, the plot is for the
+        number of new cases per 100,000 people in the region's
+        population.
         """
         sp.add_axvline(-1)
         sp.add_annotation(
