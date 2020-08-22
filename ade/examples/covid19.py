@@ -749,9 +749,19 @@ class Evaluator(Picklable):
 
     @ivar pop: The population of my region of interest.
     """
-    scale_SSE = 1e-2
+    scale_SSE = 1e-5
     pes_default = 1
+    no_transform = True
 
+    @property
+    def lastDay(self):
+        """
+        Property: An 8-character string with no spaces indicating the last
+        (most recent) date in the dataset. For example, "20200801" for
+        August 1, 2020.
+        """
+        return self.dates[-1].strftime("%y%m%d")
+    
     def __getattr__(self, name):
         return getattr(self.data, name)
 
@@ -888,8 +898,11 @@ class Evaluator(Picklable):
     def transform(self, XD=None, inverse=False):
         """
         Applies a transform to the numbers of new cases per day each day
-        I{XD}, real or modeled. Set I{inverse} C{True} to apply the
+        I{XD}, real or modeled.  Set I{inverse} C{True} to apply the
         inverse of the transform.
+
+        If my I{no_transform} attribute is set C{True}, however, the
+        output will be the same as the input.
 
         To use your own (presumably modeled) I{XD}, supply it via that
         keyword. Otherwise, I will do an inverse transform on my own
@@ -905,6 +918,8 @@ class Evaluator(Picklable):
         if XD is None:
             XD = self.XD
             inverse = True
+        if self.no_transform:
+            return XD
         if inverse:
             return np.sign(XD) * XD**2
         return np.sign(XD) * np.sqrt(np.abs(XD))
@@ -1146,12 +1161,14 @@ class Reporter(object):
         directory) of a PNG file to write an update with a Matplotlib
         plot image of the modeling result.
 
-        The suffix for the region is included, along with a I{.png}
-        extension.
+        The suffix for the region is included, separated by an
+        underscore ("_"), then the date separated by a hyphen, then a
+        I{.png} extension. For example,
+        "Washington_Spokane-20200801.png".
         """
         basename = self.ev.suffix
         if not basename: basename = "US"
-        return sub("{}.png", basename)
+        return sub("{}-{}.png", basename, self.ev.lastDay)
 
     @property
     def rLast(self):
