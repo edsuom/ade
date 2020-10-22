@@ -49,14 +49,30 @@ daily_pct       NE
 daily_new       NW
 ---------------------------------
 
-# MS, ND, TN
+# Extras: Include a line for your region of interest with the name of
+# the subplot as the key and "xxx text..." as the value.
+#
+# The first entry after the extra:<name> must be an integer with the
+# position for the annotation as an element index of the displayed
+# vector. Unfortunately, this is inconvenient; you'll have to manually
+# calculate that index from the day since first reported case and
+# whatever day is first displayed on that subplot.
+#
+# The subplot names are:
+#---------------------------
+# past
+# residuals
+# future
+# daily_pct
+# daily_new
+#---------------------------
 
 
 C19_US
 -------------------------------------------------------------------------------
-updated             8/20/20
-N10:aicc           +378.8
-N10:p               0.962
+updated             10/20/20
+N10:aicc           +784.0
+N10:p               0.0
 # AICc was significantly better with a third growth regime; the
 # entire-US case is one where the extra 3 parameters might appear
 # justified. Except for this: The extra growth regime is entirely
@@ -84,7 +100,7 @@ pos:params          SE
 pos:summary         NW
 pos:stats           SE
 pos:disclaimer      SE
-pos:daily_pct       NW
+pos:daily_pct       NE
 
 # Population
 pop                 3.3e8
@@ -95,35 +111,34 @@ pop                 3.3e8
 #                   lower       upper
 # --- Regime #1 ---------------------------------------------------
 # Constant number of new cases reported each day since beginning
-pb:b                0           15000
+pb:b                0           400
 # r1: Initial daily growth rate (0.1 = 10% per day)
-pb:r1               0.002       0.014
+pb:r1               0.008       0.013
 # --- Regime #2 ---------------------------------------------------
 # t1: Midpoint between regime #1, #2 (days after first case)
-pb:t1               150         160
+pb:t1               153         160
 # s1: Span of regime #1 (days between regime halfway points)
-pb:s1               3           18
+pb:s1               4           15
 # r2: Second daily growth rate
-pb:r2               0.012       0.026
+pb:r2               0.019       0.024
 # --- Regime #3 ---------------------------------------------------
 # t2: Midpoint of regime #3 (days after t1)
-pb:t2               29          42
+pb:t2               30          42
 # s1: Span of regime #2 (days to midpoints between regimes)
-pb:s2               8           30
+pb:s2               15          22
 # r2: Regime #3 (second) daily growth rate
-pb:r3               0.003       0.015
+pb:r3               0.006       0.008
 # --- Weekly variation --------------------------------------------
 # aw: Amplitude of weekly variation (in daily new cases)
-pb:aw               0.08        0.20
+pb:aw               0.09        0.14
 # tw: Time when at mean (non-varied) value (days after first case)
-pb:tw               6.2         6.9
+pb:tw               6.30        6.65
 # -----------------------------------------------------------------
 
 # Constraint: Linear relation between parameters
 # ------------------+----------------+----------+----------------------
 #                   |                |          |
 #                   m                b          limit +/-
-relations:b_r1     -5.46177e-7      +0.011093   0.003
 # -----------------------------------------------------------------
 -------------------------------------------------------------------------------
 
@@ -439,9 +454,9 @@ pb:tw               3.9         4.8
 
 C19_Florida
 -------------------------------------------------------------------------------
-updated             8/11/20
-N10:aicc           -52.0
-N10:p               0.844
+updated             9/24/20
+N10:aicc           +312.9
+N10:p               0.0
 
 # First relevant day after 3/1/20
 k0                  88
@@ -460,24 +475,24 @@ pop                 2.15e7
 pb:b                0           400
 # --- Regime #1 ---------------------------------------------------
 # r1: Regime #1 (first) daily growth rate
-pb:r1               0.0         0.03
+pb:r1               0.0         0.04
 # --- Regime #2 ---------------------------------------------------
 # t1: Midpoint of regime #1 (days after first case)
-pb:t1               104         117
+pb:t1               102         117
 # s1: Span of regime #1 (days to midpoints between regimes)
-pb:s1               4           20
+pb:s1               2           20
 # r2: Regime #2 (second) daily growth rate
 pb:r2               0.02        0.15
 # --- Regime #3 ---------------------------------------------------
 # t2: Midpoint of regime #3 (days after t1)
-pb:t2               10          40
+pb:t2               13          40
 # s1: Span of regime #2 (days to midpoints between regimes)
-pb:s2               10          45
+pb:s2               18          38
 # r2: Regime #3 (second) daily growth rate
-pb:r3               0.0         0.03
+pb:r3               0.0         0.008
 # --- Weekly variation --------------------------------------------
 # aw: Amplitude of weekly variation (in daily new cases)
-pb:aw               0.1         0.3
+pb:aw               0.1         0.28
 # tw: Time when at mean (non-varied) value (days after first case)
 pb:tw               2.9         3.9
 # -----------------------------------------------------------------
@@ -834,17 +849,24 @@ pop                 10.5e6
 #                   |           |
 #                   lower       upper
 # Constant number of new cases reported each day since beginning
-pb:b                300         700
+pb:b                100         700
 # --- Regime #1 ---------------------------------------------------
 # r1: Regime #1 (first) daily growth rate
 pb:r1               0.0         0.02
 # --- Regime #2 ---------------------------------------------------
 # t1: Midpoint of regime #1 (days after first case)
-pb:t1               82          89
+pb:t1               60          100
 # s1: Span of regime #1 (days to midpoints between regimes)
-pb:s1               1           3
+pb:s1               1           30
 # r2: Regime #2 (second) daily growth rate
-pb:r2               0.005       0.020
+pb:r2               0.005       0.05
+# --- Regime #3 ---------------------------------------------------
+# t2: Midpoint of regime #3 (days after t1)
+pb:t2               1           60
+# s1: Span of regime #2 (days to midpoints between regimes)
+pb:s2               1           30
+# r2: Regime #3 (second) daily growth rate
+pb:r3               0.01        0.05
 # --- Weekly variation --------------------------------------------
 # aw: Amplitude of weekly variation (in daily new cases)
 pb:aw               0.1         0.4
@@ -974,7 +996,7 @@ pb:r2               0.015       0.028
 
 C19_SouthCarolina
 -------------------------------------------------------------------------------
-updated             7/30/20
+updated             9/18/20
 N8:aicc            -169.6
 N8:p                0.032
 N10:aicc           -178.0
@@ -993,25 +1015,25 @@ pop                 5.15e6
 #                   |           |
 #                   lower       upper
 # Constant number of new cases reported each day since beginning
-pb:b                0           180
+pb:b                0           120
 # r1: Regime #1 (first) daily growth rate
-pb:r1               0.0         0.03
+pb:r1               0.0         0.05
 # t1: Midpoint of regime #1 (days after first case)
-pb:t1               85          105
+pb:t1               75          110
 # s1: Span of regime #1 (days to midpoints between regimes)
-pb:s1               5           35
+pb:s1               1           45
 # r2: Regime #2 (second) daily growth rate
-pb:r2               0.03        0.09
+pb:r2               0.01        0.09
 # --- Regime #3 ---------------------------------------------------
 # t2: Midpoint of regime #3 (days after t1)
-pb:t2               20          50
+pb:t2               20          80
 # s1: Span of regime #2 (days to midpoints between regimes)
-pb:s2               5           40
+pb:s2               8           37
 # r2: Regime #3 (second) daily growth rate
-pb:r3               0.0         0.025
+pb:r3               0.004       0.014
 # --- Weekly variation --------------------------------------------
 # aw: Amplitude of weekly variation (in daily new cases)
-pb:aw               0.04        0.18
+pb:aw               0.04        0.22
 # tw: Time when at mean (non-varied) value (days after first case)
 pb:tw               0.8         2.5
 # -----------------------------------------------------------------
@@ -1020,15 +1042,15 @@ pb:tw               0.8         2.5
 
 C19_Texas
 -------------------------------------------------------------------------------
-updated             7/30/20
+updated             9/23/20
 N10:aicc           -83.3
 N10:p               0.919
 
 # First relevant day after 2/13/20
-k0                  91
+k0                  133
 
-pos:stats           NE
-pos:daily_pct       NW
+pos:stats           SE
+pos:daily_pct       NE
 
 # Population
 pop                 2.9e7
@@ -1038,27 +1060,27 @@ pop                 2.9e7
 #                   |           |
 #                   lower       upper
 # Constant number of new cases reported each day since beginning
-pb:b                0           500
+pb:b                0           3000
 # r1: Regime #1 (first) daily growth rate
-pb:r1               0.010       0.025
+pb:r1               0.0         0.4
 # t1: Midpoint of regime #1 (days after first case)
-pb:t1               119         129
+pb:t1               40          170
 # s1: Span of regime #1 (days to midpoints between regimes)
-pb:s1               1           10
+pb:s1               1           50
 # r2: Regime #2 (second) daily growth rate
-pb:r2               0.03        0.05
+pb:r2               0.02        0.09
 # --- Regime #3 ---------------------------------------------------
 # t2: Midpoint of regime #3 (days after t1)
-pb:t2               27          40
+pb:t2               10          150
 # s1: Span of regime #2 (days to midpoints between regimes)
-pb:s2               1           10
+pb:s2               5           50
 # r2: Regime #3 (second) daily growth rate
-pb:r3               0.014       0.024
+pb:r3               0.003       0.013
 # --- Weekly variation --------------------------------------------
 # aw: Amplitude of weekly variation (in daily new cases)
-pb:aw               0.18        0.32
+pb:aw               0.05        0.35
 # tw: Time when at mean (non-varied) value (days after first case)
-pb:tw               2.1         2.8
+pb:tw               1.8         3.5
 # -----------------------------------------------------------------
 -------------------------------------------------------------------------------
 
@@ -1105,21 +1127,18 @@ pb:tw               6.4         7.6
 
 C19_Washington
 -------------------------------------------------------------------------------
-updated             8/10/20
-N5:aicc            -184.1
-N5:p                0.083
-N7:aicc            -185.8
-N7:p                0.236
-N8:aicc            -187.7
-N8:p                0.183
-N10:aicc           -187.4
-N10:p               0.901
+#updated             9/23/20
+#N8:aicc            +133.9
+N8:p                0.007
+#N10:aicc           +135.1
+N10:p               0.013
 
 # First relevant day after 1/22/20
-k0                  105
+k0                  165
 
 pos:disclaimer      SE
-pos:daily_pct       NW
+pos:daily_pct       NE
+daily_new           NE
 
 # Population
 pop                 7.62e6
@@ -1130,34 +1149,29 @@ pop                 7.62e6
 #                   lower       upper
 # L: Upper limit to number of total cases (population: 7.6M)
 # Constant number of new cases reported each day since beginning
-#pb:b                0           280
-pb:b                0           300
+pb:b                0           80
 # --- Regime #1 ---------------------------------------------------
 # r1: Regime #1 (first) daily growth rate
-#pb:r1               0.0         0.002
-pb:r1               0.0         0.015
+pb:r1               0.0         0.05
 # --- Regime #2 ---------------------------------------------------
 # t1: Midpoint between regime #1, #2 (days after first case)
-#pb:t1               140         160
-pb:t1               140         190
+pb:t1               150         235
 # s1: Span of regime #1 (days between regime halfway points)
-#pb:s1               4           30
-pb:s1               1           65
+pb:s1               5           60
 # r2: Second daily growth rate
-#pb:r2               0.0         0.02
-pb:r2               0.0         0.04
+pb:r2               0.0         0.05
 # --- Regime #3 ---------------------------------------------------
 # t2: Midpoint of regime #3 (days after t1)
-pb:t2               5           60
+pb:t2               50          110
 # s1: Span of regime #2 (days to midpoints between regimes)
-pb:s2               1           50
+pb:s2               5           55
 # r2: Regime #3 (second) daily growth rate
-pb:r3               0.0         0.02
+pb:r3               0.0         0.03
 # --- Weekly variation --------------------------------------------
 # aw: Amplitude of weekly variation (in daily new cases)
 #pb:aw               0.0         0.3
 # tw: Time when at mean (non-varied) value (days after first case)
-#pb:tw               1.7         3.9
+#pb:tw               1.6         4.0
 # -----------------------------------------------------------------
 -------------------------------------------------------------------------------
 
@@ -1219,15 +1233,11 @@ pb:tw               1.6         2.8
 
 C19_Washington_Spokane
 -------------------------------------------------------------------------------
-updated             8/20/20
-N5:aicc            -190.1
-N5:p                0.093
-N7:aicc            +192.3
-N7:p                0.056
-N8:aicc            +196.0
-N8:p                0.568
-#N10:aicc           -121.1
-N10:p               0.493
+updated             10/1/20
+N8:aicc            -337.8
+N8:p                0.013
+N10:aicc           -334.7
+N10:p               0.014
 
 # First relevant day after 2/25/20
 k0                  124
@@ -1240,43 +1250,41 @@ pop                 5.15e5
 #                   |           |
 #                   lower       upper
 # Constant number of new cases reported each day since beginning
-#pb:b                0           40
-pb:b                0           40
+#pb:b                0           10
+pb:b                0           60
 # r1: Regime #1 (first) daily growth rate
-#pb:r1               0.0         0.2
-pb:r1               0.0         0.2
+#pb:r1               0.01        0.09
+pb:r1               0.0         0.1
 # t1: Midpoint of regime #1 (days after first case)
-#pb:t1               100         180
-pb:t1               70         160
+#pb:t1               140         165
+pb:t1               140         155
 # s1: Span of regime #1 (days to midpoints between regimes)
-#pb:s1               1           80
-pb:s1               1           70
+#pb:s1               6           30
+pb:s1               1           15
 # r2: Regime #2 (second) daily growth rate
-#pb:r2               0.0         0.01
-pb:r2               0.0         0.1
+#pb:r2               0.005       0.013
+pb:r2               0.01        0.03
 # --- Regime #3 ---------------------------------------------------
 # t2: Midpoint of regime #3 (days after t1)
-pb:t2               20          80
+pb:t2               10          25
 # s1: Span of regime #2 (days to midpoints between regimes)
-pb:s2               1           50
+pb:s2               1           5
 # r2: Regime #3 (second) daily growth rate
-pb:r3               0.0         0.008
+pb:r3               0.007       0.014
 # --- Weekly variation --------------------------------------------
 # aw: Amplitude of weekly variation (in daily new cases)
-pb:aw               0.05        0.8
+pb:aw               0.16        0.34
 # tw: Time when at mean (non-varied) value (days after first case)
-pb:tw               2.2         3.9
+pb:tw               1.0         2.1
 # -----------------------------------------------------------------
 -------------------------------------------------------------------------------
 
 
 C19_Wisconsin
 -------------------------------------------------------------------------------
-updated             7/30/20
-N7:aicc            -156.4
-N7:p                0.141
-N10:aicc           -158.3
-N10:p               0.461
+updated             9/25/20
+N10:aicc           -134.6
+N10:p               0.139
 
 # First relevant day after 2/6/20
 k0                  126
@@ -1294,30 +1302,30 @@ pop                 5.82e6
 #                   lower       upper
 # Constant number of new cases reported each day since beginning
 #pb:b                0           220
-pb:b                0           160
+pb:b                0           80
 # r1: Regime #1 (first) daily growth rate
 #pb:r1               0.0         0.015
-pb:r1               0.0         0.013
+pb:r1               0.0         0.004
 # t1: Midpoint of regime #1 (days after first case)
 #pb:t1               132         150
-pb:t1               125         175
+pb:t1               170         184
 # s1: Span of regime #1 (days to midpoints between regimes)
 #pb:s1               1           25
-pb:s1               5           70
+pb:s1               40          80
 # r2: Regime #2 (second) daily growth rate
 #pb:r2               0.01        0.03
-pb:r2               0.016       0.065
+pb:r2               0.04        0.16
 # --- Regime #3 ---------------------------------------------------
 # t2: Midpoint of regime #3 (days after t1)
-pb:t2               2           50
+pb:t2               1           5
 # s1: Span of regime #2 (days to midpoints between regimes)
-pb:s2               3           40
+pb:s2               14          34
 # r2: Regime #3 (second) daily growth rate
-pb:r3               0.0         0.03
+pb:r3               0.014       0.040
 # --- Weekly variation --------------------------------------------
 # aw: Amplitude of weekly variation (in daily new cases)
-pb:aw               0.08        0.26
+pb:aw               0.12        0.32
 # tw: Time when at mean (non-varied) value (days after first case)
-pb:tw               0.9         1.9
+pb:tw               0.7         1.6
 # -----------------------------------------------------------------
 -------------------------------------------------------------------------------

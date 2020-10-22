@@ -750,7 +750,6 @@ class Evaluator(Picklable):
     @ivar pop: The population of my region of interest.
     """
     scale_SSE = 1e-5
-    pes_default = 1
     no_transform = True
 
     @property
@@ -866,8 +865,7 @@ class Evaluator(Picklable):
         data.k0 = int(s.get(dictName, 'k0'))
         self.position = s.get('pos_defaults')
         self.position.update(s.get(dictName, 'pos'))
-        self.pes = s.get(dictName, 'pes')
-        if not self.pes: self.pes = self.pes_default
+        self.extras = s.get(dictName, 'extra')
         data.relations = {}
         relations = s.get(dictName, 'relations')
         for var_12 in relations:
@@ -1284,6 +1282,17 @@ class Reporter(object):
         "today".
         """
         sp.set_tickSpacing('x', (7.0, t0), 1.0)
+
+    def extra(self, sp, key):
+        """
+        Adds an extra annotation to the current subplot if one is present
+        (at most one) that matches the supplied I{key}.
+        """
+        extras = self.ev.extras.get(key, {})
+        if not extras: return
+        k = int(extras.pop(0))
+        extras[0] = extras[0].capitalize()
+        sp.add_annotation(k, " ".join(extras))
     
     def annotate_past(self, sp, X, k, in_paren=None):
         """
@@ -1309,6 +1318,7 @@ class Reporter(object):
             parts.append(sub("{:.2f}%", X[kX]))
         else: parts.append(sub("{:,.0f}", self.cases(X, kX)))
         sp.add_annotation(kX, " ".join(parts))
+        self.extra(sp, 'past')
     
     def model_past(self, sp, values, past=False):
         """
@@ -1425,6 +1435,9 @@ class Reporter(object):
             for k in range(8, self.daysForward-1, 2):
                 if not annotate_future(k):
                     break
+            # Any extra annotation
+            self.extra(sp, 'future')
+            # Tick marks
             self.weeklyTicks(sp, t0)
             sp.use_minorTicks('y', 10)
             # Start with a few of the most recent actual data points
@@ -1500,7 +1513,11 @@ class Reporter(object):
         """
         def tb(*args):
             msg(*args)
-            if sp: sp.add_textBox(self.pos('stats'), *args)
+            if sp:
+                # Any extra annotation
+                self.extra(sp, 'residuals')
+                # Text box
+                sp.add_textBox(self.pos('stats'), *args)
 
         # Calculate residuals between modeled and actual case numbers,
         # using supplied parameter values
@@ -1573,6 +1590,9 @@ class Reporter(object):
         sp.add_annotation(
             ta[-1], "{} had {:.1f}% of all\ncase reports thus far",
             self.ev.dayText(), Ra[-1])
+        # Any extra annotation
+        self.extra(sp, 'daily_pct')
+        # Text box
         sp.add_textBox(
             self.pos('daily_pct'),
             "New cases each day (%)")
@@ -1590,6 +1610,10 @@ class Reporter(object):
         Call with actual-data time and daily-case vectors I{ta},
         I{XDa} and modeled time and daily-case vectors I{tm}, I{XDm}.
 
+        If the region's specification includes an "extra" entry of the
+        form "xxx: whatever" then an extra annotation will be included
+        at integer day index xxx with the text "extra."
+        
         B{TODO}: If my I{pct} is set C{True}, the plot is for the
         number of new cases per 100,000 people in the region's
         population.
@@ -1598,6 +1622,9 @@ class Reporter(object):
         sp.add_annotation(
             ta[-1], "{} had {:.0f} new case reports",
             self.ev.dayText(), XDa[-1])
+        # Any extra annotation
+        self.extra(sp, 'daily_new')
+        # Text box
         sp.add_textBox(
             self.pos('daily_new'),
             "New cases each day (N)")
