@@ -262,6 +262,23 @@ def sanitized(*args):
     return "_".join(parts)
     
 
+class SpikeFixer(object):
+    """
+    Eliminates a single outlier spike in new daily cases by taking a
+    portion of its values and distributes them as a constant
+    proportional increase in previously reported cases.
+    
+    Georgia's COVID-19 reported case numbers had a huge spike on
+    10/5/20 when they figured they'd been under-reporting by around
+    20,000 cases. This screws up the curve fit, so a fix for their
+    ham-handed fix was needed, and this seems like the most sensible
+    one with the fewest assumptions.
+    """
+    def __init__(self, t, X):
+        # TODO
+        pass
+    
+
 class Covid19Data(Data):
     """
     Run L{setup} on my instance to load the ade-covid19.csv.bz2 file
