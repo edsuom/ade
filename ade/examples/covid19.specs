@@ -70,8 +70,8 @@ daily_new       NW
 
 C19_US
 -------------------------------------------------------------------------------
-updated             10/23/20
-N10:aicc           +588.8
+updated             11/27/20
+N10:aicc           +822.0
 N10:p               0.0
 # AICc was significantly better with a third growth regime; the
 # entire-US case is one where the extra 3 parameters might appear
@@ -100,8 +100,11 @@ pos:params          SE
 pos:summary         NW
 pos:stats           SE
 pos:disclaimer      SE
-pos:daily_pct       NE
+pos:daily_pct       N
 pos:daily_new       N
+
+# Indicate Thanksgiving day reporting outlier
+extra:daily_pct     310 Thanksgiving
 
 # Population
 pop                 3.3e8
@@ -112,28 +115,28 @@ pop                 3.3e8
 #                   lower       upper
 # --- Regime #1 ---------------------------------------------------
 # Constant number of new cases reported each day since beginning
-pb:b                0           7000
+pb:b                0           8500
 # r1: Initial daily growth rate (0.1 = 10% per day)
-pb:r1               0.016       0.036
+pb:r1               0.015       0.026
 # --- Regime #2 ---------------------------------------------------
 # t1: Midpoint between regime #1, #2 (days after first case)
-pb:t1               180         200
+pb:t1               184         202
 # s1: Span of regime #1 (days between regime halfway points)
-pb:s1               15          50
+pb:s1               13          29
 # r2: Second daily growth rate
-pb:r2               0.001       0.009
+pb:r2               0.0045      0.008
 # --- Regime #3 ---------------------------------------------------
 # t2: Midpoint of regime #3 (days after t1)
-pb:t2               72          120
+pb:t2               80          105
 # s1: Span of regime #2 (days to midpoints between regimes)
-pb:s2               15          80
+pb:s2               7           20
 # r2: Regime #3 (second) daily growth rate
-pb:r3               0.008       0.025
+pb:r3               0.015        0.02
 # --- Weekly variation --------------------------------------------
 # aw: Amplitude of weekly variation (in daily new cases)
-pb:aw               0.08        0.18
+pb:aw               0.02        0.13
 # tw: Time when at mean (non-varied) value (days after first case)
-pb:tw               6.2         6.8
+pb:tw               5.5         7.0
 # -----------------------------------------------------------------
 -------------------------------------------------------------------------------
 
@@ -1343,8 +1346,8 @@ pb:tw               1.6         2.8
 
 C19_Washington_Spokane
 -------------------------------------------------------------------------------
-updated             10/27/20
-#N10:aicc           -405.0
+updated             11/20/20
+N10:aicc           -250.6
 N10:p               0.0
 
 # First relevant day after 2/25/20
@@ -1360,27 +1363,27 @@ pop                 5.15e5
 #                   |           |
 #                   lower       upper
 # Constant number of new cases reported each day since beginning
-pb:b                0           50
+pb:b                0           60
 # r1: Regime #1 (first) daily growth rate
 pb:r1               0.0         0.01
 # t1: Midpoint of regime #1 (days after first case)
-pb:t1               145         210
+pb:t1               175         225
 # s1: Span of regime #1 (days to midpoints between regimes)
 pb:s1               1           60
 # r2: Regime #2 (second) daily growth rate
-pb:r2               0.001       0.010
+pb:r2               0.004       0.016
 # --- Regime #3 ---------------------------------------------------
 # t2: Midpoint of regime #3 (days after t1)
-pb:t2               5           60
+pb:t2               25          80
 # s1: Span of regime #2 (days to midpoints between regimes)
-pb:s2               1           5
+pb:s2               1           10
 # r2: Regime #3 (second) daily growth rate
-pb:r3               0.006       0.012
+pb:r3               0.01        0.03
 # --- Weekly variation --------------------------------------------
 # aw: Amplitude of weekly variation (in daily new cases)
-pb:aw               0.4         1.0
+pb:aw               0.2         0.9
 # tw: Time when at mean (non-varied) value (days after first case)
-pb:tw               0.7         1.6
+pb:tw               0.8         4.0
 # -----------------------------------------------------------------
 -------------------------------------------------------------------------------
 

@@ -1080,7 +1080,8 @@ class Reporter(object):
     
     def __init__(
             self, runner, daysForward,
-            pct=False, past=False, future=False, ratio=False, daily=False):
+            pct=False, past=False, residuals=False,
+            future=False, ratio=False, daily=False):
         """
         C{Reporter(runner, daysForward, **kw)}
 
@@ -1091,6 +1092,9 @@ class Reporter(object):
         @keyword past: Set C{True} to include subplots with curve fit
             to past data.
         
+        @keyword residuals: Set C{True} to include subplots with
+            residual plot.
+
         @keyword future: Set C{True} to include subplot with
             extrapolation of fitted curve.
 
@@ -1105,17 +1109,19 @@ class Reporter(object):
         self.daysForward = daysForward
         self.pct = pct
         self.includePast = past
+        self.includeResiduals = residuals
         self.includeFuture = future
         self.includeRatio = ratio and not pct
         self.includeDaily = daily
         self.prettyValues = self.p.pm.prettyValues
         N = 0; height = self.plot_base_height
         h2 = [0]
-        if past:
-            N += 2
-            height += 4
-            if future: h2.append(2)
-        if future:
+        for option in self.includePast, self.includeResiduals:
+            if option:
+                N += 1
+                height += 2
+        if self.includeFuture:
+            if N: h2.append(N)
             N += 1
             height += 3
         for option in self.includeRatio, self.includeDaily:
@@ -1304,10 +1310,15 @@ class Reporter(object):
         """
         Adds an extra annotation to the current subplot if one is present
         (at most one) that matches the supplied I{key}.
+
+        The annotation must be specified with an integer index
+        followed by a space and then the annotation text. The index is
+        the number of days since the region's first reported case.
         """
         extras = self.ev.extras.get(key, {})
         if not extras: return
-        k = int(extras.pop(0))
+        # Not sure why the -1 term is needed but whatever
+        k = int(extras.pop(0)) - self.ev.k0 - 1
         extras[0] = extras[0].capitalize()
         sp.add_annotation(k, " ".join(extras))
     
@@ -1675,7 +1686,7 @@ class Reporter(object):
         with self.pt as sp:
             ta, Xa, XDa, Xam, XDam = self.subplot_upper(
                 sp, values, self.includePast)
-            if self.includePast:
+            if self.includePast and self.includeResiduals:
                 self.subplot_middle(sp, values, ta)
             if self.pct:
                 tb("Expected % of population vs days after first case. Dots are")
@@ -1970,6 +1981,8 @@ args('-L', '--pickle-load',
      "Resume previous ade.Population object stored for this state/county")
 args('-P', '--exclude-past',
      "Exclude subplots with past cases and curve fit info")
+args('-E', '--exclude-residuals',
+     "Exclude subplot with curve fit info")
 args('-T', '--exclude-future', "Exclude subplot with extrapolations")
 args('-R', '--exclude-ratio',
      "Exclude subplot with ratio of new vs cumulative cases (implied by -c)")
