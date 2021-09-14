@@ -44,14 +44,13 @@ from scipy import stats
 from pyDOE import lhs
 from twisted.internet import defer, task
 
-from asynqueue.null import NullQueue
-from asynqueue.util import DeferredTracker
+from asynqueue import DeferredTracker
 
-import abort
-from individual import Individual
-from report import Reporter
-from history import History
-from util import *
+from . import abort
+from .individual import Individual
+from .report import Reporter
+from .history import History
+from .util import *
 
 
 class ParameterManager(object):
@@ -65,6 +64,12 @@ class ParameterManager(object):
 
     @ivar mins: Lower bound of each parameter.
     @ivar maxs: Lower bound of each parameter.
+
+    @keyword constraints: A single callable object (function, method,
+        class instance with I{__call__} method), or a sequence of such
+        objects, that enforce(s) any constraints on your parameter
+        values. See L{passesConstraints}. Instead of a sequence, you
+        can use an instance of L{constraints.Constraints}.
     """
     maxLineLength = 120
     dashes = "-"*maxLineLength
@@ -77,8 +82,8 @@ class ParameterManager(object):
         self.names = names
         self.sortedNameIndices = [
             names.index(name) for name in sorted(names)]
-        self.constraints = constraints if hasattr(
-            constraints, '__iter__') else [constraints]
+        self.constraints = [constraints] \
+            if notseq(constraints) else constraints
         self.setup(bounds)
 
     def setup(self, bounds):
@@ -185,6 +190,27 @@ class ParameterManager(object):
         bounds supplied to my constructor.
         """
         return (values - self.mins) / self.scales
+
+    def setConstraints(self, *args):
+        """
+        Sets my I{constraints} list to the callable function(s),
+        method(s), or object(s) supplied as one or more arguments.
+
+        What you supply as arguments will any constraint checking
+        already in place, so make sure you everything you want is
+        included.
+
+        All constraints, and only those constraints, defined by this
+        call will need to be be satisfied with each parameter
+        combination. To clear any existing constraints, call with no
+        args.
+
+        Called by L{Population.setConstraints}.
+        """
+        for f in args:
+            if not callable(f):
+                raise ValueError("Supplied object '{}' is not callable!", f)
+        self.constraints = list(args)
     
     def passesConstraints(self, values):
         """
@@ -198,11 +224,11 @@ class ParameterManager(object):
         if you constructed me with an empty list.)
         """
         if not self.constraints: return True
-        param = {}
+        params = {}
         for name, value in zip(self.names, values):
-            param[name] = value
+            params[name] = value
         for func in self.constraints:
-            if not func(param):
+            if not func(params):
                 # This constraint was violated, bail out
                 return False
         return True
@@ -305,9 +331,12 @@ class Population(object):
           angle, fully half of the challengers winning with an I{rir}
           of 0. (Unlikely!)
     
-    @keyword constraints: A list of callables that enforce any
-        constraints on your parameter values. See
-        L{ParameterManager.passesConstraints}.
+    @keyword constraints: A single callable object (function, method,
+        class instance with I{__call__} method), or a sequence of such
+        objects, that enforce(s) any constraints on your parameter
+        values. See L{ParameterManager.passesConstraints}. Instead of
+        a sequence, you can use an instance of
+        L{constraints.Constraints}.
     
     @keyword popsize: The number of individuals per parameter in the
         population, if not the default.
@@ -338,6 +367,8 @@ class Population(object):
     @ivar Np_max: Maximum population size. Default is 500, which is
         really pretty big.
 
+    @ivar Nd: The number of parameters for each individual.
+    
     @ivar targetFraction: The desired total score of improvements in
         each iteration in order for I{ade}'s adaptive algorithm to not
         change the current differential weight. See L{replacement} and
@@ -364,7 +395,7 @@ class Population(object):
     debug = False
     failedConstraintChar = " "
     # Property placeholders
-    _KS = None; _iSorted = None
+    _KS = None; _iSorted = None;
     
     def __init__(
             self, func, names, bounds,
@@ -406,6 +437,11 @@ class Population(object):
         want to do further evaluations, you can supply a reference to
         those functions (or even a different one, though that would be
         weird) with the I{func} and I{complaintCallback} keywords.
+
+        B{Note}: For some mysterious reason, the DE algorithm seems to
+        run significantly slower when resuming with a population that
+        has been loaded using this method than with one initialized
+        from scratch.
 
         @keyword func: Evaluation function, specify if you want to
             resume evaluations. All individuals in the loaded
@@ -532,7 +568,7 @@ class Population(object):
         """
         return i in self.iList
 
-    def __nonzero__(self):
+    def __bool__(self):
         """
         Sequence-like container of individuals: I am C{True} if I have
         any.
@@ -586,7 +622,7 @@ class Population(object):
         """
         if self.KS is not None:
             return self.KS[0]
-        
+
     def __repr__(self):
         """
         An informative string representation with a text table of my best
@@ -599,7 +635,7 @@ class Population(object):
             lines.append(" ".join(lineParts))
 
         if not self: return "Population: (empty)"
-        N_top = (self.pm.maxLineLength-3) / 15
+        N_top = int((self.pm.maxLineLength-3) / 15)
         iTops = self.iSorted[:N_top]
         if len(iTops) < N_top: N_top = len(iTops)
         SSEs = [float(i.SSE) for i in self]
@@ -818,6 +854,25 @@ class Population(object):
         """
         self.reporter.addCallback(func, *args, **kw)
 
+    def setConstraints(self, *args):
+        """
+        Sets the constraint checkers maintained by my L{ParameterManager}
+        instance I{pm} to the callable function(s), method(s), or
+        object(s) supplied as one or more args.
+
+        What you supply as arguments will replace any constraint
+        checking already in place, so make sure you everything you
+        want is included.
+
+        All constraints, and only those constraints, defined by this
+        call will need to be be satisfied with each parameter
+        combination. To clear any existing constraints, call with no
+        args.
+
+        @see: L{ParameterManager.setConstraints}.
+        """
+        self.pm.setConstraints(*args)
+        
     def _keepStatusQuo(self, score):
         """
         Returns C{True} with a probability that increases as I{score}

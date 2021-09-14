@@ -29,15 +29,17 @@ objects.
 """
 
 import random
-from cStringIO import StringIO
+from io import StringIO
 
 import numpy as np
 from numpy.polynomial import polynomial as poly
-from twisted.internet import defer, task
+from twisted.internet import defer, task, reactor
+
+from asynqueue import ProcessQueue
 
 from yampex.plot import Plotter
 
-from util import *
+from .util import *
 
 
 def seq2str(X, dtype=None):
@@ -77,7 +79,8 @@ class Analysis(object):
     Construct an instance of me with a sequence of parameter I{names},
     a 2-D Numpy array I{X} of values (in columns) for the SSEs (first
     column) and then each of those parameters (remaining columns), and
-    a sequence I{K} of row indices.
+    a sequence I{K} of row indices. Or, to analyze values of all
+    parameters, supply an empty list instead.
 
     Each index in I{K} points to a row of I{X} with one SSE and the
     parameter values for that SSE, with the indices of I{K} sorted in
@@ -93,13 +96,16 @@ class Analysis(object):
         (0.70, '.', 0.5),
         (1.01, '.', 0.0),
     )
+    fileSpec = None
+    defaultWidth = 12.0 # 1200 pixels default, for PNG plots
     
-    def __init__(self, names, X, K, Kp=set(), Kn=set()):
+    def __init__(self, names, X, K, Kp=set(), Kn=set(), baseFilePath=None):
         self.names = names
         self.X = X
         self.K = K
         self.Kp = Kp
         self.Kn = Kn
+        if baseFilePath: self.filePath(baseFilePath)
 
     def corr(self, k1, k2):
         """
@@ -264,20 +270,98 @@ class Analysis(object):
             return 9
         return N_left
 
-    def _makePlotter(self, *args, **kw):
+    def _widthHeight(self, dims):
+        """
+        Given a string I{dims} with W or WxL as an integer number of
+        pixels (not inches) for the width or width x height, returns
+        width and height in inches.
+        """
+        def inches(x):
+            return float(x) / Plotter.DPI
+
+        height = None
+        if dims:
+            if 'x' in dims:
+                width, height = [inches(x) for x in dims.split('x')]
+            else: width = inches(dims)
+        else: width = self.defaultWidth
+        return width, height
+    
+    def filePath(self, baseFilePath=None, dims=None):
+        """
+        Obtains a unique filePath for a PNG file, or, with I{baseFilePath}
+        set, sets my I{fileSpec} to a 6-list so that plotting is done
+        to a PNG file at I{filePath}.
+
+        The 6-list is: C{[directory, basename, extension, count,
+        width, height]}
+        
+        A numerical suffix gets appended to the base name (but not the
+        extension) to all files after the first one generated,
+        ensuring that each generated figure/PNG file is
+        unique. Without the keyword I{baseFilePath} set, the unique
+        file path is returned from a previous setting, along with the
+        desired width and height in inches.
+
+        @keyword baseFilePath: Specify this to set my
+            I{fileSpec}. C{None} is returned.
+
+        @keyword dims: Set to a string with W or WxL as an integer
+            number of pixels (not inches) for the width or width x
+            height of the PNG file(s).
+        """
+        width, height = self._widthHeight(dims)
+        if baseFilePath is None:
+            if self.fileSpec is None:
+                return
+            directory, baseName, ext, count, width, height = self.fileSpec
+            count += 1
+            self.fileSpec[3] = count
+            fileName = sub(
+                "{}-{:d}.{}", baseName, count, ext) if count > 1 else sub(
+                    "{}.{}", baseName, ext)
+            return os.path.join(directory, fileName), width, height
+        directory, fileName = os.path.split(baseFilePath)
+        baseName, ext = os.path.splitext(fileName)
+        self.fileSpec = [directory, baseName, ext.lstrip('.'), 0, width, height]
+    
+    def makePlotter(self, *args, **kw):
         """
         Returns a L{Plotter} object, constructed with the supplied args
         and/or keywords, with some global options set.
+
+        If I have a I{fileSpec} set, I will write the plot to a PNG
+        file instead of showing a plot window. There will be a
+        uniquifying numerical suffix appended to the file's base name.
+
+        @keyword dims: Set to a string with W or WxL as an integer
+            number of pixels (not inches) for the width or width x
+            height of the PNG file(s). Or C{None} for default (screen
+            size) dimensions.
         """
+        stuff = self.filePath()
+        width = kw.pop('width', None)
+        height = kw.pop('height', None)
+        dims = kw.pop('dims', None)
+        if stuff:
+            filePath, width, height = stuff
+            kw['filePath'] = filePath
+            N, Nc, Nr = Plotter.parseArgs(*args, **kw)[2:]
+            if height is None:
+                height = width * min([0.7, Nr/Nc])
+        elif dims:
+            width, height = self._widthHeight(dims)
+        if width: kw['width'] = width
+        if height: kw['height'] = height
         pt = Plotter(*args, **kw)
-        pt.add_line(""); pt.use_minorTicks('y'); pt.use_grid()
+        pt.use_grid()
         return pt
     
     def plot(self, names, **kw):
         """
-        Plots the values versus SSE for each of the parameters in
-        I{names}. Accepts keywords used for L{value_vs_SSE} (though
-        only I{inPop} is honored in this method), plus I{noShow}.
+        Plots values versus SSE for each parameter in I{names}. Accepts
+        keywords used for L{value_vs_SSE} (only I{inPop} is honored in
+        this method), plus I{noShow}, I{semilog}, and I{sp}.
         
         If there are two integer values in I{names}, they are used to
         select a range of my I{names} sequence. (Seldom used.)
@@ -286,8 +370,47 @@ class Analysis(object):
             from the last Matplotlib C{Figure} plotted instead of
             calling C{showAll} on it, thus allowing you to do so at
             your convenience.
+
+        @keyword semilog: Set C{True} to plot parameter values on a
+            logarithmic scale.
+
+        @keyword sp: Set to an instance of C{yampex.Plotter} in
+            subplot context and I will render each subplots using it,
+            with automatic subplot advancement for each
+            parameter. It's up to you to make sure the C{Plotter}
+            object got set up with subplots in the desired
+            arrangement, and to call it in context before calling this
+            method. See the docstring for C{yampex.Plotter.__call__}
+            for details.
         """
+        def setup(pt_sp):
+            pt_sp.add_line("")
+            pt_sp.use_minorTicks('y')
+            pt_sp.add_marker('o', 2.0); pt_sp.add_color('red')
+            pt_sp.set_xlabel("SSE")
+            if semilog:
+                pt_sp.plot_semilogy()
+            if not inPop:
+                pt_sp.add_marker('o', 2.0); pt_sp.add_color('blue')
+                pt_sp.add_marker('.', 1.5); pt_sp.add_color('#303030')
+        
+        def doSubplots(sp, kList):
+            """
+            Using Plotter-in-subplot-context object I{sp}, plots the subplots
+            for the parameter indices in I{kList}.
+            """
+            for k in kList:
+                name = names[k]
+                sp.set_title(name)
+                ax = sp(XYp[0], XYp[k+1])
+                if not inPop:
+                    ax.plot(XYn[0], XYn[k+1])
+                    ax.plot(XYr[0], XYr[k+1])
+        
         noShow = kw.pop('noShow', False)
+        semilog = kw.pop('semilog', False)
+        dims = kw.pop('dims', None)
+        sp = kw.pop('kw', None)
         names = self.args2names(names)
         inPop = kw.get('inPop', False)
         kw['inPop'] = True
@@ -302,35 +425,32 @@ class Analysis(object):
         # kList is a range of indices to the XYp, XYn, and XYr lists
         # of 1-D Numpy arrays
         N = len(XYp) - 1
-        kList = range(N)
+        kList = list(range(N))
+        if sp is not None:
+            setup(sp)
+            doSubplots(sp, kList)
+            return
         while kList:
             N = self.pick_N(kList)
             kkList = kList[:N]; kList = kList[N:]
             Nc = 1 if N == 1 else 3 if N > 6 else 2
-            pt = self._makePlotter(N, Nc=Nc)
-            pt.add_marker('o', 2.0); pt.add_color('red')
-            if not inPop:
-                pt.add_marker('o', 2.0); pt.add_color('blue')
-                pt.add_marker('.', 1.5); pt.add_color('#303030')
+            pt = self.makePlotter(N, Nc=Nc, dims=dims)
+            setup(pt)
             with pt as sp:
-                for k in kkList:
-                    name = names[k]
-                    sp.set_title(name)
-                    ax = sp(XYp[0], XYp[k+1])
-                    if not inPop:
-                        ax.plot(XYn[0], XYn[k+1])
-                        ax.plot(XYr[0], XYr[k+1])
+                doSubplots(sp, kkList)
         if noShow: return pt
         pt.showAll()
 
     def prettyLine(self, m, b):
         return sub("Y={:+.6g}*X {} {:.6g}", m, "-" if b < 0 else "+", abs(b))
         
-    def plotXY(self, arg1, arg2, sp=None, useFraction=False):
+    def plotXY(self, p1, p2, sp=None, useFraction=False):
         """
-        Plots the values of the parameter at column I{k2} of my I{X} array
-        versus the values of the parameter at column I{k1}, with a
-        rough indication of the SSEs involved.
+        Plots the values of parameter I{p1} versus the values of parameter
+        I{p2}, with a rough indication of the SSEs involved.
+
+        If I{p1} or I{p2} is an integer, the parameter values for that
+        column of my I{X} array are used instead.
 
         Also plots a best-fit line determined by I{lineFit} with the
         pairs having the best 50% of the SSEs.
@@ -350,7 +470,7 @@ class Analysis(object):
             X = np.array([X.min(), X.max()])
             ax = sp(X, m*X+b, '-r')
             f1 = 0.0
-            kw = {'color': "blue"}
+            kw = {'color': "blue", 'linestyle': ""}
             for f2, mk, ms in self.fmms:
                 if ms:
                     K = self.Kf12(f1, f2) if useFraction else self.Kp12(f1, f2)
@@ -361,19 +481,20 @@ class Analysis(object):
                 f1 = f2
             return xName, yName, m, b
 
-        k1 = arg1 if isinstance(arg1, int) else self.name2k(arg1)
-        k2 = arg2 if isinstance(arg2, int) else self.name2k(arg2)
+        k1 = p1 if isinstance(p1, int) else self.name2k(p1)
+        k2 = p2 if isinstance(p2, int) else self.name2k(p2)
         if sp is None:
-            pt = self._makePlotter(1)
+            pt = self.makePlotter(1)
             with pt as sp:
                 result = plot(sp)
             pt.show()
             return result
         return plot(sp)
     
-    def plotCorrelated(self, name=None, N=4, noShow=False, verbose=False):
+    def plotCorrelated(
+            self, name=None, N=4, noShow=False, verbose=False, dims=None):
         """
-        Plots values of four pairs of parameters with the highest
+        Plots values of I{N} pairs of parameters with the highest
         correlation. The higher the SSE for a given combination of
         values, the less prominent the point will be in the plot.
 
@@ -391,13 +512,12 @@ class Analysis(object):
             from the last Matplotlib C{Figure} plotted instead of
             calling C{showAll} on it, thus allowing you to do so at
             your convenience.
-
         """
         Np = self.X.shape[1] - 1
         Ncombos = Np*(Np-1)/2
         if Ncombos == 0: return
         if Ncombos < N: N = Ncombos
-        pt = self._makePlotter(N)
+        pt = self.makePlotter(N, dims=dims)
         with pt as sp:
             count = 0
             for stuff in self.correlator():
@@ -408,8 +528,8 @@ class Analysis(object):
                 xName, yName, m, b = self.plotXY(k1, k2, sp)
                 if verbose:
                     firstPart = sub("{}:{} ({})", xName, yName, corr)
-                    print(sub(
-                        "{:>30s}  {}", firstPart, self.prettyLine(m, b)))
+                    print((sub(
+                        "{:>30s}  {}", firstPart, self.prettyLine(m, b))))
                 count += 1
                 if count == N: break
         if noShow: return pt
@@ -448,6 +568,8 @@ class ClosestPairFinder(object):
     """
     Np_max = 10000
     Kn_penalty = 2.0
+    # Property placeholder
+    _q = None
     
     def __init__(self, Nr, Nc):
         """
@@ -458,6 +580,26 @@ class ClosestPairFinder(object):
         self.X = np.empty((Nr, Nc))
         self.clear()
 
+    @property
+    def q(self):
+        """
+        Property: An instance of L{ProcessQueue} with a single worker
+        dedicated to dealing with my I{history} object.
+
+        Whenever a new queue instance is constructed, a system event
+        trigger is added to shut it down before the reactor shuts
+        down.
+        """
+        def shutdown():
+            return q.shutdown().addCallback(
+                lambda _: setattr(self, '_q', None))
+        if self._q is None:
+            q = ProcessQueue(1, returnFailure=True)
+            triggerID = reactor.addSystemEventTrigger(
+                'before', 'shutdown', shutdown)
+            self._q = [q, triggerID]
+        return self._q[0]
+        
     def clear(self):
         """
         Sets my I{K} and I{Kn} to empty sets and I{S} to C{None},
@@ -539,6 +681,67 @@ class ClosestPairFinder(object):
         K1, K2 = np.meshgrid(list(self.K), list(self.K), indexing='ij')
         K12 = np.column_stack([K1.flatten(), K2.flatten()])
         return K12[np.flatnonzero(K12[:,1] > K12[:,0])]
+
+    def calcerator(self, K, Nr, Np):
+        """
+        Iterates over computationally intensive chunks of processing.
+
+        B{TODO}: Figure out how to run in a separate process
+        (currently stuck on defer.cancel not having a qualname and
+        thus not being picklable), or put code into a traditional
+        non-Twisted form and use a ThreadQueue.
+        """
+        if K is None:
+            if Nr*(Nr-1)/2 < Np:
+                K1 = self.pairs_all()
+            else: K1 = self.pairs_sampled(Np)
+            yield
+        else: K1 = K
+        if self.S is None:
+            XK = self.X[list(self.K),:]
+            self.S = 1.0 / (np.var(XK, axis=0) + 1E-20)
+            yield
+        # Calculate difference
+        X = self.X[K1[:,0]]
+        yield
+        X -= self.X[K1[:,1]]
+        yield
+        D = np.square(X)
+        yield
+        D *= self.S
+        yield
+        D = np.sum(D, axis=1)
+        yield
+        # Divide difference by mean SSE to favor lower-SSE history
+        SSEs = [self.X[K2,0] for K2 in [K1[:,k] for k in (0, 1)]]
+        D /= np.mean(np.column_stack(SSEs), axis=1)
+        yield
+        # Divide difference by a computed amount when the first
+        # item was never in the population, to keep a substantial
+        # fraction of the non-population history reserved for
+        # those who once were in the population
+        penalize = [1 if k1 in self.Kn else 0 for k1, k2 in K1]
+        # The penalty increases dramatically if the history comes
+        # to have more never-population records than those that
+        # have been in the population
+        N_neverpop = len(self.Kn)
+        if N_neverpop:
+            Kn_penalty = 1 + np.exp(12*(N_neverpop/len(D) - 0.4))
+            D /= np.choose(penalize, [1, Kn_penalty])
+        yield
+        if K is None:
+            kr = K1[np.argmin(D),0]
+            self.result(kr)
+        else: self.result(D)
+
+    def done(self, null):
+        return self.result()
+
+    def calculate(self, K, Nr, Np):
+        self.result = Bag()
+        d = task.cooperate(self.calcerator(K, Nr, Np)).whenDone()
+        d.addCallback(self.done)
+        return d
     
     def __call__(self, Np=None, K=None):
         """
@@ -573,61 +776,12 @@ class ClosestPairFinder(object):
             pairs of row indices, and the C{Deferred} will fire with
             just the sum-of-squares difference between each pair.
         """
-        def calcerator(K):
-            """
-            Iterates over computationally intensive chunks of processing.
-            """
-            if K is None:
-                if Nr*(Nr-1)/2 < Np:
-                    K1 = self.pairs_all()
-                else: K1 = self.pairs_sampled(Np)
-                yield
-            else: K1 = K
-            if self.S is None:
-                XK = self.X[list(self.K),:]
-                self.S = 1.0 / (np.var(XK, axis=0) + 1E-20)
-                yield
-            # Calculate difference
-            X = self.X[K1[:,0]]
-            yield
-            X -= self.X[K1[:,1]]
-            yield
-            D = np.square(X)
-            yield
-            D *= self.S
-            yield
-            D = np.sum(D, axis=1)
-            yield
-            # Divide difference by mean SSE to favor lower-SSE history
-            SSEs = [self.X[K2,0] for K2 in [K1[:,k] for k in (0, 1)]]
-            D /= np.mean(np.column_stack(SSEs), axis=1)
-            yield
-            # Divide difference by a computed amount when the first
-            # item was never in the population, to keep a substantial
-            # fraction of the non-population history reserved for
-            # those who once were in the population
-            penalize = [1 if k1 in self.Kn else 0 for k1, k2 in K1]
-            # The penalty increases dramatically if the history comes
-            # to have more never-population records than those that
-            # have been in the population
-            N_neverpop = len(self.Kn)
-            if N_neverpop:
-                Kn_penalty = 1 + np.exp(12*(N_neverpop/len(D) - 0.4))
-                D /= np.choose(penalize, [1, Kn_penalty])
-            yield
-            if K is None:
-                kr = K1[np.argmin(D),0]
-                result(kr)
-            else: result(D)
-            
-        result = Bag()
         Nr = len(self.K)
         if Nr == 1:
             return defer.succeed(list(self.K)[0])
         if Np is None: Np = self.Np_max
-        d = task.cooperate(calcerator(K)).whenDone()
-        d.addCallback(lambda _: result())
-        return d
+        #return self.q.call(self.calculate, K, Nr, Np)
+        return self.calculate(K, Nr, Np)
 
 
 class History(object):
@@ -748,6 +902,9 @@ class History(object):
         Call to have me return to a virginal state with no SSE+values
         combinations recorded or considered for removal, an empty
         population, and an I{N_total} of zero.
+
+        Returns a C{Deferred} that fires when the lock has been
+        acquired and everything is cleared.
         """
         def gotLock():
             del self.K[:]
@@ -759,10 +916,78 @@ class History(object):
         return self.dLock.run(gotLock)
 
     def value_vs_SSE(self, *args, **kw):
+        """
+        Obtains a 1-D Numpy array of the SSEs of my individuals and
+        matching 1-D Numpy arrays for each of the parameter
+        values in I{names}.
+
+        Waits to acquire the lock and then calls
+        L{Analysis.value_vs_SSE} on my instance I{a}, returning a
+        C{Deferred} that fires with the eventual result.
+        """
         def gotLock():
             return self.a.value_vs_SSE(*args, **kw)
         return self.dLock.run(gotLock)
+
+    def kkr(self, SSE, N):
+        """
+        Returns (1) the index I{k} of my I{K} list where the row index of
+        the new record should appear in my I{X} array, and (2)
+        that row index I{kr}.
+
+        First, index I{k} is obtained, by seeing where the I{K}
+        list points to a record with an SSE closest but above the
+        new one. Then each row index in the I{K} list is examined
+        to see if the previous row of my I{X} array is
+        unallocated. If so, that is the row index for the new
+        record. Otherwise, is the next row of my I{X} array is
+        unallocated, that is used instead. If both adjacent rows
+        of I{X} are already allocated, the next row index in the
+        I{K} list is examined.
+
+        If there are no row indices in I{K} that point to a row of
+        I{X} with an unallocated adjacent row, the row index is
+        determined to be the current length of I{k}.
+
+        B{Note}: With the original for-loop Python, the search for an
+        unallocated row was very CPU intensive when you get a big
+        history accumulated:::
+
+            # Pick a row index for the new record
+            for kr in self.K:
+                if kr > 0 and kr-1 not in self.K:
+                    return k, kr-1
+                if kr < N-1 and kr+1 not in self.K:
+                    return k, kr+1
+            return k, N
+
+        The reason is that the list was being searched for an item
+        with every iteration, twice!
         
+        The optimized version does this same thing with much more
+        efficiently, by creating a local (array) copy of I{K} and
+        sorting it in place. Then only adjacent elements needs to be
+        inspected with each iteration. (It may be just as fast with a
+        local sorted list instead of a Numpy array.)
+        """
+        K = np.array(self.K)
+        # Find the index in K of the row index for the closest
+        # recorded SSE above i.SSE
+        k = np.searchsorted(self.X[K,0], SSE)
+        #--- Pick a row index for the new record ------------------------------
+        # Sort local array version of K in place
+        K.sort()
+        for kk, kr in enumerate(K[1:-1]):
+            if kr == 0: continue
+            if kr == N-1: break
+            if K[kk] != kr-1:
+                return k, kr-1
+            if K[kk+2] != kr+1:
+                return k, kr+1
+        if K[0] > 0:
+            return k, K[0]-1
+        return k, min([N, K[-1]+1])
+
     @defer.inlineCallbacks
     def add(self, i, neverInPop=False):
         """
@@ -781,37 +1006,6 @@ class History(object):
         @keyword neverInPop: Set C{True} to have the individual added
             without ever having been part of the population.
         """
-        def kkr():
-            """
-            Returns (1) the index I{k} of my I{K} list where the row index of
-            the new record should appear in my I{X} array, and (2)
-            that row index I{kr}.
-
-            First, index I{k} is obtained, by seeing where the I{K}
-            list points to a record with an SSE closest but above the
-            new one. Then each row index in the I{K} list is examined
-            to see if the previous row of my I{X} array is
-            unallocated. If so, that is the row index for the new
-            record. Otherwise, is the next row of my I{X} array is
-            unallocated, that is used instead. If both adjacent rows
-            of I{X} are already allocated, the next row index in the
-            I{K} list is examined.
-
-            If there are no row indices in I{K} that point to a row of
-            I{X} with an unallocated adjacent row, the row index is
-            determined to be the current length of I{k}.
-            """
-            # Find the index in K of the row index for the closest
-            # recorded SSE above i.SSE
-            k = np.searchsorted(self.X[self.K,0], i.SSE)
-            # Pick a row index for the new record
-            for kr in self.K:
-                if kr > 0 and kr-1 not in self.K:
-                    return k, kr-1
-                if kr < N-1 and kr+1 not in self.K:
-                    return k, kr+1
-            return k, N
-
         def writeRecord(k, kr):
             """
             Writes a 1-D Numpy array with SSE+values to row I{kr} of my I{X}
@@ -837,7 +1031,8 @@ class History(object):
                 # from the population later
                 self.kr[hash(i)] = kr
 
-        if np.isfinite(i.SSE):
+        SSE = i.SSE
+        if np.isfinite(SSE):
             yield self.dLock.acquire()
             N = len(self.K)
             if N == 0:
@@ -846,14 +1041,14 @@ class History(object):
             elif N < self.N_max:
                 # Roster not yet full, no need to search for somebody
                 # to bump first
-                k, kr = kkr()
+                k, kr = self.kkr(SSE, N)
             else:
                 # Roster is full, we will need to bump somebody (those
                 # in the current population are protected and exempt)
                 # before adding
                 kr = yield self.cpf()
                 if kr is not None: self.purge(kr)
-                k, kr = kkr()
+                k, kr = self.kkr(SSE, N)
             writeRecord(k, kr)
             self.dLock.release()
         else: kr = None

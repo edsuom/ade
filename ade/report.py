@@ -33,7 +33,7 @@ from twisted.internet import defer
 
 from asynqueue.util import DeferredTracker
 
-from util import *
+from .util import *
 
 
 class Reporter(object):

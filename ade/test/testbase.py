@@ -120,7 +120,7 @@ class MsgBase(object):
             if args and args[-1] == "-":
                 args = args[:-1]
                 proto += "\n{}".format("-"*40)
-            print(proto.format(*args))
+            print((proto.format(*args)))
             
 
 class MockIndividual(object):
@@ -158,7 +158,7 @@ class MockIndividual(object):
     def __add__(self, other):
         return MockIndividual(self.values + other.values)
 
-    def __nonzero__(self):
+    def __bool__(self):
         if self.SSE is None or np.isnan(self.SSE) or self.SSE >= 0:
             return True
         return False
@@ -302,14 +302,14 @@ class TestCase(MsgBase, unittest.TestCase):
     def tearDown(self):
         msg(None)
         while self.pendingCalls:
-            call = self.pendingCalls.keys()[0]
+            call = list(self.pendingCalls.keys())[0]
             if call.active():
                 self.pendingCalls[call].callback(None)
                 call.cancel()
         msg(None)
         
     def oops(self, failureObj):
-        print "FAIL!!!!!!!\n{}\n{}".format('-'*40, failureObj.value)
+        print("FAIL!!!!!!!\n{}\n{}".format('-'*40, failureObj.value))
         import pdb; pdb.set_trace()
 
     def deferToDelay(self, t):
@@ -341,7 +341,7 @@ class TestCase(MsgBase, unittest.TestCase):
         
         dList = []
         resultList = []
-        for k in xrange(N):
+        for k in range(N):
             yield k
             self.d.addCallback(resultList.append)
             dList.append(self.d)
@@ -351,8 +351,8 @@ class TestCase(MsgBase, unittest.TestCase):
         occurrences = len(re.findall(pattern, text))
         if occurrences != number:
             info = \
-                u"Expected {:d} occurrences, not {:d}, " +\
-                u"of '{}' in\n-----\n{}\n-----\n"
+                "Expected {:d} occurrences, not {:d}, " +\
+                "of '{}' in\n-----\n{}\n-----\n"
             info = info.format(number, occurrences, pattern, text)
             self.assertEqual(occurrences, number, info)
     
@@ -379,9 +379,9 @@ class TestCase(MsgBase, unittest.TestCase):
         proto = "Pattern '{}' not in '{}'"
         if '\n' not in pattern:
             text = re.sub(r'\s*\n\s*', '', text)
-        if isinstance(text, unicode):
+        if isinstance(text, str):
             # What a pain unicode is...
-            proto = unicode(proto)
+            proto = str(proto)
         self.assertTrue(
             bool(re.search(pattern, text)),
             proto.format(pattern, text))
@@ -400,6 +400,10 @@ class TestCase(MsgBase, unittest.TestCase):
                 msg += "\nFrom #1: '{}'\nFrom #2: '{}'".format(s1, s2)
                 self.fail(msg)
 
+    def assertItemsEqual(self, a, b):
+        for ak, bk in zip(a, b):
+            self.assertEqual(ak, bk, sub("{} != {}", a, b))
+    
     def assertItemsAlmostEqual(self, a, b, tol=1):
         for ak, bk in zip(a, b):
             self.assertAlmostEqual(ak, bk, tol)

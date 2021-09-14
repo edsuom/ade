@@ -26,7 +26,7 @@
 Unit tests for L{ade.report}.
 """
 
-from StringIO import StringIO
+from io import StringIO
 
 import numpy as np
 

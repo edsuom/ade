@@ -40,9 +40,9 @@ from scipy import stats
 
 from twisted.internet import defer, task, reactor, stdio, protocol
 
-import abort
-from population import Population
-from util import *
+from . import abort
+from .population import Population
+from .util import *
 
 # This is kind of hackish and ugly, but all the @defer.inlineCallbacks
 # action can involve some pretty deep recursion

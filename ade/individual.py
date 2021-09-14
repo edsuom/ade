@@ -36,7 +36,7 @@ import random, pickle, time
 import numpy as np
 from twisted.internet import defer, task
 
-from util import sub, msg
+from .util import sub, msg
 
 
 class Individual(object):
@@ -172,7 +172,7 @@ class Individual(object):
         for value in self.values:
             yield value
 
-    def __nonzero__(self):
+    def __bool__(self):
         """
         I am C{True} if there were no fatal errors during my last
         evaluation, which would be indicated by an evaluation SSE

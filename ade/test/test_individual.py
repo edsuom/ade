@@ -60,7 +60,7 @@ class TestIndividual(tb.TestCase):
         text = repr(i)
         self.assertIn('SSE=123.456', text)
         if self.verbose:
-            print text
+            print(text)
         
     def test_getAndSet(self):
         i = self.spawn()

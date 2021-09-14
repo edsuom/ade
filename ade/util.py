@@ -47,6 +47,12 @@ def sub(proto, *args):
     except:
         raise ValueError("Proto '{}' couldn't apply args {}", proto, args)
 
+def notseq(x):
+    """
+    Returns C{True} if I{x} is not a sequence.
+    """
+    return not hasattr(x, '__iter__')
+    
 def oops(failureObj):
     """
     A handy universal errback.
@@ -57,7 +63,7 @@ def oops(failureObj):
     if isinstance(failureObj, failure.Failure):
         info = failureObj.getTraceback()
     else: info = str(failureObj)
-    print(sub("Failure:\n{}\n{}\n", '-'*40, info))
+    print((sub("Failure:\n{}\n{}\n", '-'*40, info)))
     #import pdb; pdb.set_trace()
     #os._exit(1)
 
@@ -102,7 +108,7 @@ class Bag(object):
     def __init__(self, initialValue=None):
         self.x = initialValue
 
-    def __nonzero__(self):
+    def __bool__(self):
         return self.x is not None
 
     def pop(self):
@@ -203,7 +209,7 @@ class Messenger(object):
         self.newlineNeeded = False
         self._lineWasWritten = False
 
-    def __nonzero__(self):
+    def __bool__(self):
         return self.fh is not None
 
     def _dashes(self, breakBefore=False, breakAfter=False):

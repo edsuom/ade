@@ -27,7 +27,7 @@ Unit tests for L{ade.population}.
 """
 
 import time, os.path, random, pickle
-from StringIO import StringIO
+from io import StringIO
 
 import numpy as np
 from matplotlib import pyplot as plt
@@ -103,9 +103,9 @@ class Test_ParameterManager(tb.TestCase):
         plt.grid()
         for k, count in enumerate(counts):
             if self.verbose:
-                print sub(
+                print(sub(
                     "{:3d}  {:4.2f}-{:4.2f}  {:f}",
-                    k, bins[k], bins[k+1], count)
+                    k, bins[k], bins[k+1], count))
                 if bins[k+1] < 1 or bins[k] > 2:
                     self.assertEqual(count, 0)
                 else:
@@ -243,7 +243,7 @@ class Test_Population(tb.TestCase):
             if i < iBest:
                 self.p.push(i)
                 if self.verbose:
-                    print k, i.SSE
+                    print(k, i.SSE)
             self.assertTrue(i.SSE <= self.p.iSorted[-1].SSE)
             self.assertTrue(iBest.SSE <= SSE_prev)
             SSE_prev = i.SSE

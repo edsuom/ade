@@ -57,8 +57,8 @@ class Test_Analysis(tb.TestCase):
     def test_valueVsSSE(self):
         XY = self.a.value_vs_SSE(['bar'])
         self.assertEqual(len(XY), 2)
-        self.assertItemsEqual(XY[0], [110.0, 270.0, 580.0, 810.0, 999.0])
-        self.assertItemsEqual(XY[1], [2, 4, 5, 3, 6])
+        self.assertItemsEqual(XY[0], [110., 580., 270., 810., 999.])
+        self.assertItemsEqual(XY[1], [2, 5, 4, 3, 6])
 
     def test_corr(self):
         self.assertAlmostEqual(self.a.corr(1, 2), +1)
@@ -202,7 +202,26 @@ class Test_History(tb.TestCase):
 
     def tearDown(self):
         return self.h.shutdown()
-        
+
+    def test_kkr(self):
+        self.h.X = np.array([[
+        #   0  1  2  3  4  5  6  7      kr
+        #   2  0  3  -  1  4  -  5      k
+            3, 1, 4, 0, 2, 5, 0, 9]]).transpose()
+        self.h.K = [
+        #   0  1  2  3  4  5            k
+            1, 4, 0, 2, 5, 7]
+        #   1  2  3  4  5  9            X[K,0]
+        N = 6
+        for SSE, k_exp, kr_exp in (
+                (7.0, 5, 3),
+                (1.0, 0, 3),
+                (99,  6, 3),
+        ): 
+            k, kr = self.h.kkr(SSE, N)
+            self.assertEqual(k, k_exp)
+            self.assertEqual(kr, kr_exp)
+    
     @defer.inlineCallbacks
     def test_add_worsening(self):
         for k in range(5):

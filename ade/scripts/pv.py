@@ -69,12 +69,18 @@ args = Args(
     
     """
 )
+args('-d', '--dims', '',
+     "Plot dimensions (pixels, W only or WxL, e.g., '1200x800'")
+args('-f', '--file-path', '',
+     "Path of a PNG file to be created/updated instead of a plot window")
 args('-r', '--max-ratio', 0.0,
      "Show parameter vs SSE plots, limited to this max/min SSE ratio")
 args('-i', '--in-pop',
      "Only individuals currently in the population")
 args('-N', '--N-correlates', 0,
      "Show the N most correlated pairs of all parameters")
+args('-s', '--semilog',
+     "Plot parameter values on a logarithmic scale")
 args('-v', '--verbose', "Print info about parameters to STDOUT")
 # Positional argument
 args("<pickle file> [param1 param2 ...]")
@@ -89,17 +95,23 @@ def main():
     filePath = args[0]
     p = Population.load(os.path.expanduser(filePath))
     analyzer = p.history.a
+    if args.f: analyzer.filePath(args.f, dims=args.d)
     names = args[1:] if len(args) > 1 else []
     pt = None
     if args.r:
-        pt = analyzer.plot(names, maxRatio=args.r, inPop=args.i, noShow=True)
+        pt = analyzer.plot(
+            names,
+            maxRatio=args.r, inPop=args.i,
+            noShow=True, semilog=args.s, dims=args.d)
     if args.N:
         if names:
             for name in names:
                 pt = analyzer.plotCorrelated(
-                    name=name, N=args.N, noShow=True, verbose=args.v)
+                    name=name, N=args.N,
+                    noShow=True, verbose=args.v, dims=args.d)
         else:
-            pt = analyzer.plotCorrelated(N=args.N, noShow=True, verbose=args.v)
+            pt = analyzer.plotCorrelated(
+                N=args.N, noShow=True, verbose=args.v, dims=args.d)
     if pt is None: raise RuntimeError("No analysis done!")
     pt.showAll()
 

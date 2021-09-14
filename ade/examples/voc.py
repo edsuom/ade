@@ -50,10 +50,10 @@ from ade.de import DifferentialEvolution
 from ade.image import ImageViewer
 from ade.util import *
 
-from data import Data
+from data import TimeData
 
 
-class BatteryData(Data):
+class BatteryData(TimeData):
     """
     Run L{setup} on my instance to decompress and load the
     voc.csv.bz2 CSV file.

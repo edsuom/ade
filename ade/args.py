@@ -81,7 +81,7 @@ class Args(object):
         if paras: kw['epilog'] = "\n\n".join(paras)
         self.parser = argparse.ArgumentParser(**kw)
 
-    def __nonzero__(self):
+    def __bool__(self):
         return len(self) > 0
 
     def addDefault(self, text, default, dest=None):
