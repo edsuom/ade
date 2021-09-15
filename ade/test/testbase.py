@@ -26,7 +26,7 @@
 Utility stuff used by L{ade} unit tests.
 """
 
-import os.path, inspect, re, atexit
+import os.path, inspect, re, atexit, struct
 from contextlib import contextmanager
 
 import numpy as np
@@ -164,7 +164,8 @@ class MockIndividual(object):
         return False
 
     def __hash__(self):
-        return hash(bytes(self.SSE) + np.array(self.values).tobytes())
+        return hash(
+            struct.pack('<f', self.SSE) + np.array(self.values).tobytes())
     
     def __eq__(self, other):
         return self.SSE == other.SSE

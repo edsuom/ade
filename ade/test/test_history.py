@@ -258,6 +258,13 @@ class Test_History(tb.TestCase):
             self.assertEqual(len(self.h), k+1)
         for k, values in enumerate(self.h):
             self.assertItemsEqual(values, [4-k,4-k+1,4-k+2])
+
+    def popitem_predictably(self, x):
+        value = sorted(x.values())[0]
+        for key, this_value in x.items():
+            if this_value == value:
+                x.pop(key)
+                return key, value
             
     @defer.inlineCallbacks
     def test_add_limitSize_worsening(self):
@@ -267,7 +274,7 @@ class Test_History(tb.TestCase):
             i.SSE = 1000.0 + k
             yield self.h.add(i)
             if len(self.h.kr) == 10:
-                iHash, kr = self.h.kr.popitem()
+                iHash, kr = self.popitem_predictably(self.h.kr)
                 self.h.notInPop(kr)
                 krPopped.add(kr)
         self.assertEqual(len(self.h), 10)
@@ -286,8 +293,8 @@ class Test_History(tb.TestCase):
             i.SSE = 1000.0 - k
             yield self.h.add(i)
             if len(self.h.kr) == 10:
-                iHash, kr = self.h.kr.popitem()
-                self.h.notInPop(kr)
+                iHash, kr = self.popitem_predictably(self.h.kr)
+                yield self.h.notInPop(kr)
                 krPopped.add(kr)
         self.assertEqual(len(self.h), 10)
         valuesPrev = None

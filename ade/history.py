@@ -29,7 +29,7 @@ objects.
 """
 
 import random
-from io import StringIO
+from io import BytesIO
 
 import numpy as np
 from numpy.polynomial import polynomial as poly
@@ -42,31 +42,32 @@ from yampex.plot import Plotter
 from .util import *
 
 
-def seq2str(X, dtype=None):
+def seq2bytes(X, dtype=None):
     """
-    Converts the supplied sequence I{X} to a string, returned. If the
-    sequence is not already a Numpy array, supply an efficient
-    I{dtype} for the array version that will be created for it.
+    Converts the supplied sequence I{X} to a bytes object,
+    returned. If the sequence is not already a Numpy array, supply an
+    efficient I{dtype} for the array version that will be created for
+    it.
     """
     if dtype: X = np.array(X, dtype=dtype)
-    fh = StringIO()
+    fh = BytesIO()
     np.save(fh, X)
     X = fh.getvalue()
     fh.close()
     return X
 
-def str2array(state, name):
+def bytes2array(state, name):
     """
-    Converts the string with key I{name} in I{state} into a Numpy
-    array, which gets returned.
+    Converts the bytes object with key I{name} in I{state} into a
+    Numpy array, which gets returned.
 
-    If no such string is present, an empty array is constructed and
-    returned.
+    If no such bytes object is present, an empty array is constructed
+    and returned.
     """
     text = state.get(name, None)
     if text is None:
         return np.array([])
-    fh = StringIO(text)
+    fh = BytesIO(text)
     X = np.load(fh)
     fh.close()
     return X
@@ -546,7 +547,9 @@ class ClosestPairFinder(object):
     each SSE. The array values are normalized such that the average of
     of each of the columns is 1.0.
 
-    @ivar Nc: The number of columns, SSE + parameter values.
+    @ivar Nr: The number of rows in I{X}.
+    
+    @ivar Nc: The number of columns in I{X}, SSE + parameter values.
 
     @ivar X: My Numpy 1-D array having up to I{Nr} active rows and
         exactly I{Nc} columns of SSE+values combinations.
@@ -559,6 +562,9 @@ class ClosestPairFinder(object):
 
     @ivar K: A set of indices to the active rows in I{X}.
 
+    @ivar Kn: A set of the indices that have never been in the
+        population.
+    
     @cvar Np_max: The maximum number of row pairs to examine for
         differences in L{__call__}.
 
@@ -579,26 +585,6 @@ class ClosestPairFinder(object):
         self.Nc = Nc
         self.X = np.empty((Nr, Nc))
         self.clear()
-
-    @property
-    def q(self):
-        """
-        Property: An instance of L{ProcessQueue} with a single worker
-        dedicated to dealing with my I{history} object.
-
-        Whenever a new queue instance is constructed, a system event
-        trigger is added to shut it down before the reactor shuts
-        down.
-        """
-        def shutdown():
-            return q.shutdown().addCallback(
-                lambda _: setattr(self, '_q', None))
-        if self._q is None:
-            q = ProcessQueue(1, returnFailure=True)
-            triggerID = reactor.addSystemEventTrigger(
-                'before', 'shutdown', shutdown)
-            self._q = [q, triggerID]
-        return self._q[0]
         
     def clear(self):
         """
@@ -623,8 +609,8 @@ class ClosestPairFinder(object):
 
         @keyword neverInPop: Set C{True} to indicate that this
             SSE+value was never in the population and thus should be
-            less more to be bumped in favor of a newcomer during size
-            limiting.
+            more likely to be bumped in favor of a newcomer during
+            size limiting.
         """
         if not np.all(np.isfinite(Z)):
             raise ValueError("Non-finite value in Z")
@@ -679,25 +665,43 @@ class ClosestPairFinder(object):
         columns, where I{N} is the length of my I{K} set of row indices.
         """
         K1, K2 = np.meshgrid(list(self.K), list(self.K), indexing='ij')
-        K12 = np.column_stack([K1.flatten(), K2.flatten()])
+        K12 = np.column_stack([K1.flatten(), K2.flatten()]).astype(int)
         return K12[np.flatnonzero(K12[:,1] > K12[:,0])]
 
-    def calcerator(self, K, Nr, Np):
+    def calcerator(self, Nr, Np, K=None):
         """
-        Iterates over computationally intensive chunks of processing.
+        Does the calculation of most expendable row index for L{calculate}
+        in Twisted-friendly fashion, iterating over computationally
+        intensive chunks of processing.
 
-        B{TODO}: Figure out how to run in a separate process
-        (currently stuck on defer.cancel not having a qualname and
-        thus not being picklable), or put code into a traditional
-        non-Twisted form and use a ThreadQueue.
+        If I{K} is specified (only for unit testing), the result is
+        the 1-D array of differences I{D} (local), properly scaled
+        (see below). Otherwise, the result is the row index with the
+        smallest difference. In either case, my I{result} L{Bag}
+        contains the result.
+
+        The I{D} vector is scaled down by mean SSE to favor lower-SSE
+        history. If the history comes to have more never-population
+        records than those that have been in the population, elements
+        of I{D} corresponding to pairs where the first item in the
+        pair was never in the population are scaled down
+        dramatically. The purpose of that is to keep a substantial
+        fraction of the non-population history reserved for those who
+        once were in the population.
         """
         if K is None:
+            # Normal usage, calculate K1 from all (if Nr small enough)
+            # or a sampling of pairs
             if Nr*(Nr-1)/2 < Np:
                 K1 = self.pairs_all()
             else: K1 = self.pairs_sampled(Np)
             yield
-        else: K1 = K
+        else:
+            # Unit testing only
+            K1 = K
         if self.S is None:
+            # (One time) calculate my S array of differences between
+            # SSE+values
             XK = self.X[list(self.K),:]
             self.S = 1.0 / (np.var(XK, axis=0) + 1E-20)
             yield
@@ -726,7 +730,7 @@ class ClosestPairFinder(object):
         # have been in the population
         N_neverpop = len(self.Kn)
         if N_neverpop:
-            Kn_penalty = 1 + np.exp(12*(N_neverpop/len(D) - 0.4))
+            Kn_penalty = 1 + np.exp(12*(np.floor(N_neverpop/len(D)) - 0.4))
             D /= np.choose(penalize, [1, Kn_penalty])
         yield
         if K is None:
@@ -737,9 +741,19 @@ class ClosestPairFinder(object):
     def done(self, null):
         return self.result()
 
-    def calculate(self, K, Nr, Np):
+    def calculate(self, Nr, Np, K=None):
+        """
+        Calculates the most expendable row index in my I{X} array.
+
+        I{Nr} is the number of rows addressed in my I{K} row index
+        array and I{Np} is the maximum number of pair to examine. The
+        optional I{K} array is for unit testing only.
+
+        Returns a C{Deferred} the fires with the most expendable row
+        index.
+        """
         self.result = Bag()
-        d = task.cooperate(self.calcerator(K, Nr, Np)).whenDone()
+        d = task.cooperate(self.calcerator(Nr, Np, K)).whenDone()
         d.addCallback(self.done)
         return d
     
@@ -776,12 +790,12 @@ class ClosestPairFinder(object):
             pairs of row indices, and the C{Deferred} will fire with
             just the sum-of-squares difference between each pair.
         """
+        # The number of active rows
         Nr = len(self.K)
         if Nr == 1:
             return defer.succeed(list(self.K)[0])
         if Np is None: Np = self.Np_max
-        #return self.q.call(self.calculate, K, Nr, Np)
-        return self.calculate(K, Nr, Np)
+        return self.calculate(Nr, Np, K)
 
 
 class History(object):
@@ -837,10 +851,10 @@ class History(object):
             'names': self.names,
             'N_max': self.N_max,
             'N_total': self.N_total,
-            'X': seq2str(self.X),
-            'K': seq2str(self.K, 'u2'),
-            'Kp': seq2str(list(self.Kp), 'u2'),
-            'Kn': seq2str(list(self.Kn), 'u2'),
+            'X': seq2bytes(self.X),
+            'K': seq2bytes(self.K, 'u2'),
+            'Kp': seq2bytes(list(self.Kp), 'u2'),
+            'Kn': seq2bytes(list(self.Kn), 'u2'),
             'kr': self.kr,
         }
     
@@ -851,10 +865,10 @@ class History(object):
         self.names = state['names']
         self.N_max = state['N_max']
         self.N_total = state['N_total']
-        self.X = str2array(state, 'X')
-        self.K = list(str2array(state, 'K'))
-        self.Kp = set(str2array(state, 'Kp'))
-        self.Kn = set(str2array(state, 'Kn'))
+        self.X = bytes2array(state, 'X')
+        self.K = list(bytes2array(state, 'K'))
+        self.Kp = set(bytes2array(state, 'Kp'))
+        self.Kn = set(bytes2array(state, 'Kn'))
         self.kr = state['kr']
         self._initialize()
 
@@ -1080,7 +1094,10 @@ class History(object):
         from being considered part of the current population.
         """
         def gotLock():
-            if isinstance(x, int):
+            if isinstance(x, (int, np.int64)):
+                # This was tricky to find; sometimes shows up as int,
+                # sometimes as np.int64, and Py3 distinguishes between
+                # them
                 kr = x
             else:
                 # Must be an Individual
