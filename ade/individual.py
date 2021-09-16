@@ -31,7 +31,7 @@ L{Population} set up a population full of them, and have
 L{DifferentialEvolution} create challengers as it does its thing.
 """
 
-import random, pickle, time
+import random, pickle, time, struct
 
 import numpy as np
 from twisted.internet import defer, task
@@ -187,7 +187,8 @@ class Individual(object):
         return SSE >= 0
 
     def __hash__(self):
-        return hash(bytes(self.SSE) + self.values.tobytes())
+        return hash(
+            struct.pack('<f', self.SSE) + np.array(self.values).tobytes())
     
     def __eq__(self, other):
         """

@@ -418,7 +418,7 @@ class Population(object):
         self.pm = ParameterManager(names, bounds, constraints)
         self.reporter = Reporter(self, complaintCallback)
         self.clear()
-        if popsize: self.popsize = popsize
+        if popsize: self.popsize = int(popsize)
         self.Np = max([
             self.Np_min, min([self.popsize * self.Nd, self.Np_max])])
         self.statusQuoScore = self.targetFraction * self.Np
