@@ -67,6 +67,13 @@ class TestIndividual(tb.TestCase):
         i[1] = 3.14
         self.assertEqual(i[1], 3.14)
 
+    def test_equals_not(self):
+        i0 = self.spawn([0.0, 0.0])
+        i1 = self.spawn([0.0, 1.0])
+        self.assertFalse(i0.equals(i1))
+        self.assertFalse(i1.equals(i0))
+        self.assertFalse(i0 == i1)
+
     def test_iterate(self):
         values = [10, 20]
         i = self.spawn()

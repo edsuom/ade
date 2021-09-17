@@ -168,7 +168,7 @@ class MockIndividual(object):
             struct.pack('<f', self.SSE) + np.array(self.values).tobytes())
     
     def __eq__(self, other):
-        return self.SSE == other.SSE
+        return (self.SSE == other.SSE) and self.equals(other)
     
     def equals(self, other):
         if hasattr(other, 'values'):

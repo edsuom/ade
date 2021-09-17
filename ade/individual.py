@@ -195,7 +195,7 @@ class Individual(object):
         I am equal to another C{Individual} if we have the same SSE and
         values.
         """
-        return self.SSE == other.SSE and self.equals(other)
+        return (self.SSE == other.SSE) and self.equals(other)
 
     def equals(self, other):
         """
